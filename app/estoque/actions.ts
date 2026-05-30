@@ -82,3 +82,8 @@ Regras:
 
   redirect('/estoque/novo')
 }
+
+export async function clearScanCookie() {
+  const cookieStore = await cookies()
+  cookieStore.delete('scan_result')
+}

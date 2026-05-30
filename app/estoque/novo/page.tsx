@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import EstoqueFormPage from '../_components/EstoqueFormPage'
+import ClearScanCookie from '../_components/ClearScanCookie'
 import type { ScanData } from '../actions'
 
 export default async function NovoEstoquePage() {
@@ -12,9 +13,10 @@ export default async function NovoEstoquePage() {
   const cookieStore = await cookies()
   const raw = cookieStore.get('scan_result')?.value
   const scanData: ScanData | null = raw ? JSON.parse(raw) : null
-  if (raw) cookieStore.delete('scan_result')
 
   return (
+    <>
+    {raw && <ClearScanCookie />}
     <EstoqueFormPage
       user={{ id: user.id, email: user.email ?? '' }}
       scanParams={scanData ? {
@@ -26,5 +28,6 @@ export default async function NovoEstoquePage() {
         preco_custo: scanData.preco_custo != null ? String(scanData.preco_custo) : undefined,
       } : undefined}
     />
+    </>
   )
 }
