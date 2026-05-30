@@ -181,13 +181,15 @@ export default function EstoqueFormPage({
   async function handleScanImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
     const overlay = document.getElementById('scan-loading-overlay')
     if (overlay) overlay.style.display = 'flex'
     try {
       const base64 = await resizeToBase64(file)
       const fd = new FormData()
       fd.set('imagem_b64', base64)
-      fd.set('media_type', file.type || 'image/jpeg')
+      fd.set('media_type', 'image/jpeg') // canvas.toDataURL always produces JPEG
       await processarEtiqueta(fd)
     } catch {
       if (overlay) overlay.style.display = 'none'
@@ -197,23 +199,38 @@ export default function EstoqueFormPage({
 
   function resizeToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
-      const MAX = 1024
-      const img = new Image()
-      const url = URL.createObjectURL(file)
-      img.onload = () => {
-        URL.revokeObjectURL(url)
-        let { width, height } = img
-        if (width > MAX || height > MAX) {
-          if (width >= height) { height = Math.round(height * MAX / width); width = MAX }
-          else                 { width = Math.round(width * MAX / height); height = MAX }
+      // FileReader is more reliable than createObjectURL on iOS Safari
+      const reader = new FileReader()
+      reader.onerror = () => reject(new Error('Falha ao ler arquivo'))
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string
+        if (!dataUrl) { reject(new Error('Arquivo vazio')); return }
+        const img = new Image()
+        img.onerror = () => reject(new Error('Falha ao decodificar imagem'))
+        img.onload = () => {
+          try {
+            const MAX = 1024
+            let { width, height } = img
+            if (width > MAX || height > MAX) {
+              if (width >= height) { height = Math.round(height * MAX / width); width = MAX }
+              else                 { width = Math.round(width * MAX / height); height = MAX }
+            }
+            const canvas = document.createElement('canvas')
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')
+            if (!ctx) { reject(new Error('Canvas indisponível')); return }
+            ctx.drawImage(img, 0, 0, width, height)
+            const result = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
+            if (!result) { reject(new Error('Conversão falhou')); return }
+            resolve(result)
+          } catch (err) {
+            reject(err)
+          }
         }
-        const canvas = document.createElement('canvas')
-        canvas.width = width; canvas.height = height
-        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1])
+        img.src = dataUrl
       }
-      img.onerror = () => reject(new Error('Falha ao carregar imagem'))
-      img.src = url
+      reader.readAsDataURL(file)
     })
   }
 
