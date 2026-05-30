@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { processarEtiqueta } from '../actions'
 
 function applyParamsToForm(base: FormState, sp: Record<string, string | undefined>): FormState {
   const next = { ...base }
@@ -134,6 +133,7 @@ export default function EstoqueFormPage({
     hasScanParams ? applyParamsToForm(toFormState(produto), scanParams!) : toFormState(produto)
   )
   const [saving, setSaving] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'loading' } | null>(null)
 
@@ -181,57 +181,78 @@ export default function EstoqueFormPage({
   async function handleScanImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    // Reset input so the same file can be re-selected
     e.target.value = ''
-    const overlay = document.getElementById('scan-loading-overlay')
-    if (overlay) overlay.style.display = 'flex'
+    setScanning(true)
     try {
       const base64 = await resizeToBase64(file)
-      const fd = new FormData()
-      fd.set('imagem_b64', base64)
-      fd.set('media_type', 'image/jpeg') // canvas.toDataURL always produces JPEG
-      await processarEtiqueta(fd)
+      const res = await fetch('/api/scan-label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mediaType: 'image/jpeg' }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setForm(f => applyParamsToForm(f, {
+        nome:        data.nome        ?? undefined,
+        marca:       data.marca       ?? undefined,
+        categoria:   data.categoria   ?? undefined,
+        tamanho:     data.tamanho     ?? undefined,
+        preco_venda: data.preco_venda != null ? String(data.preco_venda) : undefined,
+        preco_custo: data.preco_custo != null ? String(data.preco_custo) : undefined,
+      }))
+      showToast('Etiqueta escaneada com sucesso!')
     } catch {
-      if (overlay) overlay.style.display = 'none'
-      showToast('Erro ao preparar imagem', 'error')
+      showToast('Erro ao escanear etiqueta', 'error')
+    } finally {
+      setScanning(false)
     }
   }
 
-  function resizeToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      // FileReader is more reliable than createObjectURL on iOS Safari
-      const reader = new FileReader()
-      reader.onerror = () => reject(new Error('Falha ao ler arquivo'))
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string
-        if (!dataUrl) { reject(new Error('Arquivo vazio')); return }
-        const img = new Image()
-        img.onerror = () => reject(new Error('Falha ao decodificar imagem'))
-        img.onload = () => {
-          try {
-            const MAX = 1024
-            let { width, height } = img
-            if (width > MAX || height > MAX) {
-              if (width >= height) { height = Math.round(height * MAX / width); width = MAX }
-              else                 { width = Math.round(width * MAX / height); height = MAX }
-            }
-            const canvas = document.createElement('canvas')
-            canvas.width = width
-            canvas.height = height
-            const ctx = canvas.getContext('2d')
-            if (!ctx) { reject(new Error('Canvas indisponível')); return }
-            ctx.drawImage(img, 0, 0, width, height)
-            const result = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
-            if (!result) { reject(new Error('Conversão falhou')); return }
-            resolve(result)
-          } catch (err) {
-            reject(err)
-          }
-        }
-        img.src = dataUrl
+  async function resizeToBase64(file: File): Promise<string> {
+    const MAX = 1024
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas indisponível')
+
+    if (typeof createImageBitmap !== 'undefined') {
+      // createImageBitmap: decodifica sem copiar o arquivo para memória como string.
+      // Suporta HEIC no iOS 15+ e é mais confiável que Image+FileReader.
+      const bitmap = await createImageBitmap(file)
+      let { width, height } = bitmap
+      if (width > MAX || height > MAX) {
+        if (width >= height) { height = Math.round(height * MAX / width); width = MAX }
+        else                 { width = Math.round(width * MAX / height); height = MAX }
       }
-      reader.readAsDataURL(file)
-    })
+      canvas.width = width
+      canvas.height = height
+      ctx.drawImage(bitmap, 0, 0, width, height)
+      bitmap.close()
+    } else {
+      // Fallback para iOS 14 e anteriores: createObjectURL evita duplicar o
+      // arquivo em memória (ao contrário de FileReader.readAsDataURL).
+      await new Promise<void>((resolve, reject) => {
+        const url = URL.createObjectURL(file)
+        const img = new Image()
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao carregar imagem')) }
+        img.onload = () => {
+          let { width, height } = img
+          if (width > MAX || height > MAX) {
+            if (width >= height) { height = Math.round(height * MAX / width); width = MAX }
+            else                 { width = Math.round(width * MAX / height); height = MAX }
+          }
+          canvas.width = width
+          canvas.height = height
+          ctx.drawImage(img, 0, 0, width, height)
+          URL.revokeObjectURL(url)
+          resolve()
+        }
+        img.src = url
+      })
+    }
+
+    const result = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
+    if (!result) throw new Error('Conversão falhou')
+    return result
   }
 
   async function handleSave() {
@@ -461,12 +482,7 @@ export default function EstoqueFormPage({
         </div>
       </main>
 
-      {/* Loading overlay controlado via DOM (style direto), sem React state — iOS safe */}
-      <div
-        id="scan-loading-overlay"
-        style={{ display: 'none' }}
-        className="fixed inset-0 z-[999] bg-[#09090b]/95 flex flex-col items-center justify-center gap-6"
-      >
+      {scanning && <div className="fixed inset-0 z-[999] bg-[#09090b]/95 flex flex-col items-center justify-center gap-6">
         <div className="relative w-16 h-16">
           <div className="absolute inset-0 rounded-full border-4 border-zinc-800"/>
           <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-violet-500 animate-spin"/>
@@ -484,7 +500,7 @@ export default function EstoqueFormPage({
           </div>
           Claude Vision
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
