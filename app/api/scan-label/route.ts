@@ -44,15 +44,22 @@ export async function POST(request: NextRequest) {
             text: `Analise esta imagem de etiqueta de produto de uma loja de roupas masculinas. Extraia as informações e retorne SOMENTE um JSON válido, sem markdown, sem explicação extra.
 
 Formato exato:
-{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null}
+{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null}
 
-Regras:
+Regras gerais:
 - "categoria" deve ser exatamente: "camiseta", "calca", "tenis" ou "outros"
 - "tamanho": string com o tamanho identificado (ex: "M", "G", "42") ou null
 - "preco_venda" e "preco_custo": número (ex: 89.90) ou null — sem R$
 - Se houver só um preço, use preco_venda
 - "nome" em português, capitalizado (ex: "Camiseta Básica", "Calça Jeans Slim")
-- Se não encontrar algo, use null`,
+- Se não encontrar algo, use null
+
+Regras para "codigo_produto" (código de referência / SKU):
+- Procure por prefixos como "REF:", "REF.:", "REF ", "Ref.", "COD:", "COD.", "SKU:", "Art.", "ART.", "Cód.", "Código:"
+- Também pode aparecer como código alfanumérico isolado próximo ao topo ou ao código de barras (ex: "ABC-1234", "12345-01", "TN-042-P")
+- Ignore sequências numéricas longas (8+ dígitos) que são código de barras EAN/UPC
+- Retorne apenas o valor, sem o prefixo — ex: "123456" e não "REF: 123456"
+- Se houver ambiguidade entre dois possíveis códigos, prefira o mais curto e alfanumérico`,
           },
         ],
       },

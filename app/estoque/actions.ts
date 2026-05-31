@@ -14,6 +14,7 @@ export type ScanData = {
   tamanho: string | null
   preco_venda: number | null
   preco_custo: number | null
+  codigo_produto: string | null
 }
 
 export async function processarEtiqueta(formData: FormData) {
@@ -49,14 +50,21 @@ export async function processarEtiqueta(formData: FormData) {
               text: `Analise esta etiqueta de produto de uma loja de roupas masculinas. Retorne SOMENTE um JSON válido, sem markdown.
 
 Formato exato:
-{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null}
+{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null}
 
-Regras:
+Regras gerais:
 - "categoria": exatamente "camiseta", "calca", "tenis" ou "outros"
 - "tamanho": string (ex: "M", "G", "42") ou null
 - preços: número (ex: 89.90) ou null — sem R$
 - Se um preço, usar preco_venda
-- "nome" em português capitalizado`,
+- "nome" em português capitalizado
+
+Regras para "codigo_produto" (código de referência / SKU):
+- Procure por prefixos como "REF:", "REF.:", "REF ", "Ref.", "COD:", "COD.", "SKU:", "Art.", "ART.", "Cód.", "Código:"
+- Também pode aparecer como código alfanumérico isolado próximo ao topo ou ao código de barras (ex: "ABC-1234", "12345-01", "TN-042-P")
+- Ignore sequências numéricas longas (8+ dígitos) que são código de barras EAN/UPC
+- Retorne apenas o valor, sem o prefixo — ex: "123456" e não "REF: 123456"
+- Se houver ambiguidade entre dois possíveis códigos, prefira o mais curto e alfanumérico`,
             },
           ],
         },

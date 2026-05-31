@@ -16,8 +16,9 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
     if (sp.tamanho && cat !== 'outros' && SIZE_OPTIONS[cat].includes(sp.tamanho))
       next.tamanhos = [{ tamanho: sp.tamanho, qtd: 1 }]
   }
-  if (sp.preco_venda) next.preco_venda = sp.preco_venda
-  if (sp.preco_custo) next.preco_custo = sp.preco_custo
+  if (sp.preco_venda)    next.preco_venda    = sp.preco_venda
+  if (sp.preco_custo)    next.preco_custo    = sp.preco_custo
+  if (sp.codigo_produto) next.codigo_produto = sp.codigo_produto
   return next
 }
 import { createClient } from '@/lib/supabase/client'
@@ -210,12 +211,13 @@ export default function EstoqueFormPage({
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setForm(f => applyParamsToForm(f, {
-        nome:        data.nome        ?? undefined,
-        marca:       data.marca       ?? undefined,
-        categoria:   data.categoria   ?? undefined,
-        tamanho:     data.tamanho     ?? undefined,
-        preco_venda: data.preco_venda != null ? String(data.preco_venda) : undefined,
-        preco_custo: data.preco_custo != null ? String(data.preco_custo) : undefined,
+        nome:           data.nome           ?? undefined,
+        marca:          data.marca          ?? undefined,
+        categoria:      data.categoria      ?? undefined,
+        tamanho:        data.tamanho        ?? undefined,
+        preco_venda:    data.preco_venda    != null ? String(data.preco_venda) : undefined,
+        preco_custo:    data.preco_custo    != null ? String(data.preco_custo) : undefined,
+        codigo_produto: data.codigo_produto ?? undefined,
       }))
       showToast('Etiqueta escaneada com sucesso!')
     } catch {
