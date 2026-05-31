@@ -29,11 +29,18 @@ import type { Produto, TamanhoQtd } from '../types'
 type FormState = {
   nome: string
   marca: string
+  codigo_produto: string
   categoria: Produto['categoria'] | ''
   tamanhos: TamanhoQtd[]
   qtd_outros: string
   preco_custo: string
   preco_venda: string
+  ncm: string
+  cfop: string
+  icms: string
+  pis: string
+  cofins: string
+  cest: string
 }
 
 
@@ -81,16 +88,25 @@ function totalQtd(tamanhos: TamanhoQtd[]) {
   return tamanhos.reduce((s, t) => s + t.qtd, 0)
 }
 
+const EMPTY_TRIBUTOS = { ncm: '', cfop: '', icms: '', pis: '', cofins: '', cest: '' }
+
 function toFormState(p?: Produto): FormState {
-  if (!p) return { nome: '', marca: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '' }
+  if (!p) return { nome: '', marca: '', codigo_produto: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
   return {
     nome: p.nome,
     marca: p.marca ?? '',
+    codigo_produto: p.codigo_produto ?? '',
     categoria: p.categoria,
     tamanhos: p.categoria !== 'outros' ? (p.tamanhos ?? []) : [],
     qtd_outros: p.categoria === 'outros' ? String(p.tamanhos.reduce((s, t) => s + t.qtd, 0)) : '0',
     preco_custo: p.preco_custo != null ? String(p.preco_custo) : '',
     preco_venda: p.preco_venda != null ? String(p.preco_venda) : '',
+    ncm: p.ncm ?? '',
+    cfop: p.cfop ?? '',
+    icms: p.icms ?? '',
+    pis: p.pis ?? '',
+    cofins: p.cofins ?? '',
+    cest: p.cest ?? '',
   }
 }
 
@@ -136,6 +152,7 @@ export default function EstoqueFormPage({
   const [scanning, setScanning] = useState(false)
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'loading' } | null>(null)
+  const [activeTab, setActiveTab] = useState<'principal' | 'tributos'>('principal')
 
 
   useEffect(() => {
@@ -267,10 +284,17 @@ export default function EstoqueFormPage({
     const payload = {
       nome: form.nome.trim(),
       marca: form.marca.trim() || null,
+      codigo_produto: form.codigo_produto.trim() || null,
       categoria: form.categoria,
       tamanhos: tamanhosFinal,
       preco_custo: form.preco_custo ? Number(form.preco_custo) : null,
       preco_venda: form.preco_venda ? Number(form.preco_venda) : null,
+      ncm: form.ncm.trim() || null,
+      cfop: form.cfop.trim() || null,
+      icms: form.icms.trim() || null,
+      pis: form.pis.trim() || null,
+      cofins: form.cofins.trim() || null,
+      cest: form.cest.trim() || null,
     }
 
     const { error } = produto
@@ -367,98 +391,154 @@ export default function EstoqueFormPage({
             </label>
           </div>
 
-          <div className="border-t border-zinc-800/60" />
-
-          {/* Nome + Marca */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Nome *">
-              <input type="text" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} placeholder="Nome do produto" className={INPUT} />
-            </Field>
-            <Field label="Marca">
-              <input type="text" value={form.marca} onChange={e => setForm(f => ({...f, marca: e.target.value}))} placeholder="Nike, Adidas..." className={INPUT} />
-            </Field>
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 bg-zinc-800/60 border border-zinc-700/60 rounded-xl">
+            {(['principal', 'tributos'] as const).map(tab => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg transition cursor-pointer ${
+                  activeTab === tab
+                    ? 'bg-zinc-700 text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {tab === 'principal' ? 'Principal' : 'Tributos'}
+              </button>
+            ))}
           </div>
 
-          {/* Categoria */}
-          <Field label="Categoria *">
-            <div className="grid grid-cols-4 gap-2">
-              {(['camiseta', 'calca', 'tenis', 'outros'] as Produto['categoria'][]).map(cat => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => handleCategoriaChange(cat)}
-                  className={`py-2.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
-                    form.categoria === cat
-                      ? `${CAT_COLOR[cat]} border-current`
-                      : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-500 hover:text-white'
-                  }`}
-                >
-                  {CAT_LABEL[cat]}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {/* Tamanhos */}
-          {form.categoria && form.categoria !== 'outros' && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-zinc-300">Tamanhos disponíveis</label>
-                <span className="text-xs text-zinc-500">{form.tamanhos.length} selecionado{form.tamanhos.length !== 1 ? 's' : ''} · {totalQtd(form.tamanhos)} peças</span>
+          {/* ── Tab: Principal ── */}
+          {activeTab === 'principal' && (
+            <>
+              {/* Nome + Marca */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Nome *">
+                  <input type="text" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} placeholder="Nome do produto" className={INPUT} />
+                </Field>
+                <Field label="Marca">
+                  <input type="text" value={form.marca} onChange={e => setForm(f => ({...f, marca: e.target.value}))} placeholder="Nike, Adidas..." className={INPUT} />
+                </Field>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {sizeOptions.map(size => {
-                  const item = form.tamanhos.find(t => t.tamanho === size)
-                  return item ? (
-                    <div key={size} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 border border-violet-500/60 bg-violet-500/10 rounded-lg">
-                      <span className="text-sm font-semibold text-violet-200">{size}</span>
-                      <input
-                        type="number" min="0" value={item.qtd}
-                        onChange={e => setTamanhoQtd(size, Number(e.target.value))}
-                        onClick={e => e.stopPropagation()}
-                        className="w-12 text-center bg-zinc-800 border border-zinc-600 rounded text-sm py-0.5 outline-none focus:border-violet-400 text-white"
-                      />
-                      <button onClick={() => toggleTamanho(size)} className="p-0.5 text-zinc-500 hover:text-red-400 transition cursor-pointer"><IconX size={13}/></button>
-                    </div>
-                  ) : (
-                    <button key={size} onClick={() => toggleTamanho(size)} className="px-4 py-2 border border-zinc-700 bg-zinc-800/50 hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg text-sm transition cursor-pointer">
-                      {size}
+
+              {/* Código do produto */}
+              <Field label="Código do produto">
+                <input type="text" value={form.codigo_produto} onChange={e => setForm(f => ({...f, codigo_produto: e.target.value}))} placeholder="SKU, código interno..." className={INPUT} />
+              </Field>
+
+              {/* Categoria */}
+              <Field label="Categoria *">
+                <div className="grid grid-cols-4 gap-2">
+                  {(['camiseta', 'calca', 'tenis', 'outros'] as Produto['categoria'][]).map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleCategoriaChange(cat)}
+                      className={`py-2.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
+                        form.categoria === cat
+                          ? `${CAT_COLOR[cat]} border-current`
+                          : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-500 hover:text-white'
+                      }`}
+                    >
+                      {CAT_LABEL[cat]}
                     </button>
-                  )
-                })}
+                  ))}
+                </div>
+              </Field>
+
+              {/* Tamanhos */}
+              {form.categoria && form.categoria !== 'outros' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-zinc-300">Tamanhos disponíveis</label>
+                    <span className="text-xs text-zinc-500">{form.tamanhos.length} selecionado{form.tamanhos.length !== 1 ? 's' : ''} · {totalQtd(form.tamanhos)} peças</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sizeOptions.map(size => {
+                      const item = form.tamanhos.find(t => t.tamanho === size)
+                      return item ? (
+                        <div key={size} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 border border-violet-500/60 bg-violet-500/10 rounded-lg">
+                          <span className="text-sm font-semibold text-violet-200">{size}</span>
+                          <input
+                            type="number" min="0" value={item.qtd}
+                            onChange={e => setTamanhoQtd(size, Number(e.target.value))}
+                            onClick={e => e.stopPropagation()}
+                            className="w-12 text-center bg-zinc-800 border border-zinc-600 rounded text-sm py-0.5 outline-none focus:border-violet-400 text-white"
+                          />
+                          <button onClick={() => toggleTamanho(size)} className="p-0.5 text-zinc-500 hover:text-red-400 transition cursor-pointer"><IconX size={13}/></button>
+                        </div>
+                      ) : (
+                        <button key={size} onClick={() => toggleTamanho(size)} className="px-4 py-2 border border-zinc-700 bg-zinc-800/50 hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg text-sm transition cursor-pointer">
+                          {size}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-zinc-600">Clique num tamanho para adicionar, depois defina a quantidade</p>
+                </div>
+              )}
+
+              {/* Quantidade — outros */}
+              {form.categoria === 'outros' && (
+                <Field label="Quantidade em estoque">
+                  <input type="number" min="0" value={form.qtd_outros} onChange={e => setForm(f => ({...f, qtd_outros: e.target.value}))} placeholder="0" className={INPUT} />
+                </Field>
+              )}
+
+              {/* Preços */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Preço de Custo (R$)">
+                  <input type="number" min="0" step="0.01" value={form.preco_custo} onChange={e => setForm(f => ({...f, preco_custo: e.target.value}))} placeholder="0,00" className={INPUT} />
+                </Field>
+                <Field label="Preço de Venda (R$)">
+                  <input type="number" min="0" step="0.01" value={form.preco_venda} onChange={e => setForm(f => ({...f, preco_venda: e.target.value}))} placeholder="0,00" className={INPUT} />
+                </Field>
               </div>
-              <p className="text-xs text-zinc-600">Clique num tamanho para adicionar, depois defina a quantidade</p>
-            </div>
+
+              {/* Margem preview */}
+              {form.preco_custo && form.preco_venda && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-zinc-800/50 border border-zinc-700 rounded-lg text-sm">
+                  <span className="text-zinc-400">Margem de lucro:</span>
+                  <span className={`font-semibold ${
+                    Number(calcMargem(Number(form.preco_custo), Number(form.preco_venda))) >= 50 ? 'text-emerald-400' :
+                    Number(calcMargem(Number(form.preco_custo), Number(form.preco_venda))) >= 20 ? 'text-amber-400' : 'text-red-400'
+                  }`}>
+                    {calcMargem(Number(form.preco_custo), Number(form.preco_venda))}%
+                  </span>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Quantidade — outros */}
-          {form.categoria === 'outros' && (
-            <Field label="Quantidade em estoque">
-              <input type="number" min="0" value={form.qtd_outros} onChange={e => setForm(f => ({...f, qtd_outros: e.target.value}))} placeholder="0" className={INPUT} />
-            </Field>
-          )}
-
-          {/* Preços */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Preço de Custo (R$)">
-              <input type="number" min="0" step="0.01" value={form.preco_custo} onChange={e => setForm(f => ({...f, preco_custo: e.target.value}))} placeholder="0,00" className={INPUT} />
-            </Field>
-            <Field label="Preço de Venda (R$)">
-              <input type="number" min="0" step="0.01" value={form.preco_venda} onChange={e => setForm(f => ({...f, preco_venda: e.target.value}))} placeholder="0,00" className={INPUT} />
-            </Field>
-          </div>
-
-          {/* Margem preview */}
-          {form.preco_custo && form.preco_venda && (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-zinc-800/50 border border-zinc-700 rounded-lg text-sm">
-              <span className="text-zinc-400">Margem de lucro:</span>
-              <span className={`font-semibold ${
-                Number(calcMargem(Number(form.preco_custo), Number(form.preco_venda))) >= 50 ? 'text-emerald-400' :
-                Number(calcMargem(Number(form.preco_custo), Number(form.preco_venda))) >= 20 ? 'text-amber-400' : 'text-red-400'
-              }`}>
-                {calcMargem(Number(form.preco_custo), Number(form.preco_venda))}%
-              </span>
-            </div>
+          {/* ── Tab: Tributos ── */}
+          {activeTab === 'tributos' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="NCM">
+                  <input type="text" value={form.ncm} onChange={e => setForm(f => ({...f, ncm: e.target.value}))} placeholder="00000000" maxLength={8} className={INPUT} />
+                </Field>
+                <Field label="CFOP">
+                  <input type="text" value={form.cfop} onChange={e => setForm(f => ({...f, cfop: e.target.value}))} placeholder="0000" maxLength={4} className={INPUT} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="ICMS">
+                  <input type="text" value={form.icms} onChange={e => setForm(f => ({...f, icms: e.target.value}))} placeholder="CST / alíquota" className={INPUT} />
+                </Field>
+                <Field label="CEST">
+                  <input type="text" value={form.cest} onChange={e => setForm(f => ({...f, cest: e.target.value}))} placeholder="0000000" maxLength={7} className={INPUT} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="PIS">
+                  <input type="text" value={form.pis} onChange={e => setForm(f => ({...f, pis: e.target.value}))} placeholder="CST / alíquota" className={INPUT} />
+                </Field>
+                <Field label="COFINS">
+                  <input type="text" value={form.cofins} onChange={e => setForm(f => ({...f, cofins: e.target.value}))} placeholder="CST / alíquota" className={INPUT} />
+                </Field>
+              </div>
+            </>
           )}
 
           {formError && (
