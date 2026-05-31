@@ -54,7 +54,7 @@ Formato exato:
 {"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
 
 Regras gerais:
-- "categoria": exatamente "camiseta", "calca", "tenis" ou "outros"
+- "categoria": exatamente "camiseta", "regata", "calca", "tenis" ou "outros"
 - "tamanho": string (ex: "M", "G", "42") ou null
 - preços: número (ex: 89.90) ou null — sem R$
 - Preencha preços SOMENTE se o valor estiver explicitamente impresso na etiqueta; se não encontrar, use null — nunca estime nem infira preços

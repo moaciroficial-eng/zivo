@@ -17,6 +17,7 @@ type Categoria = Produto['categoria'] | 'todos'
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta',
+  regata:   'Regata',
   calca:    'Calça',
   tenis:    'Tênis',
   outros:   'Outros',
@@ -24,6 +25,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
 
 const CAT_COLOR: Record<Produto['categoria'], string> = {
   camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
   calca:    'bg-blue-500/15 text-blue-300 border-blue-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   outros:   'bg-zinc-700/50 text-zinc-300 border-zinc-600',
