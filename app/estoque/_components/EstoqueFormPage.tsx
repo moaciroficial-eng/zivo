@@ -161,11 +161,21 @@ export default function EstoqueFormPage({
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'loading' } | null>(null)
   const [activeTab, setActiveTab] = useState<'principal' | 'tributos'>('principal')
-
+  const [marcasMap, setMarcasMap] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
+    supabase.from('marcas').select('nome, markup').then(({ data }) => {
+      if (data) setMarcasMap(new Map(data.map(m => [m.nome.toLowerCase().trim(), m.markup])))
+    })
     if (hasScanParams) showToast('Etiqueta escaneada com sucesso!')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function calcCusto(marca: string, venda: string): string {
+    const markup = marcasMap.get(marca.toLowerCase().trim())
+    const vendaNum = parseFloat(venda)
+    if (!markup || markup <= 0 || !venda || isNaN(vendaNum)) return ''
+    return String(parseFloat((vendaNum / markup).toFixed(2)))
+  }
 
   const sizeOptions = form.categoria
     ? (SIZE_OPTIONS[form.categoria as Produto['categoria']] ?? [])
@@ -429,7 +439,10 @@ export default function EstoqueFormPage({
                   <input type="text" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} placeholder="Nome do produto" className={INPUT} />
                 </Field>
                 <Field label="Marca">
-                  <input type="text" value={form.marca} onChange={e => setForm(f => ({...f, marca: e.target.value}))} placeholder="Nike, Adidas..." className={INPUT} />
+                  <input type="text" value={form.marca} onChange={e => setForm(f => {
+                    const custo = calcCusto(e.target.value, f.preco_venda)
+                    return { ...f, marca: e.target.value, ...(custo && { preco_custo: custo }) }
+                  })} placeholder="Nike, Adidas..." className={INPUT} />
                 </Field>
               </div>
 
@@ -508,7 +521,10 @@ export default function EstoqueFormPage({
                   <input type="number" min="0" step="0.01" value={form.preco_custo} onChange={e => setForm(f => ({...f, preco_custo: e.target.value}))} placeholder="0,00" className={INPUT} />
                 </Field>
                 <Field label="Preço de Venda (R$)">
-                  <input type="number" min="0" step="0.01" value={form.preco_venda} onChange={e => setForm(f => ({...f, preco_venda: e.target.value}))} placeholder="0,00" className={INPUT} />
+                  <input type="number" min="0" step="0.01" value={form.preco_venda} onChange={e => setForm(f => {
+                    const custo = calcCusto(f.marca, e.target.value)
+                    return { ...f, preco_venda: e.target.value, ...(custo && { preco_custo: custo }) }
+                  })} placeholder="0,00" className={INPUT} />
                 </Field>
               </div>
 
