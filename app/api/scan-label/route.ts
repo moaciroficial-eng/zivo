@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
             text: `Analise esta imagem de etiqueta de produto de uma loja de roupas masculinas. Extraia as informações e retorne SOMENTE um JSON válido, sem markdown, sem explicação extra.
 
 Formato exato:
-{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null}
+{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
 
 Regras gerais:
 - "categoria" deve ser exatamente: "camiseta", "calca", "tenis" ou "outros"
@@ -52,6 +52,7 @@ Regras gerais:
 - "preco_venda" e "preco_custo": número (ex: 89.90) ou null — sem R$
 - Se houver só um preço, use preco_venda
 - "nome" em português, capitalizado (ex: "Camiseta Básica", "Calça Jeans Slim")
+- "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada
 - Se não encontrar algo, use null
 
 Regras para "codigo_produto" (código de referência / SKU):

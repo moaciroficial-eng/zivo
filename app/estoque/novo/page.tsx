@@ -27,6 +27,7 @@ export default async function NovoEstoquePage() {
         preco_venda:    scanData.preco_venda    != null ? String(scanData.preco_venda)    : undefined,
         preco_custo:    scanData.preco_custo    != null ? String(scanData.preco_custo)    : undefined,
         codigo_produto: scanData.codigo_produto != null ? String(scanData.codigo_produto) : undefined,
+        cor:            scanData.cor            ?? undefined,
       } : undefined}
     />
     </>

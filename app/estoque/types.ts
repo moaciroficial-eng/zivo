@@ -6,6 +6,7 @@ export type Produto = {
   nome: string
   marca: string | null
   codigo_produto: string | null
+  cor: string | null
   categoria: 'camiseta' | 'calca' | 'tenis' | 'outros'
   tamanhos: TamanhoQtd[]
   preco_custo: number | null

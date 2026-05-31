@@ -15,6 +15,7 @@ export type ScanData = {
   preco_venda: number | null
   preco_custo: number | null
   codigo_produto: string | null
+  cor: string | null
 }
 
 export async function processarEtiqueta(formData: FormData) {
@@ -50,7 +51,7 @@ export async function processarEtiqueta(formData: FormData) {
               text: `Analise esta etiqueta de produto de uma loja de roupas masculinas. Retorne SOMENTE um JSON válido, sem markdown.
 
 Formato exato:
-{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null}
+{"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
 
 Regras gerais:
 - "categoria": exatamente "camiseta", "calca", "tenis" ou "outros"
@@ -58,6 +59,7 @@ Regras gerais:
 - preços: número (ex: 89.90) ou null — sem R$
 - Se um preço, usar preco_venda
 - "nome" em português capitalizado
+- "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada
 
 Regras para "codigo_produto" (código de referência / SKU):
 - Procure por prefixos como "REF:", "REF.:", "REF ", "Ref.", "COD:", "COD.", "SKU:", "Art.", "ART.", "Cód.", "Código:"

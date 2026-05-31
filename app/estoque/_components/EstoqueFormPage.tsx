@@ -19,6 +19,7 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
   if (sp.preco_venda)    next.preco_venda    = sp.preco_venda
   if (sp.preco_custo)    next.preco_custo    = sp.preco_custo
   if (sp.codigo_produto) next.codigo_produto = sp.codigo_produto
+  if (sp.cor)            next.cor            = sp.cor
   return next
 }
 import { createClient } from '@/lib/supabase/client'
@@ -31,6 +32,7 @@ type FormState = {
   nome: string
   marca: string
   codigo_produto: string
+  cor: string
   categoria: Produto['categoria'] | ''
   tamanhos: TamanhoQtd[]
   qtd_outros: string
@@ -93,11 +95,12 @@ function totalQtd(tamanhos: TamanhoQtd[]) {
 const EMPTY_TRIBUTOS = { ncm: '', cfop: '', icms: '', pis: '', cofins: '', cest: '' }
 
 function toFormState(p?: Produto): FormState {
-  if (!p) return { nome: '', marca: '', codigo_produto: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
+  if (!p) return { nome: '', marca: '', codigo_produto: '', cor: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
   return {
     nome: p.nome,
     marca: p.marca ?? '',
     codigo_produto: p.codigo_produto ?? '',
+    cor: p.cor ?? '',
     categoria: p.categoria,
     tamanhos: p.categoria !== 'outros' ? (p.tamanhos ?? []) : [],
     qtd_outros: p.categoria === 'outros' ? String(p.tamanhos.reduce((s, t) => s + t.qtd, 0)) : '0',
@@ -219,6 +222,7 @@ export default function EstoqueFormPage({
         preco_venda:    data.preco_venda    != null ? String(data.preco_venda) : undefined,
         preco_custo:    data.preco_custo    != null ? String(data.preco_custo) : undefined,
         codigo_produto: data.codigo_produto ?? undefined,
+        cor:            data.cor            ?? undefined,
       }))
       showToast('Etiqueta escaneada com sucesso!')
     } catch {
@@ -288,6 +292,7 @@ export default function EstoqueFormPage({
       nome: form.nome.trim(),
       marca: form.marca.trim() || null,
       codigo_produto: form.codigo_produto.trim() || null,
+      cor: form.cor.trim() || null,
       categoria: form.categoria,
       tamanhos: tamanhosFinal,
       preco_custo: form.preco_custo ? Number(form.preco_custo) : null,
@@ -425,10 +430,15 @@ export default function EstoqueFormPage({
                 </Field>
               </div>
 
-              {/* Código do produto */}
-              <Field label="Código do produto">
-                <input type="text" value={form.codigo_produto} onChange={e => setForm(f => ({...f, codigo_produto: e.target.value}))} placeholder="SKU, código interno..." className={INPUT} />
-              </Field>
+              {/* Código do produto + Cor */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Código do produto">
+                  <input type="text" value={form.codigo_produto} onChange={e => setForm(f => ({...f, codigo_produto: e.target.value}))} placeholder="SKU, código interno..." className={INPUT} />
+                </Field>
+                <Field label="Cor">
+                  <input type="text" value={form.cor} onChange={e => setForm(f => ({...f, cor: e.target.value}))} placeholder="Preto, Branco, Azul..." className={INPUT} />
+                </Field>
+              </div>
 
               {/* Categoria */}
               <Field label="Categoria *">
