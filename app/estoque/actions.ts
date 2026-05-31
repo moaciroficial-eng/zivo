@@ -59,7 +59,7 @@ Regras gerais:
 - preços: número (ex: 89.90) ou null — sem R$
 - Preencha preços SOMENTE se o valor estiver explicitamente impresso na etiqueta; se não encontrar, use null — nunca estime nem infira preços
 - "nome" em português capitalizado
-- "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada
+- "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada; se o valor encontrado for um código interno opaco (ex: "THBDS", "007", "000007", sequências alfanuméricas sem significado de cor), use null
 
 Regras para "codigo_produto" (código de referência / SKU):
 - Procure por prefixos como "REF:", "REF.:", "REF ", "Ref.", "COD:", "COD.", "SKU:", "Art.", "ART.", "Cód.", "Código:"

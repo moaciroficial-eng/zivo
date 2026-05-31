@@ -52,7 +52,7 @@ Regras gerais:
 - "preco_venda" e "preco_custo": número (ex: 89.90) ou null — sem R$
 - Preencha preços SOMENTE se o valor estiver explicitamente impresso na etiqueta; se não encontrar, use null — nunca estime nem infira preços
 - "nome" em português, capitalizado (ex: "Camiseta Básica", "Calça Jeans Slim")
-- "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada
+- "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada; se o valor encontrado for um código interno opaco (ex: "THBDS", "007", "000007", sequências alfanuméricas sem significado de cor), use null
 - Se não encontrar algo, use null
 
 Regras para "codigo_produto" (código de referência / SKU):
