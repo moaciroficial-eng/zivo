@@ -147,11 +147,12 @@ const IconCal   = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" heigh
 
 function NavBar({ user, active }: { user: { email: string }; active: 'calendario' }) {
   const links = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/clientes',  label: 'Clientes'  },
-    { href: '/vendas',    label: 'Vendas'    },
-    { href: '/calendario',label: 'Calendário'},
-    { href: '/estoque',   label: 'Estoque'   },
+    { href: '/dashboard',            label: 'Dashboard'     },
+    { href: '/clientes',             label: 'Clientes'      },
+    { href: '/vendas',               label: 'Vendas'        },
+    { href: '/calendario',           label: 'Calendário'    },
+    { href: '/estoque',              label: 'Estoque'       },
+    { href: '/configuracoes/marcas', label: 'Configurações' },
   ]
   return (
     <header className="border-b border-zinc-800 px-6 py-4">

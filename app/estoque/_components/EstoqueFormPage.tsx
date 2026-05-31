@@ -71,11 +71,12 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
 
 const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/clientes',  label: 'Clientes'  },
-  { href: '/vendas',    label: 'Vendas'    },
-  { href: '/calendario',label: 'Calendário'},
-  { href: '/estoque',   label: 'Estoque'   },
+  { href: '/dashboard',            label: 'Dashboard'     },
+  { href: '/clientes',             label: 'Clientes'      },
+  { href: '/vendas',               label: 'Vendas'        },
+  { href: '/calendario',           label: 'Calendário'    },
+  { href: '/estoque',              label: 'Estoque'       },
+  { href: '/configuracoes/marcas', label: 'Configurações' },
 ]
 
 /* ── Helpers ── */

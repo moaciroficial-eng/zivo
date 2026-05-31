@@ -20,12 +20,13 @@ export default async function NovoEstoquePage() {
     <EstoqueFormPage
       user={{ id: user.id, email: user.email ?? '' }}
       scanParams={scanData ? {
-        nome:        scanData.nome        ?? undefined,
-        marca:       scanData.marca       ?? undefined,
-        categoria:   scanData.categoria   ?? undefined,
-        tamanho:     scanData.tamanho     ?? undefined,
-        preco_venda: scanData.preco_venda != null ? String(scanData.preco_venda) : undefined,
-        preco_custo: scanData.preco_custo != null ? String(scanData.preco_custo) : undefined,
+        nome:           scanData.nome           ?? undefined,
+        marca:          scanData.marca          ?? undefined,
+        categoria:      scanData.categoria      ?? undefined,
+        tamanho:        scanData.tamanho        ?? undefined,
+        preco_venda:    scanData.preco_venda    != null ? String(scanData.preco_venda)    : undefined,
+        preco_custo:    scanData.preco_custo    != null ? String(scanData.preco_custo)    : undefined,
+        codigo_produto: scanData.codigo_produto != null ? String(scanData.codigo_produto) : undefined,
       } : undefined}
     />
     </>

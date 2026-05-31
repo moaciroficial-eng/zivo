@@ -30,11 +30,12 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
 }
 
 const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/clientes',  label: 'Clientes'  },
-  { href: '/vendas',    label: 'Vendas'    },
-  { href: '/calendario',label: 'Calendário'},
-  { href: '/estoque',   label: 'Estoque'   },
+  { href: '/dashboard',            label: 'Dashboard'     },
+  { href: '/clientes',             label: 'Clientes'      },
+  { href: '/vendas',               label: 'Vendas'        },
+  { href: '/calendario',           label: 'Calendário'    },
+  { href: '/estoque',              label: 'Estoque'       },
+  { href: '/configuracoes/marcas', label: 'Configurações' },
 ]
 
 /* ── Helpers ── */

@@ -36,7 +36,8 @@ export default async function DashboardPage() {
               <Link href="/clientes" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Clientes</Link>
               <Link href="/vendas" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Vendas</Link>
               <Link href="/calendario" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Calendário</Link>
-              <Link href="/estoque"   className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Estoque</Link>
+              <Link href="/estoque" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Estoque</Link>
+              <Link href="/configuracoes/marcas" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Configurações</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

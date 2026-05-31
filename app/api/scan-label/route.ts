@@ -75,6 +75,21 @@ Regras para "codigo_produto" (código de referência / SKU):
 
   try {
     const data = JSON.parse(jsonMatch[0])
+
+    // Se a IA identificou a marca e não há preco_custo, busca o markup cadastrado
+    if (data.marca && data.preco_venda != null && data.preco_custo == null) {
+      const { data: marca } = await supabase
+        .from('marcas')
+        .select('markup')
+        .eq('user_id', user.id)
+        .ilike('nome', data.marca)
+        .maybeSingle()
+
+      if (marca && marca.markup > 0) {
+        data.preco_custo = parseFloat((data.preco_venda / marca.markup).toFixed(2))
+      }
+    }
+
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'Resposta inválida da IA. Tente novamente.' }, { status: 422 })

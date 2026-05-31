@@ -78,6 +78,20 @@ Regras para "codigo_produto" (código de referência / SKU):
     // segue sem dados — form abrirá vazio
   }
 
+  // Se a IA identificou a marca e não há preco_custo, busca o markup cadastrado
+  if (scanData?.marca && scanData.preco_venda != null && scanData.preco_custo == null) {
+    const { data: marca } = await supabase
+      .from('marcas')
+      .select('markup')
+      .eq('user_id', user.id)
+      .ilike('nome', scanData.marca)
+      .maybeSingle()
+
+    if (marca && marca.markup > 0) {
+      scanData.preco_custo = parseFloat((scanData.preco_venda / marca.markup).toFixed(2))
+    }
+  }
+
   if (scanData) {
     const cookieStore = await cookies()
     cookieStore.set('scan_result', JSON.stringify(scanData), {
