@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
 import type { Produto } from './types'
+import SugestoesWidget from './_components/SugestoesWidget'
 
 export type { Produto }
 
@@ -256,6 +257,16 @@ export default function EstoqueClient({
           <StatCard label="Valor de Custo" value={formatBRL(valorCusto)} />
           <StatCard label="Valor de Venda" value={formatBRL(valorVenda)} accent="text-emerald-400" />
         </div>
+
+        {/* Sugestões IA */}
+        {produtos.length > 0 && (
+          <SugestoesWidget
+            produtos={produtos}
+            onProdutoUpdate={(id, patch) =>
+              setProdutos(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p))
+            }
+          />
+        )}
 
         {/* Toast */}
         {toast && (
