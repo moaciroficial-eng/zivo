@@ -50,7 +50,7 @@ Regras gerais:
 - "categoria" deve ser exatamente: "camiseta", "calca", "tenis" ou "outros"
 - "tamanho": string com o tamanho identificado (ex: "M", "G", "42") ou null
 - "preco_venda" e "preco_custo": número (ex: 89.90) ou null — sem R$
-- Se houver só um preço, use preco_venda
+- Preencha preços SOMENTE se o valor estiver explicitamente impresso na etiqueta; se não encontrar, use null — nunca estime nem infira preços
 - "nome" em português, capitalizado (ex: "Camiseta Básica", "Calça Jeans Slim")
 - "cor": cor principal do produto em português, capitalizada (ex: "Preto", "Branco", "Azul Marinho") ou null se não identificada
 - Se não encontrar algo, use null
