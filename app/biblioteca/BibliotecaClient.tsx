@@ -231,6 +231,7 @@ export default function BibliotecaClient({
 
       const modelo = extractModelo(selectedProduct.nome)
       const { data, error } = await supabase.from('biblioteca_fotos').insert({
+        user_id: user.id,
         url: publicUrl,
         storage_path: uploadData.path,
         modelo,
