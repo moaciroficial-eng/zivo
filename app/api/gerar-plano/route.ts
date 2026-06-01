@@ -60,9 +60,10 @@ export async function POST(request: NextRequest) {
   const [vendasRes, estoqueRes, clientesRes, ultimasVendasRes] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id)
       .gte('data_venda', start).lt('data_venda', end),
-    supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, created_at')
-      .eq('user_id', user.id).eq('status', 'disponivel')
+    supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, created_at, status')
+      .eq('user_id', user.id)
       .not('preco_venda', 'is', null)
+      .not('status', 'eq', 'vendido')
       .order('preco_venda', { ascending: false }).limit(25),
     supabase.from('clientes').select('id, nome, telefone, data_nascimento')
       .eq('user_id', user.id).limit(30),
@@ -189,18 +190,23 @@ ${clientes.slice(0, 20).map(c =>
 DIAS DO PLANO: ${diasPlano.map(d => `${d.data}(${d.diaSemana})`).join(', ')}
 
 COMO PENSAR O PLANO:
-- Você tem produtos com preços reais (ex: R$ 179, R$ 250…). NÃO divida a meta pelo número de dias.
-- Estime quantas vendas são necessárias: restante R$ ${restante.toFixed(2)} ÷ preço médio R$ ${precoMedio.toFixed(2)} ≈ ${vendasNecessarias} vendas.
+- NÃO divida a meta pelo número de dias. Pense em vendas reais.
+- Estime quantas vendas são necessárias: R$ ${restante.toFixed(2)} ÷ preço médio R$ ${precoMedio.toFixed(2)} ≈ ${vendasNecessarias} vendas.
 - Distribua essas ${vendasNecessarias} vendas pelos ${diasPlano.length} dias, concentrando mais em Sáb/Dom.
-- meta_dia = soma dos preços dos produtos que você escolher para aquele dia (não invente um valor genérico).
-- Dias sem produto sugerido: meta_dia = 0 (foco em contato com clientes, relacionamento).
-- Varie os produtos dia a dia — não repita a mesma peça consecutivamente.
+- meta_dia = soma dos preços dos produtos sugeridos para aquele dia. Se nenhum produto for sugerido, meta_dia = 0.
+- Varie os produtos dia a dia — não repita a mesma peça em dias consecutivos.
 - Seja CONCISO: motivo e dica com no máximo 60 caracteres.
+
+PRODUTOS E CLIENTES SÃO INDEPENDENTES:
+- Um dia pode ter APENAS produto (sem cliente), APENAS cliente (sem produto), ou ambos — o que fizer sentido.
+- Se não houver produto disponível para aquele dia, deixe produtos_priorizar = [] e foque em cliente.
+- Se não houver cliente adequado, deixe clientes_contatar = [] e foque no produto.
+- NUNCA gere dica dizendo "sem estoque" se há produtos listados acima. Use os produtos disponíveis.
 
 REGRAS:
 1. Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
 2. Produtos com ≥30 dias em estoque → estrategia "desconto" (respeitando regras financeiras abaixo)
-3. Sáb e Dom: sugira produtos (maior fluxo de clientes); dias úteis: foque em contatos e agendamentos
+3. Sáb e Dom: priorize produtos (maior fluxo); dias úteis: pode ser só contato com cliente
 4. Máximo 2 produtos e 1 cliente por dia
 5. Distribua os clientes pelos dias, priorizando quem não compra há mais tempo
 ${regraFinanceira}
