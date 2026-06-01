@@ -42,8 +42,8 @@ export default function MetaModal({ mes, currentMeta, onClose, onSave }: Props) 
     setError(null)
     try {
       await onSave(num)
-    } catch {
-      setError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar. Tente novamente.')
       setSaving(false)
     }
   }
