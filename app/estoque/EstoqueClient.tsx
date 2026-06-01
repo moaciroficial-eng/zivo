@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
 import type { Produto } from './types'
 import SugestoesWidget from './_components/SugestoesWidget'
+import ImportNFeModal from './_components/ImportNFeModal'
 
 export type { Produto }
 
@@ -79,6 +80,7 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 
 const IconPlus   = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+const IconNFe    = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
 const IconEdit   = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
 const IconTrash  = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
 const IconX      = ({ size = 18 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -102,6 +104,7 @@ export default function EstoqueClient({
   const [catFiltro, setCatFiltro] = useState<Categoria>('todos')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
+  const [showNFeModal, setShowNFeModal] = useState(false)
 
   /* ── Toast ── */
 
@@ -240,6 +243,12 @@ export default function EstoqueClient({
               className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
             >
               <IconUpload /> Importar CSV
+            </button>
+            <button
+              onClick={() => setShowNFeModal(true)}
+              className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
+            >
+              <IconNFe /> Importar NF-e
             </button>
             <Link
               href="/estoque/novo"
@@ -424,6 +433,18 @@ export default function EstoqueClient({
           CSV: nome, marca, categoria, tamanhos, preco_custo, preco_venda &nbsp;·&nbsp; tamanhos: <span className="text-zinc-600">P:5;M:10;G:8</span> &nbsp;·&nbsp; outros: use coluna qtd
         </p>
       </main>
+
+      {showNFeModal && (
+        <ImportNFeModal
+          userId={user.id}
+          onSuccess={newProdutos => {
+            setProdutos(ps => [...ps, ...newProdutos].sort((a, b) => a.nome.localeCompare(b.nome)))
+            setShowNFeModal(false)
+            showToast(`${newProdutos.length} produto${newProdutos.length !== 1 ? 's' : ''} importado${newProdutos.length !== 1 ? 's' : ''} via NF-e.`)
+          }}
+          onClose={() => setShowNFeModal(false)}
+        />
+      )}
     </div>
   )
 }
