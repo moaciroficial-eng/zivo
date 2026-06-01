@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
+import MobileNav from '@/app/components/MobileNav'
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -297,7 +298,7 @@ export default function CalendarioClient({
   /* ── Render ─────────────────────────────────────────────── */
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
+    <div className="min-h-screen bg-[#09090b] text-white pb-20 md:pb-0">
       <NavBar user={user} active="calendario" />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
@@ -615,6 +616,7 @@ export default function CalendarioClient({
           </div>
         </div>
       )}
+      <MobileNav />
     </div>
   )
 }

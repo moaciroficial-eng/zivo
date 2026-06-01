@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
+import MobileNav from '@/app/components/MobileNav'
 import type { Produto } from './types'
 import SugestoesWidget from './_components/SugestoesWidget'
 import ImportNFeModal from './_components/ImportNFeModal'
@@ -196,7 +197,7 @@ export default function EstoqueClient({
   /* ── Render ── */
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
+    <div className="min-h-screen bg-[#09090b] text-white pb-20 md:pb-0">
 
       {/* Header */}
       <header className="border-b border-zinc-800 px-6 py-4">
@@ -462,6 +463,7 @@ export default function EstoqueClient({
           onClose={() => setShowNFeModal(false)}
         />
       )}
+      <MobileNav />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
+import MobileNav from '@/app/components/MobileNav'
 
 export type Cliente = {
   id: string
@@ -237,7 +238,7 @@ export default function ClientesClient({
   )
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
+    <div className="min-h-screen bg-[#09090b] text-white pb-20 md:pb-0">
 
       {/* Header */}
       <header className="border-b border-zinc-800 px-6 py-4">
@@ -593,6 +594,7 @@ export default function ClientesClient({
           </div>
         </div>
       )}
+      <MobileNav />
     </div>
   )
 }
