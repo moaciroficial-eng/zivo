@@ -181,13 +181,13 @@ ${clientes.slice(0, 20).map(c =>
   `- ID:${c.id} | ${c.nome} | Tel:${c.telefone ?? 'sem tel'} | ${c.dias_sem_comprar !== null ? `${c.dias_sem_comprar}d sem comprar` : 'nunca comprou'}${c.data_nascimento ? ` | Nasc:${c.data_nascimento}` : ''}`
 ).join('\n')}
 
-DIAS RESTANTES: ${diasRest.map(d => `${d.data}(${d.diaSemana})`).join(', ')}
+DIAS DO PLANO (próximos ${Math.min(diasRest.length, 14)} dias): ${diasRest.slice(0, 14).map(d => `${d.data}(${d.diaSemana})`).join(', ')}
 
 REGRAS GERAIS:
 1. Sáb e Dom devem ter meta_dia ~40% maior que dias úteis da mesma semana
 2. Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
 3. Produtos com ≥30 dias em estoque → estrategia "desconto" (respeitando as regras financeiras)
-4. Máximo 3 produtos e 2 clientes por dia; varie as sugestões dia a dia
+4. Máximo 2 produtos e 1 cliente por dia; varie as sugestões dia a dia; seja CONCISO nos campos motivo e dica (máx 60 caracteres)
 5. Se atrás da meta (>60% restante): metas diárias mais altas; intensifique contato com clientes
 6. Distribua os clientes ao longo dos dias, priorizando os que não compram há mais tempo
 7. dica deve ser prática e específica para aquele dia da semana
@@ -253,6 +253,7 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
   try {
     plano = JSON.parse(jsonMatch[0])
   } catch {
+    console.error('JSON parse failed. Response snippet:', responseText.slice(0, 300), '...', responseText.slice(-200))
     return NextResponse.json({ error: 'JSON inválido da IA' }, { status: 500 })
   }
 
