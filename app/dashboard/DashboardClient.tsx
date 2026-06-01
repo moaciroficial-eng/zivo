@@ -91,9 +91,12 @@ function fmtNum(n: number) { return fmt.format(n) }
 
 function isPlanStale(meta: MetaRow, vendidoMes: number): boolean {
   if (!meta.plano || !meta.plano_gerado_em) return true
-  const base = meta.plano_vendido_base ?? 0
+  // Recalcula se o plano foi gerado em outro dia
+  const geradoEm = new Date(meta.plano_gerado_em).toISOString().split('T')[0]
+  const hoje = new Date().toISOString().split('T')[0]
+  if (geradoEm !== hoje) return true
   // Recalcula se qualquer venda foi registrada desde a última geração
-  return vendidoMes !== base
+  return (meta.plano_vendido_base ?? 0) !== vendidoMes
 }
 
 function getMesLabel(mes: string) {
