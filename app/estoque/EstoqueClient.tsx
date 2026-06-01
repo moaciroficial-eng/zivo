@@ -94,9 +94,11 @@ const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" heig
 export default function EstoqueClient({
   user,
   initialProdutos,
+  fotoMap = {},
 }: {
   user: { id: string; email: string }
   initialProdutos: Produto[]
+  fotoMap?: Record<string, string>
 }) {
   const supabase = createClient()
   const [produtos, setProdutos] = useState(initialProdutos)
@@ -384,10 +386,25 @@ export default function EstoqueClient({
                     return (
                       <tr key={p.id} className="hover:bg-white/[0.025] transition group">
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2.5">
                             <span className={`w-1.5 h-8 rounded-full shrink-0 ${
                               status === 'out' ? 'bg-red-500' : status === 'low' ? 'bg-amber-500' : 'bg-emerald-500'
                             }`}/>
+                            {fotoMap[p.id] ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={fotoMap[p.id]}
+                                alt={p.nome}
+                                className="w-10 h-10 rounded-lg object-cover bg-zinc-800 shrink-0"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                                </svg>
+                              </div>
+                            )}
                             <div>
                               <p className="font-medium">{p.nome}</p>
                               {p.marca && <p className="text-xs text-zinc-500">{p.marca}</p>}
