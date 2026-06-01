@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
 import MobileNav from '@/app/components/MobileNav'
-import BarcodeScanner from '@/app/components/BarcodeScanner'
+import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeScanner'
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -269,6 +269,24 @@ export default function VendasClient({
     const found = estoqueItems.find(e => e.codigo_barras === barcode)
     if (found) { selectEstoqueItem(idx, found); showToast(`Produto encontrado: ${found.nome}`) }
     else showToast(`Código ${barcode} não encontrado no estoque`, 'error')
+  }
+
+  function onLabelScanned(data: ScanLabelResult, idx: number) {
+    setShowScanner(null)
+    if (!data.nome && !data.marca) { showToast('Não foi possível identificar o produto', 'error'); return }
+    const nomeLower  = (data.nome  ?? '').toLowerCase()
+    const marcaLower = (data.marca ?? '').toLowerCase()
+    const scored = estoqueItems.map(item => {
+      let score = 0
+      const itemNome  = item.nome.toLowerCase()
+      const itemMarca = (item.marca ?? '').toLowerCase()
+      nomeLower.split(' ').filter(w => w.length > 2).forEach(w => { if (itemNome.includes(w)) score += 2 })
+      if (marcaLower && itemMarca.includes(marcaLower)) score += 3
+      if (data.tamanho && itemNome.endsWith(' ' + data.tamanho.toLowerCase())) score += 2
+      return { item, score }
+    }).filter(s => s.score > 0).sort((a, b) => b.score - a.score)
+    if (scored.length > 0) { selectEstoqueItem(idx, scored[0].item); showToast(`Produto: ${scored[0].item.nome}`) }
+    else { setProdutoField(idx, 'nome', [data.nome, data.marca, data.tamanho].filter(Boolean).join(' ')); showToast('Produto não encontrado — verifique o nome', 'error') }
   }
 
   function calcLinhaTotal(p: FormProduto): number {
@@ -1146,6 +1164,7 @@ export default function VendasClient({
         <BarcodeScanner
           onScan={code => onScanBarcode(code, showScanner)}
           onClose={() => setShowScanner(null)}
+          onLabelScan={data => onLabelScanned(data, showScanner)}
         />
       )}
     </div>
