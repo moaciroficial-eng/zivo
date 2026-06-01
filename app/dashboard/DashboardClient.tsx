@@ -62,6 +62,7 @@ type MetaRow = {
   dividas_atuais: number | null
   despesas_fixas_mensais: number | null
   capital_de_giro: number | null
+  situacao_financeira: 'risco' | 'estavel' | 'saudavel' | null
 }
 
 type Props = {
@@ -369,12 +370,13 @@ export default function DashboardClient({
         dividas_atuais:         dados.dividas,
         despesas_fixas_mensais: dados.despesas_fixas,
         capital_de_giro:        dados.capital_de_giro,
+        situacao_financeira:    dados.situacao_financeira,
       })
       .eq('user_id', user.id)
       .eq('mes', mes)
-      .select().single()
+      .select()
     if (error) throw error
-    setMeta(data as MetaRow)
+    if (data?.[0]) setMeta(data[0] as MetaRow)
     setShowSaudeModal(false)
     await generatePlan()
   }
@@ -389,7 +391,7 @@ export default function DashboardClient({
   const restanteMes = meta ? Math.max(0, meta.valor_meta - vendidoMes) : 0
 
   // Financial health calculations
-  const temSaude      = !!(meta?.despesas_fixas_mensais)
+  const temSaude      = !!(meta?.despesas_fixas_mensais || meta?.situacao_financeira)
   const despesas      = meta?.despesas_fixas_mensais ?? 0
   const dividas       = meta?.dividas_atuais ?? 0
   const capitalGiro   = meta?.capital_de_giro ?? 0
@@ -409,9 +411,12 @@ export default function DashboardClient({
   const pontoEqDiario = despesas > 0 ? despesas / diasNoMes : 0
   const margemLiquida = meta ? meta.valor_meta - despesas : 0
   const coberturaMeses = despesas > 0 ? capitalGiro / despesas : null
-  const healthStatus: HealthStatus | null = temSaude
-    ? calcHealthStatus(dividas, despesas, capitalGiro)
-    : null
+  const healthStatus: HealthStatus | null = !temSaude ? null
+    : meta?.despesas_fixas_mensais
+      ? calcHealthStatus(dividas, despesas, capitalGiro)
+      : meta?.situacao_financeira === 'risco' ? 'critico'
+      : meta?.situacao_financeira === 'saudavel' ? 'saudavel'
+      : 'atencao'
 
   const healthConfig = {
     saudavel: { label: 'Saudável',  dot: 'bg-emerald-400', text: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/5'  },
@@ -645,7 +650,23 @@ export default function DashboardClient({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                {/* Se só tem preset (sem dados detalhados), mostra descrição simplificada */}
+                {!meta?.despesas_fixas_mensais && meta?.situacao_financeira && (
+                  <div className="mb-4">
+                    <p className="text-sm text-zinc-400">
+                      {meta.situacao_financeira === 'risco'
+                        ? 'Plano priorizando margem e evitando descontos. Foco em vendas de maior valor.'
+                        : meta.situacao_financeira === 'estavel'
+                        ? 'Plano equilibrado com descontos moderados quando necessário.'
+                        : 'Plano pode usar descontos estratégicos para acelerar o giro.'}
+                    </p>
+                    <button onClick={() => setShowSaudeModal(true)} className="text-xs text-violet-400 hover:text-violet-300 mt-2 transition cursor-pointer">
+                      Adicionar dados detalhados para análise mais precisa →
+                    </button>
+                  </div>
+                )}
+
+                {meta?.despesas_fixas_mensais && <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                   <div>
                     <p className="text-xs text-zinc-500 mb-0.5">Ponto de equilíbrio</p>
                     <p className="text-base font-bold">{fmtNum(pontoEqMensal)}<span className="text-xs text-zinc-500">/mês</span></p>
@@ -680,10 +701,10 @@ export default function DashboardClient({
                       </p>
                     )}
                   </div>
-                </div>
+                </div>}
 
-                {/* Alertas */}
-                <div className="space-y-1.5">
+                {/* Alertas — só com dados detalhados */}
+                {meta?.despesas_fixas_mensais && <div className="space-y-1.5">
                   {margemLiquida < 0 && (
                     <div className="flex items-start gap-2 text-xs text-red-400">
                       <IconAlertTriangle /><span>Meta abaixo das despesas fixas — aumente a meta ou reduza os custos.</span>
@@ -707,24 +728,24 @@ export default function DashboardClient({
                   {healthStatus === 'saudavel' && (
                     <p className="text-xs text-emerald-400">Situação financeira saudável — plano pode usar descontos estratégicos quando necessário.</p>
                   )}
-                </div>
+                </div>}
               </div>
             ) : (
               /* CTA para saúde financeira */
               <button
                 onClick={() => setShowSaudeModal(true)}
-                className="w-full flex items-center justify-between bg-zinc-900 border border-dashed border-zinc-700 hover:border-zinc-600 rounded-2xl px-5 py-4 transition group cursor-pointer"
+                className="w-full flex items-center justify-between bg-zinc-900 border border-dashed border-zinc-700 hover:border-violet-500/40 rounded-2xl px-5 py-4 transition group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-zinc-300 transition">
+                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-violet-400 transition">
                     <IconShield />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium text-zinc-300 group-hover:text-white transition">Adicionar saúde financeira</p>
-                    <p className="text-xs text-zinc-500">Despesas, dívidas e capital de giro — a IA calibra o plano com responsabilidade</p>
+                    <p className="text-sm font-medium text-zinc-300 group-hover:text-white transition">Como está sua empresa?</p>
+                    <p className="text-xs text-zinc-500">Afogado, estável ou saudável — a IA calibra o plano de acordo</p>
                   </div>
                 </div>
-                <span className="text-zinc-500 group-hover:text-zinc-300 transition text-sm">→</span>
+                <span className="text-zinc-500 group-hover:text-violet-400 transition text-sm">→</span>
               </button>
             )}
 
