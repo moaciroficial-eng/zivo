@@ -221,6 +221,15 @@ export default function VendasClient({
       if (error) { setFormError(error.message); setSaving(false); return }
       setVendas(vs => [data, ...vs])
       showToast('Venda adicionada.')
+      // Marca produtos do plano como vendidos (fire-and-forget)
+      if (payload.produtos.length > 0) {
+        const mes = payload.data_venda.slice(0, 7)
+        fetch('/api/marcar-plano-vendido', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mes, data_venda: payload.data_venda, produtos_vendidos: payload.produtos }),
+        }).catch(() => {})
+      }
     }
     setSaving(false); closeDrawer()
   }

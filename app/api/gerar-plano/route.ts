@@ -203,6 +203,7 @@ SOBRE PRODUTOS E CLIENTES:
 - Se não houver conexão clara entre o cliente e o produto sugerido, deixe clientes_contatar = [].
 - NUNCA inclua cliente só para preencher — o motivo deve ser diretamente relacionado à peça sugerida.
 - Se não houver produto disponível para aquele dia, pode incluir cliente para relacionamento.
+- mensagem_whatsapp: escreva uma mensagem curta e natural em português (máx 2 linhas) para o lojista enviar ao cliente sobre o produto do dia. Ex: "Oi [nome]! Chegou uma peça incrível aqui que combina com você: [produto] por R$ XX. Posso te mostrar?"
 
 REGRAS:
 1. Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
@@ -235,7 +236,8 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
           "estrategia": "preco_cheio" | "desconto",
           "desconto_sugerido": number | null,
           "preco_com_desconto": number | null,
-          "motivo": "string curto"
+          "motivo": "string curto",
+          "vendido": false
         }
       ],
       "clientes_contatar": [
@@ -243,7 +245,8 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
           "cliente_id": "uuid",
           "nome": "string",
           "telefone": "string | null",
-          "motivo": "string curto"
+          "motivo": "string curto",
+          "mensagem_whatsapp": "string — mensagem natural para enviar pelo WhatsApp sobre o produto do dia"
         }
       ],
       "dica": "string"

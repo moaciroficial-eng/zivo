@@ -18,6 +18,7 @@ type ProdutoPriorizar = {
   desconto_sugerido: number | null
   preco_com_desconto: number | null
   motivo: string
+  vendido?: boolean
 }
 
 type ClienteContatar = {
@@ -25,6 +26,7 @@ type ClienteContatar = {
   nome: string
   telefone: string | null
   motivo: string
+  mensagem_whatsapp?: string | null
 }
 
 type DiaPlano = {
@@ -175,12 +177,15 @@ const IconAlertTriangle = () => (
 function ProdutoCard({ p }: { p: ProdutoPriorizar }) {
   const isDesconto = p.estrategia === 'desconto'
   return (
-    <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3.5 flex gap-3">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isDesconto ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-        {isDesconto ? <IconTag /> : <IconStar />}
+    <div className={`border rounded-xl p-3.5 flex gap-3 transition ${p.vendido ? 'bg-emerald-900/20 border-emerald-700/40 opacity-70' : 'bg-zinc-800/60 border-zinc-700/60'}`}>
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${p.vendido ? 'bg-emerald-500/20 text-emerald-400' : isDesconto ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+        {p.vendido ? <span className="text-base">✓</span> : isDesconto ? <IconTag /> : <IconStar />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-snug">{p.nome}</p>
+        <div className="flex items-center gap-2">
+          <p className={`text-sm font-medium leading-snug ${p.vendido ? 'line-through text-zinc-500' : ''}`}>{p.nome}</p>
+          {p.vendido && <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded shrink-0">Vendido ✓</span>}
+        </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {isDesconto && p.preco_com_desconto != null ? (
             <>
@@ -193,17 +198,23 @@ function ProdutoCard({ p }: { p: ProdutoPriorizar }) {
           ) : (
             <span className="text-sm font-bold text-emerald-400">{fmtNum(p.preco_venda)}</span>
           )}
-          <span className={`text-xs font-medium px-1.5 py-0.5 rounded border ${isDesconto ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'}`}>
-            {isDesconto ? 'Desconto' : 'Preço cheio'}
-          </span>
+          {!p.vendido && (
+            <span className={`text-xs font-medium px-1.5 py-0.5 rounded border ${isDesconto ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'}`}>
+              {isDesconto ? 'Desconto' : 'Preço cheio'}
+            </span>
+          )}
         </div>
-        <p className="text-xs text-zinc-500 mt-1">{p.motivo}</p>
+        {!p.vendido && <p className="text-xs text-zinc-500 mt-1">{p.motivo}</p>}
       </div>
     </div>
   )
 }
 
 function ClienteCard({ c }: { c: ClienteContatar }) {
+  const waUrl = c.telefone
+    ? `https://wa.me/55${c.telefone.replace(/\D/g, '')}${c.mensagem_whatsapp ? `?text=${encodeURIComponent(c.mensagem_whatsapp)}` : ''}`
+    : null
+
   return (
     <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3.5 flex gap-3">
       <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center shrink-0 mt-0.5">
@@ -211,17 +222,20 @@ function ClienteCard({ c }: { c: ClienteContatar }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">{c.nome}</p>
-        {c.telefone && (
+        <p className="text-xs text-zinc-500 mt-0.5">{c.motivo}</p>
+        {c.mensagem_whatsapp && (
+          <p className="text-xs text-zinc-600 mt-1 italic leading-relaxed">&ldquo;{c.mensagem_whatsapp}&rdquo;</p>
+        )}
+        {waUrl && (
           <a
-            href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`}
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-violet-400 hover:text-violet-300 transition"
+            className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1 transition"
           >
-            {c.telefone}
+            <IconPhone /> Enviar no WhatsApp
           </a>
         )}
-        <p className="text-xs text-zinc-500 mt-0.5">{c.motivo}</p>
       </div>
     </div>
   )
