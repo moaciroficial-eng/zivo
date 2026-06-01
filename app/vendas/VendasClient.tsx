@@ -51,6 +51,13 @@ type FormState = {
   produtos: FormProduto[]
 }
 
+type PagSlot = {
+  metodo: string
+  parcelas: number | null
+  valor: string
+  recebido: string
+}
+
 /* ── Constants ──────────────────────────────────────────────── */
 
 const TODAY = new Date().toISOString().split('T')[0]
@@ -100,13 +107,41 @@ function formatBRL(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
+function labelMetodo(m: string): string {
+  if (m === 'pix') return 'Pix'
+  if (m === 'dinheiro') return 'Dinheiro'
+  if (m === 'debito') return 'Débito'
+  if (m.startsWith('credito_')) return `Crédito ${m.replace('credito_', '')}`
+  return m
+}
+
 function labelPagamento(fp: string): string {
   if (!fp) return '—'
-  if (fp === 'pix') return 'Pix'
-  if (fp === 'dinheiro') return 'Dinheiro'
-  if (fp === 'debito') return 'Débito'
-  if (fp.startsWith('credito_')) return `Crédito ${fp.replace('credito_', '')}`
-  return fp
+  if (fp.includes('+')) {
+    return fp.split('+').map(p => {
+      const [m, amount] = p.split(':')
+      return `${labelMetodo(m)}${amount ? ` ${formatBRL(parseFloat(amount))}` : ''}`
+    }).join(' + ')
+  }
+  return labelMetodo(fp)
+}
+
+function emptySlot(): PagSlot { return { metodo: '', parcelas: null, valor: '', recebido: '' } }
+
+function fpToSlots(fp: string): { slots: PagSlot[]; hibrido: boolean } {
+  if (!fp) return { slots: [emptySlot()], hibrido: false }
+  if (fp.includes('+')) {
+    const slots: PagSlot[] = fp.split('+').map(p => {
+      const [method, amount] = p.split(':')
+      let metodo = method; let parcelas: number | null = null
+      if (method.startsWith('credito_')) { metodo = 'credito'; parcelas = parseInt(method.replace('credito_', '').replace('x', '')) || null }
+      return { metodo, parcelas, valor: amount || '', recebido: '' }
+    })
+    return { slots, hibrido: true }
+  }
+  let metodo = fp; let parcelas: number | null = null
+  if (fp.startsWith('credito_')) { metodo = 'credito'; parcelas = parseInt(fp.replace('credito_', '').replace('x', '')) || null }
+  return { slots: [{ metodo, parcelas, valor: '', recebido: '' }], hibrido: false }
 }
 
 /* ── Icons ──────────────────────────────────────────────────── */
@@ -181,8 +216,8 @@ export default function VendasClient({
   const [produtoDropdownIdx, setProdutoDropdownIdx] = useState<number | null>(null)
   const [showScanner, setShowScanner] = useState<number | null>(null)
   const [showPayment, setShowPayment] = useState(false)
-  const [selectedMethod, setSelectedMethod] = useState('')
-  const [selectedParcelas, setSelectedParcelas] = useState<number | null>(null)
+  const [pagSlots, setPagSlots] = useState<PagSlot[]>([emptySlot()])
+  const [isHibrido, setIsHibrido] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
 
@@ -264,23 +299,79 @@ export default function VendasClient({
 
   /* ── Drawer ── */
 
+  /* ── Payment helpers ── */
+
+  function updateSlot(idx: number, updates: Partial<PagSlot>) {
+    setPagSlots(slots => {
+      const updated = slots.map((s, i) => i === idx ? { ...s, ...updates } : s)
+      if (idx === 0 && isHibrido && updated.length === 2 && updates.valor !== undefined) {
+        const rem = Math.max(0, totalFinal - (parseFloat(updates.valor) || 0))
+        updated[1] = { ...updated[1], valor: rem.toFixed(2) }
+      }
+      return updated
+    })
+  }
+
+  function enableHibrido() {
+    const s0Val = parseFloat(pagSlots[0].valor) > 0 ? pagSlots[0].valor : totalFinal.toFixed(2)
+    const s1Val = Math.max(0, totalFinal - parseFloat(s0Val)).toFixed(2)
+    setPagSlots([{ ...pagSlots[0], valor: s0Val }, { ...emptySlot(), valor: s1Val }])
+    setIsHibrido(true)
+  }
+
+  function disableHibrido() {
+    setPagSlots([pagSlots[0]])
+    setIsHibrido(false)
+  }
+
+  function buildFP(): string {
+    if (isHibrido) {
+      return pagSlots.filter(s => s.metodo).map(s => {
+        const m = s.metodo === 'credito' && s.parcelas ? `credito_${s.parcelas}x` : s.metodo
+        return `${m}:${(parseFloat(s.valor) || 0).toFixed(2)}`
+      }).join('+')
+    }
+    const s = pagSlots[0]
+    if (!s.metodo) return ''
+    return s.metodo === 'credito' && s.parcelas ? `credito_${s.parcelas}x` : s.metodo
+  }
+
+  function canConfirmPayment(): boolean {
+    if (isHibrido) return pagSlots.every(s => s.metodo && (s.metodo !== 'credito' || !!s.parcelas) && parseFloat(s.valor) > 0)
+    const s = pagSlots[0]
+    return !!s.metodo && (s.metodo !== 'credito' || !!s.parcelas)
+  }
+
+  function labelFromSlots(): string {
+    if (!pagSlots[0].metodo) return ''
+    if (isHibrido) {
+      return pagSlots.filter(s => s.metodo).map(s => {
+        const m = s.metodo === 'credito' && s.parcelas ? `credito_${s.parcelas}x` : s.metodo
+        return `${labelMetodo(m)}${s.valor ? ` ${formatBRL(parseFloat(s.valor))}` : ''}`
+      }).join(' + ')
+    }
+    const s = pagSlots[0]
+    const m = s.metodo === 'credito' && s.parcelas ? `credito_${s.parcelas}x` : s.metodo
+    return labelMetodo(m)
+  }
+
+  function resetPayment() {
+    setPagSlots([emptySlot()]); setIsHibrido(false)
+  }
+
+  /* ── Drawer ── */
+
   function openNew() {
     setEditing(null); setForm(EMPTY); setFormError('')
     setClienteDropdown(false); setShowPayment(false)
-    setSelectedMethod(''); setSelectedParcelas(null); setDrawer(true)
+    resetPayment(); setDrawer(true)
   }
 
   function openEdit(v: Venda) {
     setEditing(v)
     const fp = v.forma_pagamento ?? ''
-    let metodo = fp
-    let parcelas: number | null = null
-    if (fp.startsWith('credito_')) {
-      metodo = 'credito'
-      parcelas = parseInt(fp.replace('credito_', '').replace('x', '')) || null
-    }
-    setSelectedMethod(metodo)
-    setSelectedParcelas(parcelas)
+    const { slots, hibrido } = fpToSlots(fp)
+    setPagSlots(slots); setIsHibrido(hibrido)
     setForm({
       clienteSearch: v.cliente_nome,
       clienteId: v.cliente_id ?? '',
@@ -303,7 +394,7 @@ export default function VendasClient({
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
     setClienteDropdown(false); setProdutoDropdownIdx(null); setShowScanner(null)
-    setShowPayment(false); setSelectedMethod(''); setSelectedParcelas(null)
+    setShowPayment(false); resetPayment()
   }
 
   /* ── Vender (new) → open payment overlay ── */
@@ -313,21 +404,32 @@ export default function VendasClient({
     if (!form.dataVenda) { setFormError('Informe a data.'); return }
     if (totalFinal <= 0) { setFormError('Adicione produtos com preço ou informe o valor.'); return }
     setFormError('')
-    setSelectedMethod(''); setSelectedParcelas(null)
+    resetPayment()
     setShowPayment(true)
+  }
+
+  /* ── Confirm payment ── */
+
+  function handlePaymentConfirm() {
+    if (editing) {
+      setShowPayment(false) // edit: just update state, save manually
+    } else {
+      handleSaveWithPayment()
+    }
   }
 
   /* ── Save with payment (new venda) ── */
 
-  async function handleSaveWithPayment(fp: string) {
+  async function handleSaveWithPayment() {
     setSaving(true)
+    const fp = buildFP()
     const valor = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
     const payload = {
       cliente_id: form.clienteId || null,
       cliente_nome: form.clienteNome.trim(),
       valor,
       data_venda: form.dataVenda,
-      forma_pagamento: fp,
+      forma_pagamento: fp || null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         qtd: Number(p.qtd) || 1,
@@ -358,16 +460,12 @@ export default function VendasClient({
     if (!form.dataVenda) { setFormError('Informe a data.'); return }
     setSaving(true); setFormError('')
 
-    const fp = selectedMethod
-      ? (selectedMethod === 'credito' ? (selectedParcelas ? `credito_${selectedParcelas}x` : form.forma_pagamento) : selectedMethod)
-      : form.forma_pagamento
-
     const payload = {
       cliente_id: form.clienteId || null,
       cliente_nome: form.clienteNome.trim(),
       valor: Number(form.valor),
       data_venda: form.dataVenda,
-      forma_pagamento: fp || null,
+      forma_pagamento: buildFP() || null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         qtd: Number(p.qtd) || 1,
@@ -820,43 +918,18 @@ export default function VendasClient({
 
               {/* 4. PAGAMENTO — edit only */}
               {editing && (
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-zinc-300">Pagamento</label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {METODOS.map(m => (
-                      <button
-                        key={m.value}
-                        type="button"
-                        onClick={() => { setSelectedMethod(m.value); setSelectedParcelas(null) }}
-                        className={`text-xs py-2.5 rounded-xl border transition cursor-pointer font-medium ${
-                          selectedMethod === m.value
-                            ? 'bg-violet-600 border-violet-500 text-white'
-                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedMethod === 'credito' && (
-                    <div className="grid grid-cols-4 gap-1.5 mt-1">
-                      {PARCELAS.map(n => (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setSelectedParcelas(n)}
-                          className={`text-xs py-2.5 rounded-xl border transition cursor-pointer font-bold ${
-                            selectedParcelas === n
-                              ? 'bg-violet-600 border-violet-500 text-white'
-                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
-                          }`}
-                        >
-                          {n}x
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <Field label="Pagamento">
+                  <button
+                    type="button"
+                    onClick={() => setShowPayment(true)}
+                    className="flex items-center justify-between w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm hover:border-zinc-500 transition cursor-pointer text-left"
+                  >
+                    <span className={labelFromSlots() ? 'text-white' : 'text-zinc-500'}>
+                      {labelFromSlots() || 'Selecionar forma de pagamento...'}
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-500"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </Field>
               )}
 
               {formError && (
@@ -887,82 +960,174 @@ export default function VendasClient({
                 {/* Back + total */}
                 <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800 shrink-0">
                   <button
-                    onClick={() => { setShowPayment(false); setSelectedMethod(''); setSelectedParcelas(null) }}
+                    onClick={() => { setShowPayment(false); if (!editing) resetPayment() }}
                     className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer"
                   >
                     <IconArrowLeft />
                   </button>
                   <div className="flex-1">
                     <h2 className="font-semibold text-base">Como vai pagar?</h2>
-                    {totalFinal > 0 && (
-                      <p className="text-sm font-bold text-emerald-400">{formatBRL(totalFinal)}</p>
-                    )}
+                    {totalFinal > 0 && <p className="text-sm font-bold text-emerald-400">{formatBRL(totalFinal)}</p>}
                   </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-5">
-                  {/* 2×2 method cards */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {METODOS.map(m => (
-                      <button
-                        key={m.value}
-                        type="button"
-                        onClick={() => { setSelectedMethod(m.value); setSelectedParcelas(null) }}
-                        className={`flex flex-col items-center gap-2.5 py-6 px-4 rounded-2xl border-2 transition cursor-pointer ${
-                          selectedMethod === m.value
-                            ? 'border-violet-500 bg-violet-500/15 text-violet-300'
-                            : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
-                        }`}
-                      >
-                        <MetodoIcon value={m.value} />
-                        <span className="font-semibold text-sm">{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
 
-                  {/* Installments — only for credito */}
-                  {selectedMethod === 'credito' && (
-                    <div className="flex flex-col gap-3">
-                      <p className="text-sm font-medium text-zinc-400">Quantas parcelas?</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {PARCELAS.map(n => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setSelectedParcelas(n)}
-                            className={`py-3.5 rounded-xl border text-sm font-bold transition cursor-pointer ${
-                              selectedParcelas === n
-                                ? 'border-violet-500 bg-violet-600 text-white'
-                                : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'
-                            }`}
+                  {/* ── Single mode ── */}
+                  {!isHibrido && (() => {
+                    const s = pagSlots[0]
+                    const troco = s.metodo === 'dinheiro' && s.recebido ? parseFloat(s.recebido) - totalFinal : null
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          {METODOS.map(m => (
+                            <button
+                              key={m.value}
+                              type="button"
+                              onClick={() => updateSlot(0, { metodo: m.value, parcelas: null, recebido: '' })}
+                              className={`flex flex-col items-center gap-2.5 py-6 rounded-2xl border-2 transition cursor-pointer ${
+                                s.metodo === m.value
+                                  ? 'border-violet-500 bg-violet-500/15 text-violet-300'
+                                  : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                              }`}
+                            >
+                              <MetodoIcon value={m.value} />
+                              <span className="font-semibold text-sm">{m.label}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {s.metodo === 'dinheiro' && (
+                          <div className="flex flex-col gap-2">
+                            <label className="text-sm font-medium text-zinc-400">Valor recebido</label>
+                            <input
+                              type="number" min="0" step="0.01" autoFocus
+                              value={s.recebido}
+                              onChange={e => updateSlot(0, { recebido: e.target.value })}
+                              placeholder={`Mínimo ${formatBRL(totalFinal)}`}
+                              className={INPUT}
+                            />
+                            {troco !== null && troco >= 0 && (
+                              <p className="text-base font-bold text-emerald-400">Troco: {formatBRL(troco)}</p>
+                            )}
+                            {troco !== null && troco < 0 && (
+                              <p className="text-sm text-red-400">Valor insuficiente</p>
+                            )}
+                          </div>
+                        )}
+
+                        {s.metodo === 'credito' && (
+                          <div className="flex flex-col gap-3">
+                            <p className="text-sm font-medium text-zinc-400">Parcelas</p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {PARCELAS.map(n => (
+                                <button key={n} type="button" onClick={() => updateSlot(0, { parcelas: n })}
+                                  className={`py-3.5 rounded-xl border text-sm font-bold transition cursor-pointer ${s.parcelas === n ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'}`}
+                                >{n}x</button>
+                              ))}
+                            </div>
+                            {s.parcelas && totalFinal > 0 && (
+                              <p className="text-xs text-zinc-500 text-center">{s.parcelas}x de {formatBRL(totalFinal / s.parcelas)} sem juros</p>
+                            )}
+                          </div>
+                        )}
+
+                        {s.metodo && (
+                          <button type="button" onClick={enableHibrido}
+                            className="text-sm text-zinc-600 hover:text-violet-400 transition text-left"
                           >
-                            {n}x
+                            + Dividir em 2 formas de pagamento
                           </button>
-                        ))}
-                      </div>
-                      {selectedParcelas && totalFinal > 0 && (
-                        <p className="text-xs text-zinc-500 text-center">
-                          {selectedParcelas}x de {formatBRL(totalFinal / selectedParcelas)} sem juros
-                        </p>
-                      )}
+                        )}
+                      </>
+                    )
+                  })()}
+
+                  {/* ── Híbrido mode ── */}
+                  {isHibrido && (
+                    <div className="flex flex-col gap-4">
+                      {pagSlots.map((s, idx) => {
+                        const slotVal = parseFloat(s.valor) || 0
+                        const troco = s.metodo === 'dinheiro' && s.recebido ? parseFloat(s.recebido) - slotVal : null
+                        return (
+                          <div key={idx} className="bg-zinc-800/50 rounded-2xl p-4 flex flex-col gap-3 border border-zinc-700/50">
+                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pagamento {idx + 1}</p>
+
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {METODOS.map(m => (
+                                <button key={m.value} type="button"
+                                  onClick={() => updateSlot(idx, { metodo: m.value, parcelas: null, recebido: '' })}
+                                  className={`text-xs py-2.5 rounded-xl border font-medium transition cursor-pointer ${
+                                    s.metodo === m.value ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500'
+                                  }`}
+                                >{m.label}</button>
+                              ))}
+                            </div>
+
+                            {s.metodo && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-zinc-400 shrink-0">R$</span>
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  value={s.valor}
+                                  onChange={e => updateSlot(idx, { valor: e.target.value })}
+                                  placeholder="0,00"
+                                  className="flex-1 bg-zinc-900 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                                />
+                              </div>
+                            )}
+
+                            {s.metodo === 'dinheiro' && (
+                              <div className="flex flex-col gap-1.5">
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  value={s.recebido}
+                                  onChange={e => updateSlot(idx, { recebido: e.target.value })}
+                                  placeholder={`Recebido (mín. ${formatBRL(slotVal)})`}
+                                  className={INPUT}
+                                />
+                                {troco !== null && troco >= 0 && <p className="text-sm font-bold text-emerald-400">Troco: {formatBRL(troco)}</p>}
+                                {troco !== null && troco < 0 && <p className="text-sm text-red-400">Valor insuficiente</p>}
+                              </div>
+                            )}
+
+                            {s.metodo === 'credito' && (
+                              <div className="flex flex-col gap-2">
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  {PARCELAS.map(n => (
+                                    <button key={n} type="button" onClick={() => updateSlot(idx, { parcelas: n })}
+                                      className={`text-xs py-2.5 rounded-xl border font-bold transition cursor-pointer ${s.parcelas === n ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'}`}
+                                    >{n}x</button>
+                                  ))}
+                                </div>
+                                {s.parcelas && slotVal > 0 && (
+                                  <p className="text-xs text-zinc-500">{s.parcelas}x de {formatBRL(slotVal / s.parcelas)}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      <button type="button" onClick={disableHibrido}
+                        className="text-xs text-zinc-600 hover:text-zinc-400 transition"
+                      >
+                        Cancelar divisão de pagamento
+                      </button>
                     </div>
                   )}
+
                 </div>
 
                 {/* Confirm button */}
-                {selectedMethod && (selectedMethod !== 'credito' || selectedParcelas) && (
+                {canConfirmPayment() && (
                   <div className="px-6 py-4 border-t border-zinc-800 shrink-0">
                     <button
-                      onClick={() => {
-                        const fp = selectedMethod === 'credito'
-                          ? `credito_${selectedParcelas}x`
-                          : selectedMethod
-                        handleSaveWithPayment(fp)
-                      }}
+                      onClick={handlePaymentConfirm}
                       disabled={saving}
                       className="w-full text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3.5 transition cursor-pointer"
                     >
-                      {saving ? 'Salvando...' : `Confirmar ${selectedMethod === 'credito' ? `Crédito ${selectedParcelas}x` : METODOS.find(m => m.value === selectedMethod)?.label}`}
+                      {saving ? 'Salvando...' : editing ? 'Confirmar' : `Registrar Venda`}
                     </button>
                   </div>
                 )}
