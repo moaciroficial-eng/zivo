@@ -107,7 +107,9 @@ export async function POST(request: NextRequest) {
         : null
       return { id: c.id, nome: c.nome, telefone: c.telefone ?? null, dias_sem_comprar: diasSemComp, data_nascimento: c.data_nascimento ?? null }
     })
-    .sort((a, b) => (b.dias_sem_comprar ?? 9999) - (a.dias_sem_comprar ?? 9999))
+    // Só clientes com histórico de compra — "nunca comprou" não tem base para sugestão
+    .filter(c => c.dias_sem_comprar !== null)
+    .sort((a, b) => (b.dias_sem_comprar ?? 0) - (a.dias_sem_comprar ?? 0))
 
   const meta        = Number(metaRow.valor_meta)
   const pct         = meta > 0 ? Math.round((vendido / meta) * 100) : 0
@@ -190,27 +192,25 @@ ${clientes.slice(0, 20).map(c =>
 DIAS DO PLANO: ${diasPlano.map(d => `${d.data}(${d.diaSemana})`).join(', ')}
 
 COMO PENSAR O PLANO:
-- NÃO divida a meta pelo número de dias. Pense em vendas reais.
+- NÃO divida a meta pelo número de dias. Pense em vendas reais com produtos do estoque.
 - Estime quantas vendas são necessárias: R$ ${restante.toFixed(2)} ÷ preço médio R$ ${precoMedio.toFixed(2)} ≈ ${vendasNecessarias} vendas.
-- Distribua essas ${vendasNecessarias} vendas pelos ${diasPlano.length} dias, concentrando mais em Sáb/Dom.
-- meta_dia = soma dos preços dos produtos sugeridos para aquele dia. Se nenhum produto for sugerido, meta_dia = 0.
+- meta_dia = soma dos preços dos produtos sugeridos para aquele dia.
 - Varie os produtos dia a dia — não repita a mesma peça em dias consecutivos.
 - Seja CONCISO: motivo e dica com no máximo 60 caracteres.
 
-SOBRE PRODUTOS E CLIENTES:
-- O PRODUTO é o foco principal. Sempre sugira produtos quando houver estoque disponível.
-- Clientes são OPCIONAIS e só aparecem quando há motivo específico ligado ao produto do dia (ex: "comprou essa marca antes", "perfil que usa esse tipo de peça", "ligou perguntando sobre esse produto").
-- Se não houver conexão clara entre o cliente e o produto sugerido, deixe clientes_contatar = [].
-- NUNCA inclua cliente só para preencher — o motivo deve ser diretamente relacionado à peça sugerida.
-- Se não houver produto disponível para aquele dia, pode incluir cliente para relacionamento.
-- mensagem_whatsapp: escreva uma mensagem curta e natural em português (máx 2 linhas) para o lojista enviar ao cliente sobre o produto do dia. Ex: "Oi [nome]! Chegou uma peça incrível aqui que combina com você: [produto] por R$ XX. Posso te mostrar?"
+REGRA PRINCIPAL — PRODUTOS SÃO OBRIGATÓRIOS:
+- SE HÁ PRODUTOS NO ESTOQUE, todo dia do plano DEVE ter pelo menos 1 produto sugerido. Sem exceção.
+- Sáb/Dom: 2 produtos (mais movimento); dias úteis: 1 produto mínimo.
+- NUNCA deixe produtos_priorizar = [] quando há estoque disponível acima.
+- Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
+- Produtos com ≥30 dias em estoque → estrategia "desconto"
 
-REGRAS:
-1. Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
-2. Produtos com ≥30 dias em estoque → estrategia "desconto" (respeitando regras financeiras abaixo)
-3. Sáb e Dom: priorize produtos (maior fluxo); dias úteis: pode ser só contato com cliente
-4. Máximo 2 produtos e 1 cliente por dia
-5. Distribua os clientes pelos dias, priorizando quem não compra há mais tempo
+SOBRE CLIENTES (secundário):
+- Clientes só aparecem quando há histórico de compra (os da lista já foram filtrados — todos já compraram antes).
+- Só inclua um cliente se o motivo for específico para o produto do dia (ex: "comprou essa marca antes").
+- Se não houver conexão com o produto, deixe clientes_contatar = [].
+- mensagem_whatsapp: mensagem curta em português para enviar sobre o produto do dia. Ex: "Oi [nome]! Temos uma peça incrível: [produto] por R$ XX. Que tal dar uma olhada?"
+- Máximo 1 cliente por dia.
 ${regraFinanceira}
 
 Responda APENAS com JSON válido (sem markdown, sem explicações):
