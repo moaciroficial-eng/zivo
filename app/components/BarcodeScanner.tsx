@@ -42,7 +42,8 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
   const videoRef    = useRef<HTMLVideoElement>(null)
   const streamRef   = useRef<MediaStream | null>(null)
   const rafRef      = useRef<number>(0)
-  const photoInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef    = useRef<HTMLInputElement>(null)
+  const galleryInputRef  = useRef<HTMLInputElement>(null)
 
   const [error, setError]           = useState<string | null>(null)
   const [manual, setManual]         = useState('')
@@ -174,11 +175,20 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
       {/* ── Photo / IA mode ── */}
       {showPhoto && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6">
+          {/* Câmera */}
           <input
             ref={photoInputRef}
             type="file"
             accept="image/*"
             capture="environment"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleLabelPhoto(f) }}
+          />
+          {/* Galeria */}
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
             className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleLabelPhoto(f) }}
           />
@@ -211,13 +221,24 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
 
               {/* Main CTA */}
               {onLabelScan && (
-                <button
-                  onClick={() => { setPhotoError(null); photoInputRef.current?.click() }}
-                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-2xl px-8 py-4 text-sm transition cursor-pointer shadow-lg shadow-violet-500/30"
-                >
-                  <IconCamera />
-                  {preview ? 'Tirar outra foto' : 'Tirar foto da etiqueta'}
-                </button>
+                <div className="flex gap-3 w-full max-w-xs">
+                  <button
+                    onClick={() => { setPhotoError(null); photoInputRef.current?.click() }}
+                    className="flex-1 flex flex-col items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-2xl px-4 py-4 text-sm transition cursor-pointer shadow-lg shadow-violet-500/30"
+                  >
+                    <IconCamera />
+                    <span className="text-xs">Câmera</span>
+                  </button>
+                  <button
+                    onClick={() => { setPhotoError(null); galleryInputRef.current?.click() }}
+                    className="flex-1 flex flex-col items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold rounded-2xl px-4 py-4 text-sm transition cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span className="text-xs">Galeria</span>
+                  </button>
+                </div>
               )}
 
               {photoError && (

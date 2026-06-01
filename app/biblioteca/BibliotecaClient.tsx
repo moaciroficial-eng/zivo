@@ -112,7 +112,8 @@ export default function BibliotecaClient({
   const [viewFoto, setViewFoto] = useState<BibliotecaFoto | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [searchGrid, setSearchGrid] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef    = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   /* ── Product search ── */
 
@@ -518,6 +519,14 @@ export default function BibliotecaClient({
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
                     className="hidden"
                     onChange={handlePhotoChange}
                   />
@@ -526,27 +535,39 @@ export default function BibliotecaClient({
                     <div className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={photoPreview} alt="Preview" className="w-full max-h-72 object-contain rounded-2xl bg-zinc-800" />
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute bottom-3 right-3 bg-black/60 text-white text-xs font-medium px-3 py-1.5 rounded-xl backdrop-blur-sm hover:bg-black/80 transition cursor-pointer"
-                      >
-                        Trocar foto
-                      </button>
+                      <div className="absolute bottom-3 right-3 flex gap-1.5">
+                        <button onClick={() => fileInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm hover:bg-black/90 transition cursor-pointer">
+                          Câmera
+                        </button>
+                        <button onClick={() => galleryInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm hover:bg-black/90 transition cursor-pointer">
+                          Galeria
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-col items-center gap-4 w-full aspect-video bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer"
-                    >
-                      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-600">
-                        <IconImage />
-                        <div className="text-center">
-                          <p className="font-semibold text-zinc-400 text-sm">Toque para tirar foto ou escolher da galeria</p>
-                          <p className="text-xs text-zinc-600 mt-1">Foto do produto + etiqueta com código</p>
-                        </div>
+                    <div className="flex flex-col gap-3 w-full">
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1 flex flex-col items-center justify-center gap-2 py-8 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+                          </svg>
+                          <span className="text-xs font-medium">Câmera</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => galleryInputRef.current?.click()}
+                          className="flex-1 flex flex-col items-center justify-center gap-2 py-8 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300"
+                        >
+                          <IconImage />
+                          <span className="text-xs font-medium">Galeria</span>
+                        </button>
                       </div>
-                    </button>
+                      <p className="text-xs text-zinc-600 text-center">Foto do produto para a biblioteca</p>
+                    </div>
                   )}
 
                   <div className="flex items-center gap-3 w-full">
