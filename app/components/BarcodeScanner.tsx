@@ -7,6 +7,7 @@ export type ScanLabelResult = {
   marca: string | null
   tamanho: string | null
   codigo_produto: string | null
+  photoFile?: File
 }
 
 type Props = {
@@ -108,7 +109,7 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
       if (!res.ok) {
         setPhotoError(data.error ?? 'Não foi possível ler a etiqueta. Tente uma foto mais nítida.')
       } else {
-        onLabelScan?.({ nome: data.nome ?? null, marca: data.marca ?? null, tamanho: data.tamanho ?? null, codigo_produto: data.codigo_produto ?? null })
+        onLabelScan?.({ nome: data.nome ?? null, marca: data.marca ?? null, tamanho: data.tamanho ?? null, codigo_produto: data.codigo_produto ?? null, photoFile: file })
       }
     } catch {
       setPhotoError('Erro ao enviar foto. Tente novamente.')

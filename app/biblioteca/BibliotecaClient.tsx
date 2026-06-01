@@ -140,8 +140,17 @@ export default function BibliotecaClient({
 
   function onLabelScanned(data: ScanLabelResult) {
     setShowScanner(false)
+
+    // Usa a foto da etiqueta como foto do produto
+    if (data.photoFile) {
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+      setPhotoFile(data.photoFile)
+      setPhotoPreview(URL.createObjectURL(data.photoFile))
+    }
+
     if (!data.nome && !data.marca) {
       showToast('Não foi possível identificar o produto na etiqueta', 'error')
+      if (data.photoFile) setStep('link')
       return
     }
 
@@ -168,6 +177,9 @@ export default function BibliotecaClient({
       setSearchDropdown(true)
       showToast('Produto não encontrado — refine a busca', 'error')
     }
+
+    // Avança para step 2 automaticamente
+    setStep('link')
   }
 
   /* ── Photo ── */
@@ -537,8 +549,22 @@ export default function BibliotecaClient({
                     </button>
                   )}
 
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="flex-1 h-px bg-zinc-800" />
+                    <span className="text-xs text-zinc-600">ou</span>
+                    <div className="flex-1 h-px bg-zinc-800" />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowScanner(true)}
+                    className="flex items-center justify-center gap-2 text-sm text-zinc-400 hover:text-violet-400 border border-zinc-700 hover:border-violet-500/50 rounded-xl py-3 w-full transition cursor-pointer"
+                  >
+                    <IconBarcode /> Tirar foto da etiqueta — IA identifica o produto
+                  </button>
+
                   <p className="text-xs text-zinc-600 text-center">
-                    Tire a foto do produto junto com a etiqueta — o código de barras será usado para identificar o modelo
+                    A foto da etiqueta será usada como foto do produto e a IA identifica o modelo automaticamente
                   </p>
                 </>
               )}
