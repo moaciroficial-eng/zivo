@@ -142,8 +142,8 @@ export default function BibliotecaClient({
   function onLabelScanned(data: ScanLabelResult) {
     setShowScanner(false)
 
-    // Usa a foto da etiqueta como foto do produto
-    if (data.photoFile) {
+    // Usa a foto da etiqueta como foto do produto apenas se ainda não houver foto
+    if (data.photoFile && !photoFile) {
       if (photoPreview) URL.revokeObjectURL(photoPreview)
       setPhotoFile(data.photoFile)
       setPhotoPreview(URL.createObjectURL(data.photoFile))
