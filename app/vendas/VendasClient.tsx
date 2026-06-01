@@ -473,9 +473,10 @@ export default function VendasClient({
         desconto: p.desconto ? Number(p.desconto) : null,
       })),
     }
-    const { data, error } = await supabase.from('vendas').update(payload).eq('id', editing!.id).select().single()
+    const { data, error } = await supabase.from('vendas').update(payload).eq('id', editing!.id).select()
     if (error) { setFormError(error.message); setSaving(false); return }
-    setVendas(vs => vs.map(v => v.id === editing!.id ? data : v))
+    const updated = data?.[0] ?? { ...editing!, ...payload }
+    setVendas(vs => vs.map(v => v.id === editing!.id ? updated : v))
     showToast('Venda atualizada.')
     setSaving(false); closeDrawer()
   }

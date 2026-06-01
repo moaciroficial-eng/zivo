@@ -169,14 +169,16 @@ export default function ClientesClient({
     }
 
     if (editing) {
-      const { data, error } = await supabase.from('clientes').update(payload).eq('id', editing.id).select().single()
+      const { data, error } = await supabase.from('clientes').update(payload).eq('id', editing.id).select()
       if (error) { setFormError(error.message); setSaving(false); return }
-      setClientes(cs => cs.map(c => c.id === editing.id ? data : c))
+      const updated = data?.[0] ?? { ...editing, ...payload }
+      setClientes(cs => cs.map(c => c.id === editing.id ? updated : c))
       showToast('Cliente atualizado com sucesso.')
     } else {
-      const { data, error } = await supabase.from('clientes').insert(payload).select().single()
+      const { data, error } = await supabase.from('clientes').insert(payload).select()
       if (error) { setFormError(error.message); setSaving(false); return }
-      setClientes(cs => [data, ...cs])
+      const inserted = data?.[0]
+      if (inserted) setClientes(cs => [inserted, ...cs])
       showToast('Cliente adicionado com sucesso.')
     }
 

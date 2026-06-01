@@ -261,14 +261,16 @@ export default function CalendarioClient({
     }
 
     if (editing) {
-      const { data, error } = await supabase.from('eventos').update(payload).eq('id', editing.id).select().single()
+      const { data, error } = await supabase.from('eventos').update(payload).eq('id', editing.id).select()
       if (error) { setFormError(error.message); setSaving(false); return }
-      setEventos(es => es.map(e => e.id === editing.id ? data : e))
+      const updated = data?.[0] ?? { ...editing, ...payload }
+      setEventos(es => es.map(e => e.id === editing.id ? updated : e))
       showToast('Evento atualizado.')
     } else {
-      const { data, error } = await supabase.from('eventos').insert(payload).select().single()
+      const { data, error } = await supabase.from('eventos').insert(payload).select()
       if (error) { setFormError(error.message); setSaving(false); return }
-      setEventos(es => [...es, data].sort((a, b) => a.data.localeCompare(b.data)))
+      const inserted = data?.[0]
+      if (inserted) setEventos(es => [...es, inserted].sort((a, b) => a.data.localeCompare(b.data)))
       setSelectedDate(form.data)
       showToast('Evento adicionado.')
     }
