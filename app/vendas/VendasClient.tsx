@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
 import MobileNav from '@/app/components/MobileNav'
+import BarcodeScanner from '@/app/components/BarcodeScanner'
 
 /* ── Types ─────────────────────────────────────────────────── */
 
-type Produto = { nome: string; qtd: number }
+type Produto = { nome: string; qtd: number; preco_unitario?: number; desconto?: number }
 
 type Venda = {
   id: string
@@ -17,13 +18,28 @@ type Venda = {
   cliente_nome: string
   valor: number
   data_venda: string
+  forma_pagamento: string | null
   produtos: Produto[]
   created_at: string
 }
 
 type ClienteOption = { id: string; nome: string }
 
-type FormProduto = { nome: string; qtd: string }
+type EstoqueItem = {
+  id: string
+  nome: string
+  marca: string | null
+  preco_venda: number | null
+  codigo_barras: string | null
+}
+
+type FormProduto = {
+  estoqueId: string
+  nome: string
+  qtd: string
+  precoUnitario: string
+  desconto: string  // % de desconto
+}
 
 type FormState = {
   clienteSearch: string
@@ -31,6 +47,7 @@ type FormState = {
   clienteNome: string
   valor: string
   dataVenda: string
+  forma_pagamento: string
   produtos: FormProduto[]
 }
 
@@ -38,9 +55,24 @@ type FormState = {
 
 const TODAY = new Date().toISOString().split('T')[0]
 
+const FORMAS_PAGAMENTO = [
+  { value: 'pix',        label: 'Pix' },
+  { value: 'dinheiro',   label: 'Dinheiro' },
+  { value: 'debito',     label: 'Débito' },
+  { value: 'credito_1x', label: 'Crédito 1x' },
+  { value: 'credito_2x', label: 'Crédito 2x' },
+  { value: 'credito_3x', label: 'Crédito 3x' },
+  { value: 'credito_4x', label: 'Crédito 4x' },
+  { value: 'credito_6x', label: 'Crédito 6x' },
+  { value: 'credito_10x',label: 'Crédito 10x' },
+  { value: 'credito_12x',label: 'Crédito 12x' },
+]
+
+const EMPTY_PRODUTO: FormProduto = { estoqueId: '', nome: '', qtd: '1', precoUnitario: '', desconto: '0' }
+
 const EMPTY: FormState = {
   clienteSearch: '', clienteId: '', clienteNome: '',
-  valor: '', dataVenda: TODAY, produtos: [],
+  valor: '', dataVenda: TODAY, forma_pagamento: '', produtos: [],
 }
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
@@ -116,10 +148,12 @@ export default function VendasClient({
   user,
   initialVendas,
   clientes,
+  estoqueItems,
 }: {
   user: { id: string; email: string }
   initialVendas: Venda[]
   clientes: ClienteOption[]
+  estoqueItems: EstoqueItem[]
 }) {
   const supabase = createClient()
   const [vendas, setVendas] = useState(initialVendas)
@@ -133,6 +167,8 @@ export default function VendasClient({
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [clienteDropdown, setClienteDropdown] = useState(false)
+  const [produtoDropdownIdx, setProdutoDropdownIdx] = useState<number | null>(null)
+  const [showScanner, setShowScanner] = useState<number | null>(null) // index do produto sendo escaneado
   const dropdownRef = useRef<HTMLDivElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
 
@@ -155,15 +191,58 @@ export default function VendasClient({
   /* ── Produtos ── */
 
   function addProduto() {
-    setForm(f => ({ ...f, produtos: [...f.produtos, { nome: '', qtd: '1' }] }))
+    setForm(f => ({ ...f, produtos: [...f.produtos, { ...EMPTY_PRODUTO }] }))
   }
 
   function removeProduto(i: number) {
     setForm(f => ({ ...f, produtos: f.produtos.filter((_, idx) => idx !== i) }))
+    setProdutoDropdownIdx(null)
   }
 
   function setProdutoField(i: number, key: keyof FormProduto, val: string) {
     setForm(f => ({ ...f, produtos: f.produtos.map((p, idx) => idx === i ? { ...p, [key]: val } : p) }))
+  }
+
+  function selectEstoqueItem(i: number, item: EstoqueItem) {
+    const preco = item.preco_venda != null ? String(item.preco_venda) : ''
+    const nome = item.nome + (item.marca ? ` (${item.marca})` : '')
+    setForm(f => ({
+      ...f,
+      produtos: f.produtos.map((p, idx) =>
+        idx === i ? { ...p, estoqueId: item.id, nome, precoUnitario: preco, desconto: '0' } : p
+      ),
+    }))
+    setProdutoDropdownIdx(null)
+  }
+
+  function onScanBarcode(barcode: string, idx: number) {
+    setShowScanner(null)
+    const found = estoqueItems.find(e => e.codigo_barras === barcode)
+    if (found) {
+      selectEstoqueItem(idx, found)
+      showToast(`Produto encontrado: ${found.nome}`)
+    } else {
+      showToast(`Código ${barcode} não encontrado no estoque`, 'error')
+    }
+  }
+
+  function calcLinhaTotal(p: FormProduto): number {
+    const preco = parseFloat(p.precoUnitario) || 0
+    const qtd   = parseFloat(p.qtd) || 1
+    const desc  = parseFloat(p.desconto) || 0
+    return preco * qtd * (1 - desc / 100)
+  }
+
+  const totalSugerido = form.produtos.some(p => p.precoUnitario)
+    ? form.produtos.reduce((s, p) => s + calcLinhaTotal(p), 0)
+    : null
+
+  const estoqueFiltrado = (i: number) => {
+    const q = form.produtos[i]?.nome?.toLowerCase() ?? ''
+    if (q.length < 1) return []
+    return estoqueItems.filter(e =>
+      (e.nome + (e.marca ?? '')).toLowerCase().includes(q)
+    ).slice(0, 7)
   }
 
   /* ── Toast ── */
@@ -187,13 +266,21 @@ export default function VendasClient({
       clienteNome: v.cliente_nome,
       valor: String(v.valor),
       dataVenda: v.data_venda,
-      produtos: (v.produtos ?? []).map(p => ({ nome: p.nome, qtd: String(p.qtd) })),
+      forma_pagamento: v.forma_pagamento ?? '',
+      produtos: (v.produtos ?? []).map(p => ({
+        estoqueId: '',
+        nome: p.nome,
+        qtd: String(p.qtd),
+        precoUnitario: p.preco_unitario != null ? String(p.preco_unitario) : '',
+        desconto: p.desconto != null ? String(p.desconto) : '0',
+      })),
     })
-    setFormError(''); setClienteDropdown(false); setDrawer(true)
+    setFormError(''); setClienteDropdown(false); setProdutoDropdownIdx(null); setDrawer(true)
   }
 
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError(''); setClienteDropdown(false)
+    setProdutoDropdownIdx(null); setShowScanner(null)
   }
 
   /* ── Save ── */
@@ -209,7 +296,13 @@ export default function VendasClient({
       cliente_nome: form.clienteNome.trim(),
       valor: Number(form.valor),
       data_venda: form.dataVenda,
-      produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({ nome: p.nome.trim(), qtd: Number(p.qtd) || 1 })),
+      forma_pagamento: form.forma_pagamento || null,
+      produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
+        nome: p.nome.trim(),
+        qtd: Number(p.qtd) || 1,
+        preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
+        desconto: p.desconto ? Number(p.desconto) : null,
+      })),
     }
 
     if (editing) {
@@ -556,18 +649,25 @@ export default function VendasClient({
 
               {/* Valor + Data */}
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Valor (R$) *">
+                <Field label="Valor total (R$) *">
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="number" min="0" step="0.01"
                     value={form.valor}
                     onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
                     placeholder="0,00"
                     className={INPUT}
                   />
+                  {totalSugerido != null && String(totalSugerido.toFixed(2)) !== form.valor && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, valor: totalSugerido.toFixed(2) }))}
+                      className="text-xs text-violet-400 hover:text-violet-300 mt-1 text-left"
+                    >
+                      Usar total calculado: {formatBRL(totalSugerido)}
+                    </button>
+                  )}
                 </Field>
-                <Field label="Data da Venda *">
+                <Field label="Data *">
                   <input
                     type="date"
                     value={form.dataVenda}
@@ -577,43 +677,128 @@ export default function VendasClient({
                 </Field>
               </div>
 
+              {/* Forma de pagamento */}
+              <Field label="Forma de pagamento">
+                <div className="grid grid-cols-3 gap-1.5">
+                  {FORMAS_PAGAMENTO.map(fp => (
+                    <button
+                      key={fp.value}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, forma_pagamento: f.forma_pagamento === fp.value ? '' : fp.value }))}
+                      className={`text-xs py-2 px-2 rounded-lg border transition cursor-pointer font-medium ${
+                        form.forma_pagamento === fp.value
+                          ? 'bg-violet-600 border-violet-500 text-white'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                      }`}
+                    >
+                      {fp.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
               {/* Produtos */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-zinc-300">Produtos</label>
-                  <span className="text-xs text-zinc-500">{form.produtos.length} item{form.produtos.length !== 1 ? 's' : ''}</span>
+                  {totalSugerido != null && (
+                    <span className="text-xs font-semibold text-emerald-400">{formatBRL(totalSugerido)}</span>
+                  )}
                 </div>
 
-                {form.produtos.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {form.produtos.map((p, i) => (
-                      <div key={i} className="flex gap-2 items-center">
+                {form.produtos.map((p, i) => (
+                  <div key={i} className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3 flex flex-col gap-2">
+                    {/* Nome + Scan */}
+                    <div className="relative flex gap-2">
+                      <input
+                        type="text"
+                        value={p.nome}
+                        onChange={e => { setProdutoField(i, 'nome', e.target.value); setProdutoField(i, 'estoqueId', ''); setProdutoDropdownIdx(i) }}
+                        onFocus={() => setProdutoDropdownIdx(i)}
+                        onBlur={() => setTimeout(() => setProdutoDropdownIdx(null), 200)}
+                        placeholder="Buscar produto do estoque..."
+                        className="flex-1 bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                      />
+                      {/* Scanner button */}
+                      <button
+                        type="button"
+                        onClick={() => setShowScanner(i)}
+                        className="p-2 bg-zinc-900 border border-zinc-700 text-violet-400 hover:bg-zinc-800 rounded-lg transition cursor-pointer shrink-0"
+                        title="Escanear etiqueta"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                          <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                          <line x1="7" y1="12" x2="7" y2="12.01"/><line x1="12" y1="8" x2="12" y2="16"/>
+                          <line x1="17" y1="12" x2="17" y2="12.01"/>
+                        </svg>
+                      </button>
+                      {/* Dropdown estoque */}
+                      {produtoDropdownIdx === i && p.nome.length >= 1 && (
+                        <div className="absolute z-20 top-full left-0 right-10 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
+                          {estoqueFiltrado(i).length > 0 ? (
+                            estoqueFiltrado(i).map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onMouseDown={() => selectEstoqueItem(i, item)}
+                                className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
+                              >
+                                <span className="text-zinc-200 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
+                                {item.preco_venda != null && <span className="text-emerald-400 text-xs shrink-0">{formatBRL(item.preco_venda)}</span>}
+                              </button>
+                            ))
+                          ) : (
+                            <p className="px-3 py-2.5 text-xs text-zinc-500">Nenhum produto encontrado — cadastre no estoque</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Qtd + Preço + Desconto */}
+                    <div className="flex gap-2 items-center">
+                      <div className="flex flex-col flex-1">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Qtd</span>
                         <input
-                          type="text"
-                          value={p.nome}
-                          onChange={e => setProdutoField(i, 'nome', e.target.value)}
-                          placeholder="Nome do produto"
-                          className="flex-1 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
-                        />
-                        <input
-                          type="number"
-                          min="1"
+                          type="number" min="1"
                           value={p.qtd}
                           onChange={e => setProdutoField(i, 'qtd', e.target.value)}
-                          className="w-16 bg-zinc-800 border border-zinc-700 text-white text-center rounded-lg px-2 py-2 text-sm outline-none focus:border-violet-500 transition"
-                          title="Quantidade"
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
                         />
-                        <button
-                          type="button"
-                          onClick={() => removeProduto(i)}
-                          className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0"
-                        >
-                          <IconX size={14} />
-                        </button>
                       </div>
-                    ))}
+                      <div className="flex flex-col flex-[2]">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Preço unit. (R$)</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={p.precoUnitario}
+                          onChange={e => setProdutoField(i, 'precoUnitario', e.target.value)}
+                          placeholder="0,00"
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
+                        />
+                      </div>
+                      <div className="flex flex-col flex-1">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Desc %</span>
+                        <input
+                          type="number" min="0" max="100" step="1"
+                          value={p.desconto}
+                          onChange={e => setProdutoField(i, 'desconto', e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
+                        />
+                      </div>
+                      <div className="flex flex-col items-end justify-end pb-0.5">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Total</span>
+                        <span className="text-sm font-semibold text-emerald-400">{p.precoUnitario ? formatBRL(calcLinhaTotal(p)) : '—'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProduto(i)}
+                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0 self-end mb-0.5"
+                      >
+                        <IconX size={14} />
+                      </button>
+                    </div>
                   </div>
-                )}
+                ))}
 
                 <button
                   type="button"
@@ -646,6 +831,14 @@ export default function VendasClient({
         </div>
       )}
       <MobileNav />
+
+      {/* Scanner overlay */}
+      {showScanner !== null && (
+        <BarcodeScanner
+          onScan={code => onScanBarcode(code, showScanner)}
+          onClose={() => setShowScanner(null)}
+        />
+      )}
     </div>
   )
 }
