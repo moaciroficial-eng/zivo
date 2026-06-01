@@ -40,6 +40,7 @@ const NAV_LINKS = [
   { href: '/vendas',               label: 'Vendas'        },
   { href: '/calendario',           label: 'Calendário'    },
   { href: '/estoque',              label: 'Estoque'       },
+  { href: '/biblioteca',           label: 'Biblioteca'    },
   { href: '/configuracoes/marcas', label: 'Configurações' },
 ]
 

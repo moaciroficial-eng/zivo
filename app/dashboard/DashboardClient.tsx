@@ -82,6 +82,7 @@ const NAV_LINKS = [
   { href: '/vendas',               label: 'Vendas',        active: false },
   { href: '/calendario',           label: 'Calendário',    active: false },
   { href: '/estoque',              label: 'Estoque',       active: false },
+  { href: '/biblioteca',           label: 'Biblioteca',    active: false },
   { href: '/configuracoes/marcas', label: 'Configurações', active: false },
 ]
 

@@ -568,6 +568,7 @@ export default function VendasClient({
               <Link href="/clientes" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Clientes</Link>
               <Link href="/calendario" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Calendário</Link>
               <Link href="/estoque" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Estoque</Link>
+              <Link href="/biblioteca" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Biblioteca</Link>
               <Link href="/configuracoes/marcas" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Configurações</Link>
               <span className="text-zinc-700 select-none">/</span>
               <span className="px-3 py-1.5 font-medium bg-zinc-800 rounded-lg">Vendas</span>
