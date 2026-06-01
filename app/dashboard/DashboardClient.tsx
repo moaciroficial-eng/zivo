@@ -260,12 +260,15 @@ export default function DashboardClient({
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ mes }),
       })
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `Erro ${res.status}`)
+      }
       const { plano: newPlano } = await res.json() as { plano: Plano }
       setPlano(newPlano)
       setMeta(prev => prev ? { ...prev, plano: newPlano, plano_vendido_base: vendidoMes } : prev)
-    } catch {
-      setGenerateError('Não foi possível gerar o plano. Tente novamente.')
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : 'Não foi possível gerar o plano. Tente novamente.')
     } finally {
       setIsGenerating(false)
     }
