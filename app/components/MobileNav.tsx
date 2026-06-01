@@ -58,7 +58,7 @@ export default function MobileNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 flex items-stretch safe-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/95 border-t border-zinc-800 flex items-stretch" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {TABS.map(tab => {
         const active = pathname === tab.href || (tab.href !== '/dashboard' && pathname.startsWith(tab.href))
         return (
