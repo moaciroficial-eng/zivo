@@ -38,7 +38,7 @@ type FormProduto = {
   nome: string
   qtd: string
   precoUnitario: string
-  desconto: string  // % de desconto
+  desconto: string
 }
 
 type FormState = {
@@ -55,18 +55,14 @@ type FormState = {
 
 const TODAY = new Date().toISOString().split('T')[0]
 
-const FORMAS_PAGAMENTO = [
-  { value: 'pix',        label: 'Pix' },
-  { value: 'dinheiro',   label: 'Dinheiro' },
-  { value: 'debito',     label: 'Débito' },
-  { value: 'credito_1x', label: 'Crédito 1x' },
-  { value: 'credito_2x', label: 'Crédito 2x' },
-  { value: 'credito_3x', label: 'Crédito 3x' },
-  { value: 'credito_4x', label: 'Crédito 4x' },
-  { value: 'credito_6x', label: 'Crédito 6x' },
-  { value: 'credito_10x',label: 'Crédito 10x' },
-  { value: 'credito_12x',label: 'Crédito 12x' },
+const METODOS = [
+  { value: 'pix',      label: 'Pix' },
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'debito',   label: 'Débito' },
+  { value: 'credito',  label: 'Crédito' },
 ]
+
+const PARCELAS = [1, 2, 3, 4, 6, 10, 12]
 
 const EMPTY_PRODUTO: FormProduto = { estoqueId: '', nome: '', qtd: '1', precoUnitario: '', desconto: '0' }
 
@@ -90,12 +86,7 @@ function parseProdutos(raw: unknown): Produto[] {
   if (typeof raw === 'string') {
     const s = raw.trim()
     if (s.startsWith('[') || s.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(s)
-        return Array.isArray(parsed) ? parsed as Produto[] : []
-      } catch {
-        return []
-      }
+      try { const p = JSON.parse(s); return Array.isArray(p) ? p as Produto[] : [] } catch { return [] }
     }
     return s.split(';').map(p => {
       const [nome, qtd] = p.split(':')
@@ -109,25 +100,13 @@ function formatBRL(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
-/* ── Small components ───────────────────────────────────────── */
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-zinc-300">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      {sub && <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>}
-    </div>
-  )
+function labelPagamento(fp: string): string {
+  if (!fp) return '—'
+  if (fp === 'pix') return 'Pix'
+  if (fp === 'dinheiro') return 'Dinheiro'
+  if (fp === 'debito') return 'Débito'
+  if (fp.startsWith('credito_')) return `Crédito ${fp.replace('credito_', '')}`
+  return fp
 }
 
 /* ── Icons ──────────────────────────────────────────────────── */
@@ -141,6 +120,38 @@ const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" heig
 const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 const IconPackage = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
 const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+const IconArrowLeft = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+
+/* Payment method icons */
+const IconZap = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+const IconBanknote = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+const IconCard = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+
+function MetodoIcon({ value }: { value: string }) {
+  if (value === 'pix') return <IconZap />
+  if (value === 'dinheiro') return <IconBanknote />
+  return <IconCard />
+}
+
+/* ── Small components ───────────────────────────────────────── */
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-zinc-300">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{label}</p>
+      <p className="text-2xl font-bold mt-1">{value}</p>
+    </div>
+  )
+}
 
 /* ── Main component ─────────────────────────────────────────── */
 
@@ -168,7 +179,10 @@ export default function VendasClient({
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [clienteDropdown, setClienteDropdown] = useState(false)
   const [produtoDropdownIdx, setProdutoDropdownIdx] = useState<number | null>(null)
-  const [showScanner, setShowScanner] = useState<number | null>(null) // index do produto sendo escaneado
+  const [showScanner, setShowScanner] = useState<number | null>(null)
+  const [showPayment, setShowPayment] = useState(false)
+  const [selectedMethod, setSelectedMethod] = useState('')
+  const [selectedParcelas, setSelectedParcelas] = useState<number | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
 
@@ -218,12 +232,8 @@ export default function VendasClient({
   function onScanBarcode(barcode: string, idx: number) {
     setShowScanner(null)
     const found = estoqueItems.find(e => e.codigo_barras === barcode)
-    if (found) {
-      selectEstoqueItem(idx, found)
-      showToast(`Produto encontrado: ${found.nome}`)
-    } else {
-      showToast(`Código ${barcode} não encontrado no estoque`, 'error')
-    }
+    if (found) { selectEstoqueItem(idx, found); showToast(`Produto encontrado: ${found.nome}`) }
+    else showToast(`Código ${barcode} não encontrado no estoque`, 'error')
   }
 
   function calcLinhaTotal(p: FormProduto): number {
@@ -237,12 +247,12 @@ export default function VendasClient({
     ? form.produtos.reduce((s, p) => s + calcLinhaTotal(p), 0)
     : null
 
+  const totalFinal = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
+
   const estoqueFiltrado = (i: number) => {
     const q = form.produtos[i]?.nome?.toLowerCase() ?? ''
     if (q.length < 1) return []
-    return estoqueItems.filter(e =>
-      (e.nome + (e.marca ?? '')).toLowerCase().includes(q)
-    ).slice(0, 7)
+    return estoqueItems.filter(e => (e.nome + (e.marca ?? '')).toLowerCase().includes(q)).slice(0, 7)
   }
 
   /* ── Toast ── */
@@ -255,18 +265,29 @@ export default function VendasClient({
   /* ── Drawer ── */
 
   function openNew() {
-    setEditing(null); setForm(EMPTY); setFormError(''); setClienteDropdown(false); setDrawer(true)
+    setEditing(null); setForm(EMPTY); setFormError('')
+    setClienteDropdown(false); setShowPayment(false)
+    setSelectedMethod(''); setSelectedParcelas(null); setDrawer(true)
   }
 
   function openEdit(v: Venda) {
     setEditing(v)
+    const fp = v.forma_pagamento ?? ''
+    let metodo = fp
+    let parcelas: number | null = null
+    if (fp.startsWith('credito_')) {
+      metodo = 'credito'
+      parcelas = parseInt(fp.replace('credito_', '').replace('x', '')) || null
+    }
+    setSelectedMethod(metodo)
+    setSelectedParcelas(parcelas)
     setForm({
       clienteSearch: v.cliente_nome,
       clienteId: v.cliente_id ?? '',
       clienteNome: v.cliente_nome,
       valor: String(v.valor),
       dataVenda: v.data_venda,
-      forma_pagamento: v.forma_pagamento ?? '',
+      forma_pagamento: fp,
       produtos: (v.produtos ?? []).map(p => ({
         estoqueId: '',
         nome: p.nome,
@@ -275,28 +296,38 @@ export default function VendasClient({
         desconto: p.desconto != null ? String(p.desconto) : '0',
       })),
     })
-    setFormError(''); setClienteDropdown(false); setProdutoDropdownIdx(null); setDrawer(true)
+    setFormError(''); setClienteDropdown(false); setProdutoDropdownIdx(null)
+    setShowPayment(false); setDrawer(true)
   }
 
   function closeDrawer() {
-    setDrawer(false); setEditing(null); setFormError(''); setClienteDropdown(false)
-    setProdutoDropdownIdx(null); setShowScanner(null)
+    setDrawer(false); setEditing(null); setFormError('')
+    setClienteDropdown(false); setProdutoDropdownIdx(null); setShowScanner(null)
+    setShowPayment(false); setSelectedMethod(''); setSelectedParcelas(null)
   }
 
-  /* ── Save ── */
+  /* ── Vender (new) → open payment overlay ── */
 
-  async function handleSave() {
+  function handleVender() {
     if (!form.clienteNome.trim()) { setFormError('Informe o nome do cliente.'); return }
-    if (!form.valor || isNaN(Number(form.valor)) || Number(form.valor) <= 0) { setFormError('Informe um valor válido.'); return }
-    if (!form.dataVenda) { setFormError('Informe a data da venda.'); return }
-    setSaving(true); setFormError('')
+    if (!form.dataVenda) { setFormError('Informe a data.'); return }
+    if (totalFinal <= 0) { setFormError('Adicione produtos com preço ou informe o valor.'); return }
+    setFormError('')
+    setSelectedMethod(''); setSelectedParcelas(null)
+    setShowPayment(true)
+  }
 
+  /* ── Save with payment (new venda) ── */
+
+  async function handleSaveWithPayment(fp: string) {
+    setSaving(true)
+    const valor = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
     const payload = {
       cliente_id: form.clienteId || null,
       cliente_nome: form.clienteNome.trim(),
-      valor: Number(form.valor),
+      valor,
       data_venda: form.dataVenda,
-      forma_pagamento: form.forma_pagamento || null,
+      forma_pagamento: fp,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         qtd: Number(p.qtd) || 1,
@@ -304,27 +335,50 @@ export default function VendasClient({
         desconto: p.desconto ? Number(p.desconto) : null,
       })),
     }
-
-    if (editing) {
-      const { data, error } = await supabase.from('vendas').update(payload).eq('id', editing.id).select().single()
-      if (error) { setFormError(error.message); setSaving(false); return }
-      setVendas(vs => vs.map(v => v.id === editing.id ? data : v))
-      showToast('Venda atualizada.')
-    } else {
-      const { data, error } = await supabase.from('vendas').insert(payload).select().single()
-      if (error) { setFormError(error.message); setSaving(false); return }
-      setVendas(vs => [data, ...vs])
-      showToast('Venda adicionada.')
-      // Marca produtos do plano como vendidos (fire-and-forget)
-      if (payload.produtos.length > 0) {
-        const mes = payload.data_venda.slice(0, 7)
-        fetch('/api/marcar-plano-vendido', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mes, data_venda: payload.data_venda, produtos_vendidos: payload.produtos }),
-        }).catch(() => {})
-      }
+    const { data, error } = await supabase.from('vendas').insert(payload).select().single()
+    if (error) { setFormError(error.message); setSaving(false); setShowPayment(false); return }
+    setVendas(vs => [data, ...vs])
+    showToast('Venda registrada.')
+    if (payload.produtos.length > 0) {
+      const mes = payload.data_venda.slice(0, 7)
+      fetch('/api/marcar-plano-vendido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mes, data_venda: payload.data_venda, produtos_vendidos: payload.produtos }),
+      }).catch(() => {})
     }
+    setSaving(false); closeDrawer()
+  }
+
+  /* ── Save edit ── */
+
+  async function handleSave() {
+    if (!form.clienteNome.trim()) { setFormError('Informe o nome do cliente.'); return }
+    if (!form.valor || Number(form.valor) <= 0) { setFormError('Informe o valor.'); return }
+    if (!form.dataVenda) { setFormError('Informe a data.'); return }
+    setSaving(true); setFormError('')
+
+    const fp = selectedMethod
+      ? (selectedMethod === 'credito' ? (selectedParcelas ? `credito_${selectedParcelas}x` : form.forma_pagamento) : selectedMethod)
+      : form.forma_pagamento
+
+    const payload = {
+      cliente_id: form.clienteId || null,
+      cliente_nome: form.clienteNome.trim(),
+      valor: Number(form.valor),
+      data_venda: form.dataVenda,
+      forma_pagamento: fp || null,
+      produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
+        nome: p.nome.trim(),
+        qtd: Number(p.qtd) || 1,
+        preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
+        desconto: p.desconto ? Number(p.desconto) : null,
+      })),
+    }
+    const { data, error } = await supabase.from('vendas').update(payload).eq('id', editing!.id).select().single()
+    if (error) { setFormError(error.message); setSaving(false); return }
+    setVendas(vs => vs.map(v => v.id === editing!.id ? data : v))
+    showToast('Venda atualizada.')
     setSaving(false); closeDrawer()
   }
 
@@ -350,7 +404,6 @@ export default function VendasClient({
       if (!rows.length) { showToast('Nenhum dado válido encontrado no CSV.', 'error'); return }
 
       const inserts = rows.map(r => {
-        // produtos aceita "nome1:qtd1;nome2:qtd2" ou texto livre
         const produtosRaw = r['produtos'] ?? ''
         const produtos: Produto[] = produtosRaw
           ? produtosRaw.split(';').map(p => {
@@ -358,22 +411,20 @@ export default function VendasClient({
               return { nome: nome?.trim() ?? p.trim(), qtd: Number(qtd) || 1 }
             }).filter(p => p.nome)
           : []
-
         return {
           cliente_nome: r['cliente_nome'],
           cliente_id: null,
           valor: Number(r['valor'].replace(',', '.')) || 0,
-          data_venda: r['data_venda'] || new Date().toISOString().split('T')[0],
+          data_venda: r['data_venda'] || TODAY,
           produtos,
         }
       }).filter(r => r.valor > 0)
 
-      if (!inserts.length) { showToast('Nenhuma venda com valor válido encontrada.', 'error'); return }
-
+      if (!inserts.length) { showToast('Nenhuma venda com valor válido.', 'error'); return }
       const { data, error } = await supabase.from('vendas').insert(inserts).select()
-      if (error) { showToast(`Erro na importação: ${error.message}`, 'error'); return }
+      if (error) { showToast(`Erro: ${error.message}`, 'error'); return }
       setVendas(vs => [...(data ?? []), ...vs])
-      showToast(`${data?.length ?? 0} venda(s) importada(s) com sucesso.`)
+      showToast(`${data?.length ?? 0} venda(s) importada(s).`)
     }
     reader.readAsText(file, 'UTF-8')
     e.target.value = ''
@@ -391,10 +442,7 @@ export default function VendasClient({
 
   /* ── Derived ── */
 
-  const filtered = vendas.filter(v =>
-    v.cliente_nome.toLowerCase().includes(search.toLowerCase())
-  )
-
+  const filtered = vendas.filter(v => v.cliente_nome.toLowerCase().includes(search.toLowerCase()))
   const totalReceita = vendas.reduce((s, v) => s + Number(v.valor), 0)
   const ticketMedio = vendas.length > 0 ? totalReceita / vendas.length : 0
 
@@ -416,7 +464,7 @@ export default function VendasClient({
               </div>
               <span className="font-bold">zivo</span>
             </Link>
-            <nav className="flex items-center gap-1 text-sm">
+            <nav className="hidden md:flex items-center gap-1 text-sm">
               <Link href="/dashboard" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Dashboard</Link>
               <Link href="/clientes" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Clientes</Link>
               <Link href="/calendario" className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">Calendário</Link>
@@ -453,7 +501,7 @@ export default function VendasClient({
             </button>
             <button
               onClick={openNew}
-              onTouchEnd={(e) => { e.preventDefault(); openNew(); }}
+              onTouchEnd={(e) => { e.preventDefault(); openNew() }}
               className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-violet-500/20"
             >
               <IconPlus /> Nova Venda
@@ -489,7 +537,7 @@ export default function VendasClient({
               placeholder="Buscar por cliente..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition"
+              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-violet-500 transition"
             />
           </div>
         </div>
@@ -511,7 +559,7 @@ export default function VendasClient({
               <>
                 <p className="font-medium text-zinc-300">Nenhuma venda ainda</p>
                 <p className="text-zinc-500 text-sm">Registre a primeira venda do seu negócio.</p>
-                <button onClick={openNew} className="mt-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-5 py-2 transition cursor-pointer">
+                <button onClick={openNew} className="mt-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 rounded-lg px-5 py-2 transition cursor-pointer">
                   Nova Venda
                 </button>
               </>
@@ -523,7 +571,7 @@ export default function VendasClient({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-800">
-                    {['Cliente', 'Valor', 'Data', 'Produtos', ''].map(h => (
+                    {['Cliente', 'Valor', 'Data', 'Pagamento', 'Produtos', ''].map(h => (
                       <th key={h} className={`text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3 ${h === '' ? '' : 'text-left'}`}>{h}</th>
                     ))}
                   </tr>
@@ -547,6 +595,11 @@ export default function VendasClient({
                         </td>
                         <td className="px-4 py-3 font-semibold text-emerald-400 whitespace-nowrap">{formatBRL(Number(v.valor))}</td>
                         <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{formatDate(v.data_venda)}</td>
+                        <td className="px-4 py-3 text-zinc-400 whitespace-nowrap text-xs">
+                          {v.forma_pagamento ? (
+                            <span className="bg-zinc-800 px-2 py-0.5 rounded-md">{labelPagamento(v.forma_pagamento)}</span>
+                          ) : <span className="text-zinc-700">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-zinc-400">
                           {prodLabel
                             ? <span className="flex items-center gap-1.5"><IconPackage />{prodLabel}</span>
@@ -586,123 +639,25 @@ export default function VendasClient({
       {drawer && (
         <div className="fixed inset-0 z-[200] flex items-end sm:items-stretch sm:justify-end">
           <div className="absolute inset-0 bg-black/60" onClick={closeDrawer} />
-          <div className="relative w-full sm:max-w-md bg-zinc-900 border-t border-zinc-800 sm:border-t-0 sm:border-l rounded-t-2xl sm:rounded-none h-[92vh] sm:h-full flex flex-col shadow-2xl">
+          <div className="relative w-full sm:max-w-md bg-zinc-900 border-t border-zinc-800 sm:border-t-0 sm:border-l rounded-t-2xl sm:rounded-none h-[94vh] sm:h-full flex flex-col shadow-2xl overflow-hidden">
 
-            {/* Header */}
+            {/* Drawer header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
               <h2 className="font-semibold text-lg">{editing ? 'Editar Venda' : 'Nova Venda'}</h2>
               <button onClick={closeDrawer} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer"><IconX /></button>
             </div>
 
-            {/* Body */}
+            {/* Drawer body */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6 flex flex-col gap-5">
 
-              {/* Cliente autocomplete */}
-              <Field label="Cliente *">
-                <div className="relative" ref={dropdownRef}>
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"><IconUser /></span>
-                  <input
-                    type="text"
-                    value={form.clienteSearch}
-                    onChange={e => handleClienteInput(e.target.value)}
-                    onFocus={() => setClienteDropdown(true)}
-                    onBlur={() => setTimeout(() => setClienteDropdown(false), 150)}
-                    placeholder="Buscar cliente por nome..."
-                    autoComplete="off"
-                    className={`${INPUT} pl-9 ${form.clienteId ? 'border-violet-500/50' : ''}`}
-                  />
-                  {form.clienteId && (
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, clienteSearch: '', clienteId: '', clienteNome: '' }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition"
-                    >
-                      <IconX size={14} />
-                    </button>
-                  )}
-                  {clienteDropdown && form.clienteSearch.length >= 1 && (
-                    <div className="absolute z-10 top-full mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
-                      {clientesFiltrados.length > 0 ? (
-                        clientesFiltrados.map(c => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onMouseDown={() => selectCliente(c)}
-                            className="w-full text-left px-4 py-2.5 text-sm text-zinc-200 hover:bg-violet-500/20 hover:text-white transition flex items-center gap-2"
-                          >
-                            <span className="w-6 h-6 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
-                              {c.nome.charAt(0).toUpperCase()}
-                            </span>
-                            {c.nome}
-                          </button>
-                        ))
-                      ) : (
-                        <p className="px-4 py-2.5 text-sm text-zinc-500">Nenhum cliente encontrado</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {form.clienteId && (
-                  <p className="text-xs text-violet-400 flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
-                )}
-              </Field>
-
-              {/* Valor + Data */}
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Valor total (R$) *">
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={form.valor}
-                    onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
-                    placeholder="0,00"
-                    className={INPUT}
-                  />
-                  {totalSugerido != null && String(totalSugerido.toFixed(2)) !== form.valor && (
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, valor: totalSugerido.toFixed(2) }))}
-                      className="text-xs text-violet-400 hover:text-violet-300 mt-1 text-left"
-                    >
-                      Usar total calculado: {formatBRL(totalSugerido)}
-                    </button>
-                  )}
-                </Field>
-                <Field label="Data *">
-                  <input
-                    type="date"
-                    value={form.dataVenda}
-                    onChange={e => setForm(f => ({ ...f, dataVenda: e.target.value }))}
-                    className={INPUT}
-                  />
-                </Field>
-              </div>
-
-              {/* Forma de pagamento */}
-              <Field label="Forma de pagamento">
-                <div className="grid grid-cols-3 gap-1.5">
-                  {FORMAS_PAGAMENTO.map(fp => (
-                    <button
-                      key={fp.value}
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, forma_pagamento: f.forma_pagamento === fp.value ? '' : fp.value }))}
-                      className={`text-xs py-2 px-2 rounded-lg border transition cursor-pointer font-medium ${
-                        form.forma_pagamento === fp.value
-                          ? 'bg-violet-600 border-violet-500 text-white'
-                          : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
-                      }`}
-                    >
-                      {fp.label}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-
-              {/* Produtos */}
+              {/* 1. PRODUTOS */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-zinc-300">Produtos</label>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-sm font-semibold text-zinc-200 flex items-center gap-1.5">
+                    <IconPackage /> Produtos
+                  </span>
                   {totalSugerido != null && (
-                    <span className="text-xs font-semibold text-emerald-400">{formatBRL(totalSugerido)}</span>
+                    <span className="text-sm font-bold text-emerald-400">{formatBRL(totalSugerido)}</span>
                   )}
                 </div>
 
@@ -719,7 +674,6 @@ export default function VendasClient({
                         placeholder="Buscar produto do estoque..."
                         className="flex-1 bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
                       />
-                      {/* Scanner button */}
                       <button
                         type="button"
                         onClick={() => setShowScanner(i)}
@@ -733,7 +687,6 @@ export default function VendasClient({
                           <line x1="17" y1="12" x2="17" y2="12.01"/>
                         </svg>
                       </button>
-                      {/* Dropdown estoque */}
                       {produtoDropdownIdx === i && p.nome.length >= 1 && (
                         <div className="absolute z-20 top-full left-0 right-10 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
                           {estoqueFiltrado(i).length > 0 ? (
@@ -749,14 +702,14 @@ export default function VendasClient({
                               </button>
                             ))
                           ) : (
-                            <p className="px-3 py-2.5 text-xs text-zinc-500">Nenhum produto encontrado — cadastre no estoque</p>
+                            <p className="px-3 py-2.5 text-xs text-zinc-500">Nenhum produto encontrado</p>
                           )}
                         </div>
                       )}
                     </div>
 
                     {/* Qtd + Preço + Desconto */}
-                    <div className="flex gap-2 items-center">
+                    <div className="flex gap-2 items-end">
                       <div className="flex flex-col flex-1">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Qtd</span>
                         <input
@@ -767,7 +720,7 @@ export default function VendasClient({
                         />
                       </div>
                       <div className="flex flex-col flex-[2]">
-                        <span className="text-[10px] text-zinc-500 mb-0.5">Preço unit. (R$)</span>
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Preço (R$)</span>
                         <input
                           type="number" min="0" step="0.01"
                           value={p.precoUnitario}
@@ -779,20 +732,20 @@ export default function VendasClient({
                       <div className="flex flex-col flex-1">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Desc %</span>
                         <input
-                          type="number" min="0" max="100" step="1"
+                          type="number" min="0" max="100"
                           value={p.desconto}
                           onChange={e => setProdutoField(i, 'desconto', e.target.value)}
                           className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
                         />
                       </div>
-                      <div className="flex flex-col items-end justify-end pb-0.5">
+                      <div className="flex flex-col items-end">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Total</span>
-                        <span className="text-sm font-semibold text-emerald-400">{p.precoUnitario ? formatBRL(calcLinhaTotal(p)) : '—'}</span>
+                        <span className="text-sm font-semibold text-emerald-400 py-1.5">{p.precoUnitario ? formatBRL(calcLinhaTotal(p)) : '—'}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeProduto(i)}
-                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0 self-end mb-0.5"
+                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0"
                       >
                         <IconX size={14} />
                       </button>
@@ -803,36 +756,225 @@ export default function VendasClient({
                 <button
                   type="button"
                   onClick={addProduto}
-                  className="flex items-center gap-2 text-sm text-zinc-400 hover:text-violet-400 hover:bg-zinc-800 border border-dashed border-zinc-700 hover:border-violet-500/50 rounded-lg px-4 py-2.5 transition cursor-pointer w-full justify-center"
+                  className="flex items-center gap-2 text-sm text-zinc-400 hover:text-violet-400 hover:bg-zinc-800 border border-dashed border-zinc-700 hover:border-violet-500/50 rounded-xl px-4 py-3 transition cursor-pointer w-full justify-center"
                 >
                   <IconPlus /> Adicionar produto
                 </button>
               </div>
+
+              <hr className="border-zinc-800" />
+
+              {/* 2. CLIENTE */}
+              <Field label="Cliente *">
+                <div className="relative" ref={dropdownRef}>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"><IconUser /></span>
+                  <input
+                    type="text"
+                    value={form.clienteSearch}
+                    onChange={e => handleClienteInput(e.target.value)}
+                    onFocus={() => setClienteDropdown(true)}
+                    onBlur={() => setTimeout(() => setClienteDropdown(false), 150)}
+                    placeholder="Buscar cliente por nome..."
+                    autoComplete="off"
+                    className={`${INPUT} pl-9 ${form.clienteId ? 'border-violet-500/50' : ''}`}
+                  />
+                  {form.clienteId && (
+                    <button type="button" onClick={() => setForm(f => ({ ...f, clienteSearch: '', clienteId: '', clienteNome: '' }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition">
+                      <IconX size={14} />
+                    </button>
+                  )}
+                  {clienteDropdown && form.clienteSearch.length >= 1 && (
+                    <div className="absolute z-10 top-full mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
+                      {clientesFiltrados.length > 0 ? clientesFiltrados.map(c => (
+                        <button key={c.id} type="button" onMouseDown={() => selectCliente(c)} className="w-full text-left px-4 py-2.5 text-sm text-zinc-200 hover:bg-violet-500/20 hover:text-white transition flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">{c.nome.charAt(0).toUpperCase()}</span>
+                          {c.nome}
+                        </button>
+                      )) : (
+                        <p className="px-4 py-2.5 text-sm text-zinc-500">Nenhum cliente encontrado</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {form.clienteId && (
+                  <p className="text-xs text-violet-400 flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
+                )}
+              </Field>
+
+              {/* 3. DATA + VALOR */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Data *">
+                  <input type="date" value={form.dataVenda} onChange={e => setForm(f => ({ ...f, dataVenda: e.target.value }))} className={INPUT} />
+                </Field>
+                <Field label={totalSugerido != null ? `Valor — auto` : 'Valor (R$) *'}>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={totalSugerido != null ? totalSugerido.toFixed(2) : form.valor}
+                    onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+                    readOnly={totalSugerido != null}
+                    placeholder="0,00"
+                    className={`${INPUT} ${totalSugerido != null ? 'text-emerald-400 border-emerald-500/30 opacity-80' : ''}`}
+                  />
+                </Field>
+              </div>
+
+              {/* 4. PAGAMENTO — edit only */}
+              {editing && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-zinc-300">Pagamento</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {METODOS.map(m => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => { setSelectedMethod(m.value); setSelectedParcelas(null) }}
+                        className={`text-xs py-2.5 rounded-xl border transition cursor-pointer font-medium ${
+                          selectedMethod === m.value
+                            ? 'bg-violet-600 border-violet-500 text-white'
+                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedMethod === 'credito' && (
+                    <div className="grid grid-cols-4 gap-1.5 mt-1">
+                      {PARCELAS.map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setSelectedParcelas(n)}
+                          className={`text-xs py-2.5 rounded-xl border transition cursor-pointer font-bold ${
+                            selectedParcelas === n
+                              ? 'bg-violet-600 border-violet-500 text-white'
+                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                          }`}
+                        >
+                          {n}x
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {formError && (
                 <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2.5">{formError}</p>
               )}
             </div>
 
-            {/* Footer */}
+            {/* Drawer footer */}
             <div className="px-6 py-4 border-t border-zinc-800 flex gap-3 shrink-0">
-              <button onClick={closeDrawer} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg py-2.5 transition cursor-pointer">
+              <button onClick={closeDrawer} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 transition cursor-pointer">
                 Cancelar
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
-              >
-                {saving ? 'Salvando...' : editing ? 'Salvar Alterações' : 'Registrar Venda'}
-              </button>
+              {editing ? (
+                <button onClick={handleSave} disabled={saving} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3 transition cursor-pointer">
+                  {saving ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              ) : (
+                <button onClick={handleVender} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-xl py-3 transition cursor-pointer flex items-center justify-center gap-2">
+                  Vender
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              )}
             </div>
+
+            {/* ── Payment overlay ── */}
+            {showPayment && (
+              <div className="absolute inset-0 bg-zinc-900 flex flex-col rounded-t-2xl sm:rounded-none">
+                {/* Back + total */}
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800 shrink-0">
+                  <button
+                    onClick={() => { setShowPayment(false); setSelectedMethod(''); setSelectedParcelas(null) }}
+                    className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer"
+                  >
+                    <IconArrowLeft />
+                  </button>
+                  <div className="flex-1">
+                    <h2 className="font-semibold text-base">Como vai pagar?</h2>
+                    {totalFinal > 0 && (
+                      <p className="text-sm font-bold text-emerald-400">{formatBRL(totalFinal)}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-5">
+                  {/* 2×2 method cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {METODOS.map(m => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => { setSelectedMethod(m.value); setSelectedParcelas(null) }}
+                        className={`flex flex-col items-center gap-2.5 py-6 px-4 rounded-2xl border-2 transition cursor-pointer ${
+                          selectedMethod === m.value
+                            ? 'border-violet-500 bg-violet-500/15 text-violet-300'
+                            : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                        }`}
+                      >
+                        <MetodoIcon value={m.value} />
+                        <span className="font-semibold text-sm">{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Installments — only for credito */}
+                  {selectedMethod === 'credito' && (
+                    <div className="flex flex-col gap-3">
+                      <p className="text-sm font-medium text-zinc-400">Quantas parcelas?</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {PARCELAS.map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setSelectedParcelas(n)}
+                            className={`py-3.5 rounded-xl border text-sm font-bold transition cursor-pointer ${
+                              selectedParcelas === n
+                                ? 'border-violet-500 bg-violet-600 text-white'
+                                : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'
+                            }`}
+                          >
+                            {n}x
+                          </button>
+                        ))}
+                      </div>
+                      {selectedParcelas && totalFinal > 0 && (
+                        <p className="text-xs text-zinc-500 text-center">
+                          {selectedParcelas}x de {formatBRL(totalFinal / selectedParcelas)} sem juros
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm button */}
+                {selectedMethod && (selectedMethod !== 'credito' || selectedParcelas) && (
+                  <div className="px-6 py-4 border-t border-zinc-800 shrink-0">
+                    <button
+                      onClick={() => {
+                        const fp = selectedMethod === 'credito'
+                          ? `credito_${selectedParcelas}x`
+                          : selectedMethod
+                        handleSaveWithPayment(fp)
+                      }}
+                      disabled={saving}
+                      className="w-full text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3.5 transition cursor-pointer"
+                    >
+                      {saving ? 'Salvando...' : `Confirmar ${selectedMethod === 'credito' ? `Crédito ${selectedParcelas}x` : METODOS.find(m => m.value === selectedMethod)?.label}`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
       )}
+
       <MobileNav />
 
-      {/* Scanner overlay */}
       {showScanner !== null && (
         <BarcodeScanner
           onScan={code => onScanBarcode(code, showScanner)}
