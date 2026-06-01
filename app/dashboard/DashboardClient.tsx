@@ -277,13 +277,17 @@ export default function DashboardClient({
   }, [])
 
   async function handleSaveMeta(valor: number) {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('metas')
-      .upsert({ user_id: user.id, mes, valor_meta: valor }, { onConflict: 'user_id,mes' })
-      .select().single()
-    if (error) throw error
-    setMeta(data as MetaRow)
+    const res = await fetch('/api/salvar-meta', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ mes, valor_meta: valor }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? 'Erro ao salvar')
+    }
+    const { meta: newMeta } = await res.json() as { meta: MetaRow }
+    setMeta(newMeta)
     setPlano(null)
     setShowMetaModal(false)
     await generatePlan()
