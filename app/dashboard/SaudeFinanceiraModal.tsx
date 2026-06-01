@@ -14,7 +14,34 @@ type Props = {
   onSave: (dados: SaudeDados) => Promise<void>
 }
 
-const FIELD_CLASS = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
+const INPUT_CLASS = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
+
+// raw: digits + optional comma + up to 2 digits (e.g. "5000" or "500,50")
+// returns formatted display string (e.g. "5.000" or "500,50")
+function formatBRL(raw: string): string {
+  if (!raw) return ''
+  const parts = raw.split(',')
+  const intDigits = parts[0].replace(/\D/g, '')
+  const decPart = parts.length > 1 ? ',' + parts[1] : ''
+  if (!intDigits) return decPart ? '0' + decPart : ''
+  const intFormatted = parseInt(intDigits, 10).toLocaleString('pt-BR')
+  return intFormatted + decPart
+}
+
+function parseBRL(raw: string): number {
+  return parseFloat(raw.replace(/\./g, '').replace(',', '.')) || 0
+}
+
+function handleBRLChange(setter: (v: string) => void) {
+  return (e: React.ChangeEvent<HTMLInputElement>) => {
+    const stripped = e.target.value.replace(/\./g, '') // remove thousands dots
+    const onlyValid = stripped.replace(/[^\d,]/g, '')
+    const parts = onlyValid.split(',')
+    const intPart = parts[0]
+    const decPart = parts.length > 1 ? ',' + parts[1].slice(0, 2) : ''
+    setter(intPart + decPart)
+  }
+}
 
 function NumericField({
   label, hint, value, onChange, inputRef,
@@ -32,13 +59,12 @@ function NumericField({
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm font-medium">R$</span>
         <input
           ref={inputRef}
-          type="number"
-          min="0"
-          step="0.01"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder="0,00"
-          className={FIELD_CLASS}
+          type="text"
+          inputMode="numeric"
+          value={formatBRL(value)}
+          onChange={handleBRLChange(onChange)}
+          placeholder="0"
+          className={INPUT_CLASS}
         />
       </div>
       <p className="text-xs text-zinc-600 mt-1">{hint}</p>
@@ -47,22 +73,22 @@ function NumericField({
 }
 
 export default function SaudeFinanceiraModal({ current, onClose, onSave }: Props) {
-  const [dividas,    setDividas]   = useState(current?.dividas    != null ? String(current.dividas)    : '')
-  const [despesas,   setDespesas]  = useState(current?.despesas_fixas != null ? String(current.despesas_fixas) : '')
-  const [capital,    setCapital]   = useState(current?.capital_de_giro != null ? String(current.capital_de_giro) : '')
-  const [saving,     setSaving]    = useState(false)
-  const [error,      setError]     = useState<string | null>(null)
+  const [dividas,  setDividas]  = useState(current?.dividas        != null ? String(current.dividas)        : '')
+  const [despesas, setDespesas] = useState(current?.despesas_fixas != null ? String(current.despesas_fixas) : '')
+  const [capital,  setCapital]  = useState(current?.capital_de_giro != null ? String(current.capital_de_giro) : '')
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
   const firstRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { firstRef.current?.focus() }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const d  = parseFloat(dividas.replace(',', '.'))  || 0
-    const df = parseFloat(despesas.replace(',', '.'))
-    const cg = parseFloat(capital.replace(',', '.'))  || 0
+    const d  = parseBRL(dividas)
+    const df = parseBRL(despesas)
+    const cg = parseBRL(capital)
 
-    if (isNaN(df) || df <= 0) {
+    if (!df || df <= 0) {
       setError('Informe as despesas fixas mensais.')
       return
     }
@@ -70,8 +96,8 @@ export default function SaudeFinanceiraModal({ current, onClose, onSave }: Props
     setError(null)
     try {
       await onSave({ dividas: d, despesas_fixas: df, capital_de_giro: cg })
-    } catch {
-      setError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar. Tente novamente.')
       setSaving(false)
     }
   }
