@@ -17,5 +17,15 @@ export type Produto = {
   pis: string | null
   cofins: string | null
   cest: string | null
+  status: 'disponivel' | 'aguardando_recebimento'
+  nfe_grupo_id: string | null
   created_at: string
+}
+
+export type NfeGrupoMeta = {
+  grupoId: string
+  emitente: string | null
+  num_nfe: string | null
+  total_itens: number
+  data: string
 }

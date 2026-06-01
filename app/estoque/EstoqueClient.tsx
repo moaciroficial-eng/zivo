@@ -259,6 +259,23 @@ export default function EstoqueClient({
           </div>
         </div>
 
+        {/* Badge de recebimento pendente */}
+        {(() => {
+          const pending = produtos.filter(p => p.status === 'aguardando_recebimento')
+          if (!pending.length) return null
+          return (
+            <div className="mb-4 flex items-center justify-between gap-4 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+              <div className="flex items-center gap-2.5 text-sm text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"/>
+                {pending.length} produto{pending.length !== 1 ? 's' : ''} aguardando conferência de recebimento
+              </div>
+              <Link href="/estoque/recebimento" className="text-sm font-semibold text-amber-400 hover:text-amber-300 transition whitespace-nowrap">
+                Conferir →
+              </Link>
+            </div>
+          )
+        })()}
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Produtos"       value={String(produtos.length)} />
@@ -437,10 +454,10 @@ export default function EstoqueClient({
       {showNFeModal && (
         <ImportNFeModal
           userId={user.id}
-          onSuccess={newProdutos => {
+          onSuccess={(newProdutos, _grupoId) => {
             setProdutos(ps => [...ps, ...newProdutos].sort((a, b) => a.nome.localeCompare(b.nome)))
             setShowNFeModal(false)
-            showToast(`${newProdutos.length} produto${newProdutos.length !== 1 ? 's' : ''} importado${newProdutos.length !== 1 ? 's' : ''} via NF-e.`)
+            showToast(`${newProdutos.length} produto${newProdutos.length !== 1 ? 's' : ''} importado${newProdutos.length !== 1 ? 's' : ''} · Aguardando conferência.`)
           }}
           onClose={() => setShowNFeModal(false)}
         />
