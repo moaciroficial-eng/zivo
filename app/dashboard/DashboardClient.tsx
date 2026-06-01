@@ -246,6 +246,39 @@ function ClienteCard({ c }: { c: ClienteContatar }) {
   )
 }
 
+function CircularProgress({ pct, size = 148 }: { pct: number; size?: number }) {
+  const cx = size / 2, cy = size / 2, r = size / 2 - 12
+  const circ = 2 * Math.PI * r
+  const offset = circ - Math.min(100, Math.max(0, pct)) / 100 * circ
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+      <defs>
+        <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#7c3aed" />
+          <stop offset="100%" stopColor="#10b981" />
+        </linearGradient>
+      </defs>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#27272a" strokeWidth="11" />
+      <circle cx={cx} cy={cy} r={r} fill="none"
+        stroke={pct >= 100 ? '#10b981' : 'url(#pg)'}
+        strokeWidth="11" strokeLinecap="round"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        style={{ transition: 'stroke-dashoffset 1s ease-in-out' }}
+      />
+      <text x={cx} y={cy - 8} textAnchor="middle" dominantBaseline="middle"
+        fill="white" fontSize={Math.round(size * 0.2)} fontWeight="bold"
+        fontFamily="system-ui, sans-serif" style={{ transform: 'rotate(90deg)', transformOrigin: `${cx}px ${cy}px` }}>
+        {Math.min(pct, 999)}%
+      </text>
+      <text x={cx} y={cy + size * 0.13} textAnchor="middle" dominantBaseline="middle"
+        fill="#71717a" fontSize={Math.round(size * 0.09)}
+        fontFamily="system-ui, sans-serif" style={{ transform: 'rotate(90deg)', transformOrigin: `${cx}px ${cy}px` }}>
+        atingido
+      </text>
+    </svg>
+  )
+}
+
 function SkeletonPlan() {
   return (
     <div className="animate-pulse space-y-3">
@@ -361,6 +394,17 @@ export default function DashboardClient({
   const dividas       = meta?.dividas_atuais ?? 0
   const capitalGiro   = meta?.capital_de_giro ?? 0
   const diasNoMes     = new Date(parseInt(mes.split('-')[0]), parseInt(mes.split('-')[1]), 0).getDate()
+
+  const diaDoMes        = new Date().getDate()
+  const diasRestantes   = Math.max(0, diasNoMes - diaDoMes)
+  const diasPassados    = Math.max(1, diaDoMes)
+  const mediaDiariaAtual = vendidoMes / diasPassados
+  const mediaDiariaNec  = diasRestantes > 0 ? restanteMes / diasRestantes : 0
+  const projecaoMensal  = mediaDiariaAtual * diasNoMes
+  const statusPace      = pct >= 100 ? 'otimo'
+    : mediaDiariaAtual >= mediaDiariaNec ? 'ok'
+    : mediaDiariaAtual >= mediaDiariaNec * 0.75 ? 'atencao'
+    : 'risco'
   const pontoEqMensal = despesas
   const pontoEqDiario = despesas > 0 ? despesas / diasNoMes : 0
   const margemLiquida = meta ? meta.valor_meta - despesas : 0
@@ -465,49 +509,121 @@ export default function DashboardClient({
         ) : (
           <div className="space-y-5">
 
-            {/* Meta progress */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+            {/* ── Meta Hero Dashboard ─────────────────────────── */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <div className="text-violet-400"><IconTarget /></div>
                   <span className="font-semibold">Meta de {getMesLabel(mes)}</span>
+                  <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    statusPace === 'otimo' ? 'text-emerald-400 bg-emerald-500/15' :
+                    statusPace === 'ok'    ? 'text-emerald-400 bg-emerald-500/10' :
+                    statusPace === 'atencao' ? 'text-amber-400 bg-amber-500/10' :
+                    'text-red-400 bg-red-500/10'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                      statusPace === 'otimo' || statusPace === 'ok' ? 'bg-emerald-400' :
+                      statusPace === 'atencao' ? 'bg-amber-400' : 'bg-red-400'
+                    }`} />
+                    {statusPace === 'otimo' ? 'Meta atingida!' : statusPace === 'ok' ? 'No prazo' : statusPace === 'atencao' ? 'Atenção' : 'Em risco'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="flex items-center gap-2">
                   {!isGenerating && (
-                    <button onClick={generatePlan}
-                      className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
+                    <button onClick={generatePlan} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
                       <IconRefresh /> Recalcular
                     </button>
                   )}
-                  <button onClick={() => setShowMetaModal(true)}
-                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
-                    <IconEdit /> Editar meta
+                  <button onClick={() => setShowMetaModal(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
+                    <IconEdit /> Editar
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div>
-                  <p className="text-xs text-zinc-500 mb-0.5">Vendido este mês</p>
-                  <p className="text-xl font-bold text-emerald-400">{fmtNum(vendidoMes)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500 mb-0.5">Falta</p>
-                  <p className="text-xl font-bold">{fmtNum(restanteMes)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500 mb-0.5">Meta</p>
-                  <p className="text-xl font-bold text-violet-400">{fmtNum(meta.valor_meta)}</p>
-                </div>
-              </div>
+              {/* Body */}
+              <div className="flex flex-col sm:flex-row items-center gap-6 px-5 py-6">
 
-              <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
-              </div>
-              <div className="flex justify-between text-xs text-zinc-500 mt-1.5">
-                <span>{pct}% atingido</span>
-                {plano?.resumo.vendas_necessarias != null && <span>{plano.resumo.vendas_necessarias} vendas necessárias</span>}
-                {plano?.resumo.media_diaria_necessaria != null && plano.resumo.vendas_necessarias == null && <span>Média: {fmtNum(plano.resumo.media_diaria_necessaria)}/dia</span>}
+                {/* Anel circular */}
+                <div className="shrink-0">
+                  <CircularProgress pct={pct} size={148} />
+                </div>
+
+                {/* Métricas */}
+                <div className="flex-1 w-full space-y-3">
+
+                  {/* Vendido / Falta / Meta */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-zinc-800/60 rounded-xl p-3">
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Vendido</p>
+                      <p className="text-base font-bold text-emerald-400 mt-0.5 leading-none">{fmtNum(vendidoMes)}</p>
+                    </div>
+                    <div className="bg-zinc-800/60 rounded-xl p-3">
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Falta</p>
+                      <p className="text-base font-bold mt-0.5 leading-none">{pct >= 100 ? '—' : fmtNum(restanteMes)}</p>
+                    </div>
+                    <div className="bg-zinc-800/60 rounded-xl p-3">
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Meta</p>
+                      <p className="text-base font-bold text-violet-400 mt-0.5 leading-none">{fmtNum(meta.valor_meta)}</p>
+                    </div>
+                  </div>
+
+                  {/* Barra de progresso */}
+                  <div>
+                    <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${pct}%`, background: pct >= 100 ? '#10b981' : 'linear-gradient(90deg,#7c3aed,#10b981)' }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
+                      <span>0</span>
+                      <span>{fmtNum(meta.valor_meta)}</span>
+                    </div>
+                  </div>
+
+                  {/* Ritmo / Precisa / Projeção / Dias */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+                      <p className="text-zinc-600 mb-0.5">Ritmo atual</p>
+                      <p className="font-semibold text-zinc-200">{fmtNum(mediaDiariaAtual)}<span className="text-zinc-500 font-normal">/dia</span></p>
+                    </div>
+                    {diasRestantes > 0 && (
+                      <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+                        <p className="text-zinc-600 mb-0.5">Precisa</p>
+                        <p className={`font-semibold ${mediaDiariaAtual >= mediaDiariaNec ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {fmtNum(mediaDiariaNec)}<span className="text-zinc-500 font-normal">/dia</span>
+                        </p>
+                      </div>
+                    )}
+                    <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+                      <p className="text-zinc-600 mb-0.5">Projeção</p>
+                      <p className={`font-semibold ${projecaoMensal >= meta.valor_meta ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {fmtNum(projecaoMensal)}
+                      </p>
+                    </div>
+                    <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+                      <p className="text-zinc-600 mb-0.5">Dias restantes</p>
+                      <p className="font-semibold text-zinc-200">{diasRestantes}d</p>
+                    </div>
+                  </div>
+
+                  {/* Insight dinâmico */}
+                  {statusPace === 'risco' && diasRestantes > 0 && (
+                    <p className="text-xs text-red-400/80 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                      Ritmo atual projeta {fmtNum(projecaoMensal)} — {fmtNum(meta.valor_meta - projecaoMensal)} abaixo da meta. Intensifique as vendas.
+                    </p>
+                  )}
+                  {statusPace === 'atencao' && diasRestantes > 0 && (
+                    <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                      Precisa de {fmtNum(mediaDiariaNec - mediaDiariaAtual)}/dia a mais para bater a meta nos {diasRestantes} dias restantes.
+                    </p>
+                  )}
+                  {(statusPace === 'ok' || statusPace === 'otimo') && (
+                    <p className="text-xs text-emerald-400/80 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                      {pct >= 100 ? 'Parabéns! Meta atingida.' : `Projetando ${fmtNum(projecaoMensal)} — ${Math.round(projecaoMensal / meta.valor_meta * 100)}% da meta ao ritmo atual.`}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
