@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
   if (!mes) return NextResponse.json({ error: 'mes required' }, { status: 400 })
 
   const { data: metaRow } = await supabase
-    .from('metas').select('valor_meta')
+    .from('metas')
+    .select('valor_meta, dividas_atuais, despesas_fixas_mensais, capital_de_giro')
     .eq('user_id', user.id).eq('mes', mes).single()
 
   if (!metaRow) return NextResponse.json({ error: 'Meta não encontrada' }, { status: 404 })
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   const [vendasRes, estoqueRes, clientesRes, ultimasVendasRes] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id)
       .gte('data_venda', start).lt('data_venda', end),
-    supabase.from('estoque').select('id, nome, marca, preco_venda, created_at')
+    supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, created_at')
       .eq('user_id', user.id).eq('status', 'disponivel')
       .not('preco_venda', 'is', null)
       .order('preco_venda', { ascending: false }).limit(25),
@@ -83,12 +84,19 @@ export async function POST(request: NextRequest) {
       ultimaCompra.set(v.cliente_id, v.data_venda)
   }
 
-  const produtos = (estoqueRes.data ?? []).map(p => ({
-    id:              p.id,
-    nome:            p.nome + (p.marca ? ` (${p.marca})` : ''),
-    preco_venda:     p.preco_venda,
-    dias_em_estoque: Math.floor((todayMs - new Date(p.created_at).getTime()) / 86400000),
-  }))
+  const produtos = (estoqueRes.data ?? []).map(p => {
+    const pv    = Number(p.preco_venda)
+    const pc    = p.preco_custo != null ? Number(p.preco_custo) : null
+    const margem = pc != null && pv > 0 ? Math.round(((pv - pc) / pv) * 100) : null
+    return {
+      id:              p.id,
+      nome:            p.nome + (p.marca ? ` (${p.marca})` : ''),
+      preco_venda:     pv,
+      preco_custo:     pc,
+      margem_pct:      margem,
+      dias_em_estoque: Math.floor((todayMs - new Date(p.created_at).getTime()) / 86400000),
+    }
+  })
 
   const clientes = (clientesRes.data ?? [])
     .map(c => {
@@ -100,15 +108,57 @@ export async function POST(request: NextRequest) {
     })
     .sort((a, b) => (b.dias_sem_comprar ?? 9999) - (a.dias_sem_comprar ?? 9999))
 
-  const meta       = Number(metaRow.valor_meta)
-  const pct        = meta > 0 ? Math.round((vendido / meta) * 100) : 0
+  const meta        = Number(metaRow.valor_meta)
+  const pct         = meta > 0 ? Math.round((vendido / meta) * 100) : 0
   const mediaDiaria = diasRest.length > 0 ? (restante / diasRest.length) : 0
 
-  const statusMsg  = restante > meta * 0.6
+  const statusMsg = restante > meta * 0.6
     ? '⚠️ ATRÁS DA META — intensifique as ações!'
     : restante < meta * 0.15
     ? '🎯 QUASE LÁ — mantenha o ritmo!'
     : ''
+
+  // Financial health context
+  const despesas   = metaRow.despesas_fixas_mensais ? Number(metaRow.despesas_fixas_mensais) : null
+  const dividasTot = metaRow.dividas_atuais         ? Number(metaRow.dividas_atuais)         : null
+  const capitalGiro = metaRow.capital_de_giro       ? Number(metaRow.capital_de_giro)        : null
+  const diasNoMes   = new Date(Number(mes.split('-')[0]), Number(mes.split('-')[1]), 0).getDate()
+  const pontoEqDia  = despesas ? despesas / diasNoMes : null
+
+  let healthStatus: 'saudavel' | 'atencao' | 'critico' | null = null
+  if (despesas != null) {
+    let score = 0
+    if (capitalGiro != null) {
+      if (capitalGiro >= despesas * 2) score += 2
+      else if (capitalGiro >= despesas) score += 1
+      else score -= 1
+    }
+    if (dividasTot != null) {
+      if (dividasTot === 0)                                      score += 2
+      else if (capitalGiro && dividasTot < capitalGiro * 0.3)    score += 1
+      else if (capitalGiro && dividasTot < capitalGiro)          score += 0
+      else                                                        score -= 2
+    }
+    healthStatus = score >= 3 ? 'saudavel' : score >= 0 ? 'atencao' : 'critico'
+  }
+
+  const saudeLine = despesas != null ? `
+SAÚDE FINANCEIRA DA EMPRESA:
+- Despesas fixas mensais: R$ ${despesas.toFixed(2)} (ponto de equilíbrio = R$ ${pontoEqDia?.toFixed(2)}/dia)
+- Dívidas totais: R$ ${dividasTot?.toFixed(2) ?? '0.00'}
+- Capital de giro disponível: R$ ${capitalGiro?.toFixed(2) ?? '0.00'}
+- Status financeiro: ${healthStatus === 'saudavel' ? 'SAUDÁVEL' : healthStatus === 'atencao' ? 'ATENÇÃO' : 'CRÍTICO'}` : ''
+
+  const regraFinanceira = despesas != null ? `
+REGRAS FINANCEIRAS (INVIOLÁVEIS):
+8. JAMAIS sugerir preco_com_desconto abaixo do preco_custo do produto — venda abaixo do custo é proibida
+9. Margem mínima em qualquer desconto: pelo menos 15% acima do custo (se custo conhecido)
+${healthStatus === 'critico' ? '10. EMPRESA EM SITUAÇÃO CRÍTICA: priorize MARGEM sobre volume; desconto máximo de 8%; foque apenas nos produtos de maior margem; nunca liquide estoque para caixa de curto prazo' : ''}
+${healthStatus === 'atencao' ? '10. Empresa com dívidas/atenção financeira: equilibre margem e volume; descontos apenas em produtos parados há mais de 45 dias; máximo 12% de desconto' : ''}
+${healthStatus === 'saudavel' ? '10. Empresa saudável: pode usar descontos estratégicos em produtos antigos (até 20%), mas sempre respeite a margem mínima de 15%' : ''}
+11. A meta mínima real para cobrir despesas é R$ ${despesas.toFixed(2)}/mês (R$ ${pontoEqDia?.toFixed(2)}/dia) — meta abaixo disso é prejuízo operacional` : `
+REGRAS FINANCEIRAS:
+8. JAMAIS sugerir preco_com_desconto abaixo do preco_custo do produto`
 
   const prompt = `Você é um assistente de vendas para uma loja de roupas/calçados no Brasil. Gere um plano de vendas diário personalizado em JSON.
 
@@ -117,11 +167,14 @@ Vendido até hoje (${hoje}): R$ ${vendido.toFixed(2)} (${pct}%)
 Restante: R$ ${restante.toFixed(2)} em ${diasRest.length} dia${diasRest.length !== 1 ? 's' : ''}
 Média diária necessária: R$ ${mediaDiaria.toFixed(2)}
 ${statusMsg}
+${saudeLine}
 
 PRODUTOS EM ESTOQUE (${produtos.length} itens):
-${produtos.map(p =>
-  `- ID:${p.id} | ${p.nome} | R$ ${Number(p.preco_venda).toFixed(2)} | ${p.dias_em_estoque}d em estoque`
-).join('\n')}
+${produtos.map(p => {
+  const custoStr = p.preco_custo != null ? ` | custo: R$ ${p.preco_custo.toFixed(2)}` : ''
+  const margemStr = p.margem_pct != null ? ` | margem: ${p.margem_pct}%` : ''
+  return `- ID:${p.id} | ${p.nome} | venda: R$ ${p.preco_venda.toFixed(2)}${custoStr}${margemStr} | ${p.dias_em_estoque}d em estoque`
+}).join('\n')}
 
 CLIENTES (${clientes.length} cadastrados, ordenados por tempo sem comprar):
 ${clientes.slice(0, 20).map(c =>
@@ -130,14 +183,15 @@ ${clientes.slice(0, 20).map(c =>
 
 DIAS RESTANTES: ${diasRest.map(d => `${d.data}(${d.diaSemana})`).join(', ')}
 
-REGRAS OBRIGATÓRIAS:
+REGRAS GERAIS:
 1. Sáb e Dom devem ter meta_dia ~40% maior que dias úteis da mesma semana
 2. Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
-3. Produtos com ≥30 dias em estoque → estrategia "desconto", desconto_sugerido entre 10-20
+3. Produtos com ≥30 dias em estoque → estrategia "desconto" (respeitando as regras financeiras)
 4. Máximo 3 produtos e 2 clientes por dia; varie as sugestões dia a dia
-5. Se atrás da meta (>60% restante): metas diárias agressivas, priorize descontos
-6. Distribua todos os clientes ao longo dos dias, priorizando os que não compram há mais tempo
-7. dica deve ser prática e específica para aquele dia da semana (ex: "Segunda: ligue para os 2 clientes listados antes das 11h")
+5. Se atrás da meta (>60% restante): metas diárias mais altas; intensifique contato com clientes
+6. Distribua os clientes ao longo dos dias, priorizando os que não compram há mais tempo
+7. dica deve ser prática e específica para aquele dia da semana
+${regraFinanceira}
 
 Responda APENAS com JSON válido (sem markdown, sem explicações):
 {

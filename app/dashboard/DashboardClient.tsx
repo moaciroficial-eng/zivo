@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
 import MetaModal from './MetaModal'
+import SaudeFinanceiraModal, { type SaudeDados } from './SaudeFinanceiraModal'
 import AiChat from '@/app/components/AiChat'
 
 /* ── Types ────────────────────────────────────────────────────── */
@@ -54,6 +55,9 @@ type MetaRow = {
   plano: Plano | null
   plano_gerado_em: string | null
   plano_vendido_base: number | null
+  dividas_atuais: number | null
+  despesas_fixas_mensais: number | null
+  capital_de_giro: number | null
 }
 
 type Props = {
@@ -78,7 +82,6 @@ const NAV_LINKS = [
 ]
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
 function fmtNum(n: number) { return fmt.format(n) }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -97,6 +100,24 @@ function getMesLabel(mes: string) {
   return `${MESES[Number(m) - 1]} ${y}`
 }
 
+type HealthStatus = 'saudavel' | 'atencao' | 'critico'
+
+function calcHealthStatus(dividas: number, despesas: number, capital: number): HealthStatus {
+  let score = 0
+  // Capital vs despesas
+  if      (capital >= despesas * 2) score += 2
+  else if (capital >= despesas)     score += 1
+  else                              score -= 1
+  // Dívida vs capital
+  if      (dividas === 0)              score += 2
+  else if (dividas < capital * 0.3)    score += 1
+  else if (dividas < capital)          score += 0
+  else                                 score -= 2
+  if (score >= 3) return 'saudavel'
+  if (score >= 0) return 'atencao'
+  return 'critico'
+}
+
 /* ── Icons ────────────────────────────────────────────────────── */
 
 const IconTarget = () => (
@@ -104,43 +125,48 @@ const IconTarget = () => (
     <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
   </svg>
 )
-
 const IconStar = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
   </svg>
 )
-
 const IconTag = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l9.59-9.59a1 1 0 0 0 0-1.41z"/><circle cx="7" cy="7" r="1" fill="currentColor"/>
   </svg>
 )
-
 const IconPhone = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.56 1.18h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.88a16 16 0 0 0 5.5 5.5l.88-.88a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 21 15.78z"/>
   </svg>
 )
-
 const IconLightbulb = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
     <path d="M9 18h6"/><path d="M10 22h4"/>
   </svg>
 )
-
 const IconEdit = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
   </svg>
 )
-
 const IconRefresh = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </svg>
+)
+const IconShield = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+  </svg>
+)
+const IconAlertTriangle = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
   </svg>
 )
 
@@ -221,7 +247,7 @@ export default function DashboardClient({
   const [isGenerating,   setIsGenerating]   = useState(false)
   const [generateError,  setGenerateError]  = useState<string | null>(null)
   const [showMetaModal,  setShowMetaModal]  = useState(false)
-  const [selectedDiaIdx, setSelectedDiaIdx] = useState(0)
+  const [showSaudeModal, setShowSaudeModal] = useState(false)
 
   const hoje = new Date().toISOString().split('T')[0]
 
@@ -238,7 +264,6 @@ export default function DashboardClient({
       const { plano: newPlano } = await res.json() as { plano: Plano }
       setPlano(newPlano)
       setMeta(prev => prev ? { ...prev, plano: newPlano, plano_vendido_base: vendidoMes } : prev)
-      setSelectedDiaIdx(0)
     } catch {
       setGenerateError('Não foi possível gerar o plano. Tente novamente.')
     } finally {
@@ -247,9 +272,7 @@ export default function DashboardClient({
   }, [mes, vendidoMes])
 
   useEffect(() => {
-    if (meta && isPlanStale(meta, vendidoMes)) {
-      generatePlan()
-    }
+    if (meta && isPlanStale(meta, vendidoMes)) generatePlan()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -257,35 +280,62 @@ export default function DashboardClient({
     const supabase = createClient()
     const { data, error } = await supabase
       .from('metas')
-      .upsert(
-        { user_id: user.id, mes, valor_meta: valor },
-        { onConflict: 'user_id,mes' },
-      )
-      .select()
-      .single()
-
+      .upsert({ user_id: user.id, mes, valor_meta: valor }, { onConflict: 'user_id,mes' })
+      .select().single()
     if (error) throw error
-
     setMeta(data as MetaRow)
     setPlano(null)
     setShowMetaModal(false)
     await generatePlan()
   }
 
-  // Find today's plan entry and build the days list
-  const diasPlano = plano?.dias ?? []
-  const todayIdx  = diasPlano.findIndex(d => d.data === hoje)
-  const diaHoje   = todayIdx >= 0 ? diasPlano[todayIdx] : diasPlano[0] ?? null
+  async function handleSaveSaude(dados: SaudeDados) {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('metas')
+      .update({
+        dividas_atuais:         dados.dividas,
+        despesas_fixas_mensais: dados.despesas_fixas,
+        capital_de_giro:        dados.capital_de_giro,
+      })
+      .eq('user_id', user.id)
+      .eq('mes', mes)
+      .select().single()
+    if (error) throw error
+    setMeta(data as MetaRow)
+    setShowSaudeModal(false)
+    await generatePlan()
+  }
+
+  /* ── Derived values ─────────────────────────────────────────── */
+
+  const diasPlano    = plano?.dias ?? []
+  const diaHoje      = diasPlano.find(d => d.data === hoje) ?? diasPlano[0] ?? null
   const proximosDias = diasPlano.filter(d => d.data > hoje).slice(0, 4)
 
-  // Selected day for the week view
-  const selectedDia = diasPlano[selectedDiaIdx] ?? diaHoje
-
-  const pct = meta
-    ? Math.min(100, Math.round((vendidoMes / meta.valor_meta) * 100))
-    : 0
-
+  const pct         = meta ? Math.min(100, Math.round((vendidoMes / meta.valor_meta) * 100)) : 0
   const restanteMes = meta ? Math.max(0, meta.valor_meta - vendidoMes) : 0
+
+  // Financial health calculations
+  const temSaude      = !!(meta?.despesas_fixas_mensais)
+  const despesas      = meta?.despesas_fixas_mensais ?? 0
+  const dividas       = meta?.dividas_atuais ?? 0
+  const capitalGiro   = meta?.capital_de_giro ?? 0
+  const diasNoMes     = new Date(parseInt(mes.split('-')[0]), parseInt(mes.split('-')[1]), 0).getDate()
+  const pontoEqMensal = despesas
+  const pontoEqDiario = despesas > 0 ? despesas / diasNoMes : 0
+  const margemLiquida = meta ? meta.valor_meta - despesas : 0
+  const coberturaMeses = despesas > 0 ? capitalGiro / despesas : null
+  const healthStatus: HealthStatus | null = temSaude
+    ? calcHealthStatus(dividas, despesas, capitalGiro)
+    : null
+
+  const healthConfig = {
+    saudavel: { label: 'Saudável',  dot: 'bg-emerald-400', text: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/5'  },
+    atencao:  { label: 'Atenção',   dot: 'bg-amber-400',   text: 'text-amber-400',   border: 'border-amber-500/20',   bg: 'bg-amber-500/5'    },
+    critico:  { label: 'Crítico',   dot: 'bg-red-400',     text: 'text-red-400',     border: 'border-red-500/20',     bg: 'bg-red-500/5'      },
+  }
+  const hc = healthStatus ? healthConfig[healthStatus] : null
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
@@ -305,21 +355,16 @@ export default function DashboardClient({
             </Link>
             <nav className="hidden md:flex items-center gap-1 text-sm">
               {NAV_LINKS.map(l => (
-                <Link
-                  key={l.href} href={l.href}
+                <Link key={l.href} href={l.href}
                   className={`px-3 py-1.5 rounded-lg transition ${l.active ? 'font-medium bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                >
-                  {l.label}
-                </Link>
+                >{l.label}</Link>
               ))}
             </nav>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-zinc-400 hidden sm:block">{user.email}</span>
             <form action={logout}>
-              <button type="submit" className="text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-1.5 transition cursor-pointer">
-                Sair
-              </button>
+              <button type="submit" className="text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-1.5 transition cursor-pointer">Sair</button>
             </form>
           </div>
         </div>
@@ -327,7 +372,6 @@ export default function DashboardClient({
 
       <div className="max-w-5xl mx-auto px-6 py-8">
 
-        {/* Title */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-zinc-400 mt-1 text-sm">Autenticado como <span className="text-violet-400">{user.email}</span></p>
@@ -347,8 +391,6 @@ export default function DashboardClient({
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas</p>
             <p className="text-3xl font-bold mt-1">{totalVendas}</p>
           </Link>
-
-          {/* Meta card */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Meta {getMesLabel(mes)}</p>
             {meta ? (
@@ -356,19 +398,13 @@ export default function DashboardClient({
                 <p className="text-2xl font-bold mt-1 text-violet-400">{fmtNum(meta.valor_meta)}</p>
                 <div className="mt-2">
                   <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                   </div>
                   <p className="text-xs text-zinc-500 mt-1">{pct}% atingido</p>
                 </div>
               </>
             ) : (
-              <button
-                onClick={() => setShowMetaModal(true)}
-                className="mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition text-left cursor-pointer"
-              >
+              <button onClick={() => setShowMetaModal(true)} className="mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition text-left cursor-pointer">
                 + Definir meta →
               </button>
             )}
@@ -377,47 +413,35 @@ export default function DashboardClient({
 
         {/* ── Meta section ──────────────────────────────────────── */}
         {!meta ? (
-          /* CTA */
           <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl p-10 flex flex-col items-center gap-4 text-center">
-            <div className="w-12 h-12 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400">
-              <IconTarget />
-            </div>
+            <div className="w-12 h-12 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400"><IconTarget /></div>
             <div>
               <p className="font-semibold text-lg">Defina sua meta de faturamento</p>
-              <p className="text-zinc-400 text-sm mt-1 max-w-sm">
-                A IA cria um plano de vendas diário com produtos a priorizar e clientes a contatar para você bater a meta.
-              </p>
+              <p className="text-zinc-400 text-sm mt-1 max-w-sm">A IA cria um plano de vendas diário com produtos a priorizar e clientes a contatar para você bater a meta.</p>
             </div>
-            <button
-              onClick={() => setShowMetaModal(true)}
-              className="mt-1 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-semibold text-sm transition cursor-pointer"
-            >
+            <button onClick={() => setShowMetaModal(true)} className="mt-1 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-semibold text-sm transition cursor-pointer">
               Definir meta do mês
             </button>
           </div>
         ) : (
           <div className="space-y-5">
 
-            {/* Meta progress bar (full) */}
+            {/* Meta progress */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="text-violet-400"><IconTarget /></div>
                   <span className="font-semibold">Meta de {getMesLabel(mes)}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
                   {!isGenerating && (
-                    <button
-                      onClick={generatePlan}
-                      className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
-                    >
+                    <button onClick={generatePlan}
+                      className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
                       <IconRefresh /> Recalcular
                     </button>
                   )}
-                  <button
-                    onClick={() => setShowMetaModal(true)}
-                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
-                  >
+                  <button onClick={() => setShowMetaModal(true)}
+                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
                     <IconEdit /> Editar meta
                   </button>
                 </div>
@@ -439,10 +463,7 @@ export default function DashboardClient({
               </div>
 
               <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-700"
-                  style={{ width: `${pct}%` }}
-                />
+                <div className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
               </div>
               <div className="flex justify-between text-xs text-zinc-500 mt-1.5">
                 <span>{pct}% atingido</span>
@@ -450,7 +471,108 @@ export default function DashboardClient({
               </div>
             </div>
 
-            {/* Plan section */}
+            {/* ── Financial health panel ─────────────────────── */}
+            {temSaude && hc ? (
+              <div className={`bg-zinc-900 border rounded-2xl p-5 ${hc.border} ${hc.bg}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className={hc.text}><IconShield /></div>
+                    <span className="font-semibold">Saúde Financeira</span>
+                    <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${hc.text} bg-zinc-800`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${hc.dot}`} />
+                      {hc.label}
+                    </span>
+                  </div>
+                  <button onClick={() => setShowSaudeModal(true)}
+                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
+                    <IconEdit /> Editar
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-0.5">Ponto de equilíbrio</p>
+                    <p className="text-base font-bold">{fmtNum(pontoEqMensal)}<span className="text-xs text-zinc-500">/mês</span></p>
+                    <p className="text-xs text-zinc-600">{fmtNum(pontoEqDiario)}/dia</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-0.5">Margem após despesas</p>
+                    <p className={`text-base font-bold ${margemLiquida >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmtNum(margemLiquida)}
+                    </p>
+                    {margemLiquida < 0 && (
+                      <p className="text-xs text-red-400">Meta insuficiente</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-0.5">Capital de giro</p>
+                    <p className="text-base font-bold">{fmtNum(capitalGiro)}</p>
+                    {coberturaMeses !== null && (
+                      <p className={`text-xs ${coberturaMeses >= 2 ? 'text-emerald-400' : coberturaMeses >= 1 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {coberturaMeses.toFixed(1)} meses de cobertura
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-0.5">Dívidas</p>
+                    <p className={`text-base font-bold ${dividas === 0 ? 'text-emerald-400' : dividas > capitalGiro ? 'text-red-400' : 'text-amber-400'}`}>
+                      {fmtNum(dividas)}
+                    </p>
+                    {dividas > 0 && capitalGiro > 0 && (
+                      <p className="text-xs text-zinc-500">
+                        {((dividas / capitalGiro) * 100).toFixed(0)}% do capital
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Alertas */}
+                <div className="space-y-1.5">
+                  {margemLiquida < 0 && (
+                    <div className="flex items-start gap-2 text-xs text-red-400">
+                      <IconAlertTriangle /><span>Meta abaixo das despesas fixas — aumente a meta ou reduza os custos.</span>
+                    </div>
+                  )}
+                  {dividas > capitalGiro && (
+                    <div className="flex items-start gap-2 text-xs text-red-400">
+                      <IconAlertTriangle /><span>Dívida supera o capital de giro — plano prioriza margem, sem liquidações agressivas.</span>
+                    </div>
+                  )}
+                  {healthStatus === 'atencao' && dividas > 0 && dividas <= capitalGiro && (
+                    <div className="flex items-start gap-2 text-xs text-amber-400">
+                      <IconAlertTriangle /><span>Há dívidas em aberto — plano evita descontos maiores que 12% para proteger a margem.</span>
+                    </div>
+                  )}
+                  {coberturaMeses !== null && coberturaMeses < 1 && (
+                    <div className="flex items-start gap-2 text-xs text-amber-400">
+                      <IconAlertTriangle /><span>Capital de giro cobre menos de 1 mês de despesas — evite promoções que comprometam o caixa.</span>
+                    </div>
+                  )}
+                  {healthStatus === 'saudavel' && (
+                    <p className="text-xs text-emerald-400">Situação financeira saudável — plano pode usar descontos estratégicos quando necessário.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* CTA para saúde financeira */
+              <button
+                onClick={() => setShowSaudeModal(true)}
+                className="w-full flex items-center justify-between bg-zinc-900 border border-dashed border-zinc-700 hover:border-zinc-600 rounded-2xl px-5 py-4 transition group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-zinc-300 transition">
+                    <IconShield />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-zinc-300 group-hover:text-white transition">Adicionar saúde financeira</p>
+                    <p className="text-xs text-zinc-500">Despesas, dívidas e capital de giro — a IA calibra o plano com responsabilidade</p>
+                  </div>
+                </div>
+                <span className="text-zinc-500 group-hover:text-zinc-300 transition text-sm">→</span>
+              </button>
+            )}
+
+            {/* ── Plan section ──────────────────────────────── */}
             {isGenerating ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-5">
@@ -462,10 +584,7 @@ export default function DashboardClient({
             ) : generateError ? (
               <div className="bg-zinc-900 border border-red-900/40 rounded-2xl p-5 flex items-center justify-between gap-4">
                 <p className="text-sm text-red-400">{generateError}</p>
-                <button
-                  onClick={generatePlan}
-                  className="text-sm text-zinc-300 hover:text-white border border-zinc-700 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
-                >
+                <button onClick={generatePlan} className="text-sm text-zinc-300 hover:text-white border border-zinc-700 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0">
                   Tentar novamente
                 </button>
               </div>
@@ -482,35 +601,33 @@ export default function DashboardClient({
                       <div className="text-right">
                         <p className="text-xs text-zinc-500">Meta do dia</p>
                         <p className="text-lg font-bold text-violet-400">{fmtNum(diaHoje.meta_dia)}</p>
+                        {pontoEqDiario > 0 && (
+                          <p className={`text-xs mt-0.5 ${diaHoje.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {diaHoje.meta_dia >= pontoEqDiario ? '✓ cobre despesas' : `⚠ eq: ${fmtNum(pontoEqDiario)}`}
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div className="p-5 space-y-5">
-                      {/* Produtos */}
                       {diaHoje.produtos_priorizar.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2.5">Produtos para priorizar</p>
                           <div className="space-y-2">
-                            {diaHoje.produtos_priorizar.map((p, i) => (
-                              <ProdutoCard key={i} p={p} />
-                            ))}
+                            {diaHoje.produtos_priorizar.map((p, i) => <ProdutoCard key={i} p={p} />)}
                           </div>
                         </div>
                       )}
 
-                      {/* Clientes */}
                       {diaHoje.clientes_contatar.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2.5">Clientes para contatar</p>
                           <div className="space-y-2">
-                            {diaHoje.clientes_contatar.map((c, i) => (
-                              <ClienteCard key={i} c={c} />
-                            ))}
+                            {diaHoje.clientes_contatar.map((c, i) => <ClienteCard key={i} c={c} />)}
                           </div>
                         </div>
                       )}
 
-                      {/* Dica */}
                       {diaHoje.dica && (
                         <div className="flex items-start gap-2.5 bg-violet-500/5 border border-violet-500/15 rounded-xl p-3.5">
                           <div className="text-violet-400 mt-0.5 shrink-0"><IconLightbulb /></div>
@@ -529,20 +646,20 @@ export default function DashboardClient({
                     </div>
                     <div className="divide-y divide-zinc-800">
                       {proximosDias.map((dia, i) => (
-                        <div
-                          key={i}
-                          className="px-5 py-4 cursor-pointer hover:bg-zinc-800/40 transition"
-                          onClick={() => {
-                            const idx = diasPlano.indexOf(dia)
-                            if (idx >= 0) setSelectedDiaIdx(idx)
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-3">
+                        <div key={i} className="px-5 py-4">
+                          <div className="flex items-center justify-between mb-2">
                             <div>
                               <span className="font-medium text-sm">{dia.dia_semana}</span>
                               <span className="text-zinc-500 text-sm ml-2">{dia.data.split('-').reverse().join('/')}</span>
                             </div>
-                            <span className="text-sm font-bold text-violet-400">{fmtNum(dia.meta_dia)}</span>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-violet-400">{fmtNum(dia.meta_dia)}</span>
+                              {pontoEqDiario > 0 && (
+                                <span className={`ml-2 text-xs ${dia.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                  {dia.meta_dia >= pontoEqDiario ? '✓' : '⚠'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="space-y-1">
                             {dia.produtos_priorizar.slice(0, 2).map((p, j) => (
@@ -550,9 +667,7 @@ export default function DashboardClient({
                                 <span className={p.estrategia === 'desconto' ? 'text-amber-400' : 'text-emerald-400'}>●</span>
                                 <span className="truncate">{p.nome}</span>
                                 <span className="shrink-0 font-medium">
-                                  {p.estrategia === 'desconto' && p.preco_com_desconto != null
-                                    ? fmtNum(p.preco_com_desconto)
-                                    : fmtNum(p.preco_venda)}
+                                  {p.estrategia === 'desconto' && p.preco_com_desconto != null ? fmtNum(p.preco_com_desconto) : fmtNum(p.preco_venda)}
                                 </span>
                               </div>
                             ))}
@@ -582,6 +697,18 @@ export default function DashboardClient({
           currentMeta={meta?.valor_meta ?? null}
           onClose={() => setShowMetaModal(false)}
           onSave={handleSaveMeta}
+        />
+      )}
+
+      {showSaudeModal && meta && (
+        <SaudeFinanceiraModal
+          current={temSaude ? {
+            dividas:        dividas,
+            despesas_fixas: despesas,
+            capital_de_giro: capitalGiro,
+          } : null}
+          onClose={() => setShowSaudeModal(false)}
+          onSave={handleSaveSaude}
         />
       )}
     </div>
