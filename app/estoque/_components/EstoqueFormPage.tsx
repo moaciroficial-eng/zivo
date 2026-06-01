@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -118,6 +118,34 @@ function toFormState(p?: Produto): FormState {
   }
 }
 
+/* ── Photo helpers ── */
+
+const SIZES_LIST = ['PLUS','EXTRA','XGG','GG','PP','XS','XL','XXL','XXXL','P','M','G','S','L','U','60','58','56','54','52','50','48','46','44','42','40','38','36','34','32']
+
+function extractModeloLocal(nome: string): string {
+  const upper = nome.toUpperCase().trim()
+  for (const t of SIZES_LIST) {
+    if (upper.endsWith(' ' + t)) return nome.slice(0, nome.length - t.length - 1).trim()
+  }
+  return nome
+}
+
+async function compressImageLocal(file: File): Promise<Blob> {
+  return new Promise(resolve => {
+    const img = document.createElement('img')
+    img.onload = () => {
+      const scale = Math.min(1, 1200 / img.naturalWidth)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(b => resolve(b ?? file), 'image/jpeg', 0.85)
+      URL.revokeObjectURL(img.src)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 /* ── Sub-components ── */
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -162,6 +190,12 @@ export default function EstoqueFormPage({
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'loading' } | null>(null)
   const [activeTab, setActiveTab] = useState<'principal' | 'tributos'>('principal')
   const [marcasMap, setMarcasMap] = useState<Map<string, number>>(new Map())
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [fotoId, setFotoId] = useState<string | null>(null)
+  const [fotoStoragePath, setFotoStoragePath] = useState<string | null>(null)
+  const [photoLoading, setPhotoLoading] = useState(false)
+  const photoInputRef   = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.from('marcas').select('nome, markup').then(({ data }) => {
@@ -169,6 +203,70 @@ export default function EstoqueFormPage({
     })
     if (hasScanParams) showToast('Etiqueta escaneada com sucesso!')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!produto) return
+    supabase
+      .from('biblioteca_fotos')
+      .select('id, url, storage_path')
+      .contains('estoque_ids', [produto.id])
+      .limit(1)
+      .then(({ data }) => {
+        if (data?.[0]) {
+          setFotoUrl(data[0].url)
+          setFotoId(data[0].id)
+          setFotoStoragePath(data[0].storage_path)
+        }
+      })
+  }, [produto?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handlePhotoUpload(file: File) {
+    if (!produto) return
+    setPhotoLoading(true)
+    try {
+      const compressed = await compressImageLocal(file)
+      const path = `${user.id}/${Date.now()}.jpg`
+
+      if (fotoStoragePath) await supabase.storage.from('biblioteca').remove([fotoStoragePath])
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('biblioteca')
+        .upload(path, compressed, { contentType: 'image/jpeg' })
+      if (uploadError) throw new Error(uploadError.message)
+
+      const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(uploadData.path)
+
+      const modelo = extractModeloLocal(produto.nome)
+      const { data: allEstoque } = await supabase.from('estoque').select('id, nome').eq('user_id', user.id)
+      const variantIds = (allEstoque ?? [])
+        .filter(v => extractModeloLocal(v.nome).toLowerCase() === modelo.toLowerCase())
+        .map(v => v.id)
+      if (!variantIds.includes(produto.id)) variantIds.push(produto.id)
+
+      if (fotoId) {
+        await supabase.from('biblioteca_fotos')
+          .update({ url: publicUrl, storage_path: path, estoque_ids: variantIds })
+          .eq('id', fotoId)
+      } else {
+        const { data: newFoto } = await supabase.from('biblioteca_fotos').insert({
+          user_id: user.id,
+          url: publicUrl,
+          storage_path: path,
+          modelo,
+          marca: produto.marca,
+          estoque_ids: variantIds,
+        }).select('id').maybeSingle()
+        if (newFoto) setFotoId(newFoto.id)
+      }
+
+      setFotoUrl(publicUrl)
+      setFotoStoragePath(path)
+      showToast(`Foto vinculada a ${variantIds.length} produto(s)!`)
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Erro ao salvar foto', 'error')
+    }
+    setPhotoLoading(false)
+  }
 
   function calcCusto(marca: string, venda: string): string {
     const markup = marcasMap.get(marca.toLowerCase().trim())
@@ -411,6 +509,53 @@ export default function EstoqueFormPage({
               </div>
             </label>
           </div>
+
+          {/* Foto do produto */}
+          {produto && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-zinc-300">Foto do produto</label>
+                {fotoUrl && <span className="text-xs text-zinc-600">Salva na Biblioteca</span>}
+              </div>
+
+              <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = '' }} />
+              <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = '' }} />
+
+              {fotoUrl ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={fotoUrl} alt={produto.nome} className="w-full max-h-56 object-cover rounded-2xl bg-zinc-800" />
+                  {photoLoading && (
+                    <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
+                      <div className="flex items-center gap-2 text-white text-sm"><IconSpinner /> Salvando...</div>
+                    </div>
+                  )}
+                  <div className="absolute bottom-2.5 right-2.5 flex gap-1.5">
+                    <button onClick={() => photoInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-black/90 transition">Câmera</button>
+                    <button onClick={() => galleryInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-black/90 transition">Galeria</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => photoInputRef.current?.click()} disabled={photoLoading}
+                    className="flex-1 flex flex-col items-center justify-center gap-2 py-7 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
+                    <IconCamera size={26} />
+                    <span className="text-xs font-medium">Câmera</span>
+                  </button>
+                  <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={photoLoading}
+                    className="flex-1 flex flex-col items-center justify-center gap-2 py-7 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span className="text-xs font-medium">Galeria</span>
+                  </button>
+                </div>
+              )}
+              {!fotoUrl && <p className="text-xs text-zinc-600 text-center">Vinculada automaticamente a todas as variações do modelo</p>}
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex gap-1 p-1 bg-zinc-800/60 border border-zinc-700/60 rounded-xl">
