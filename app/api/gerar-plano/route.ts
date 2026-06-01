@@ -197,11 +197,12 @@ COMO PENSAR O PLANO:
 - Varie os produtos dia a dia — não repita a mesma peça em dias consecutivos.
 - Seja CONCISO: motivo e dica com no máximo 60 caracteres.
 
-PRODUTOS E CLIENTES SÃO INDEPENDENTES:
-- Um dia pode ter APENAS produto (sem cliente), APENAS cliente (sem produto), ou ambos — o que fizer sentido.
-- Se não houver produto disponível para aquele dia, deixe produtos_priorizar = [] e foque em cliente.
-- Se não houver cliente adequado, deixe clientes_contatar = [] e foque no produto.
-- NUNCA gere dica dizendo "sem estoque" se há produtos listados acima. Use os produtos disponíveis.
+SOBRE PRODUTOS E CLIENTES:
+- O PRODUTO é o foco principal. Sempre sugira produtos quando houver estoque disponível.
+- Clientes são OPCIONAIS e só aparecem quando há motivo específico ligado ao produto do dia (ex: "comprou essa marca antes", "perfil que usa esse tipo de peça", "ligou perguntando sobre esse produto").
+- Se não houver conexão clara entre o cliente e o produto sugerido, deixe clientes_contatar = [].
+- NUNCA inclua cliente só para preencher — o motivo deve ser diretamente relacionado à peça sugerida.
+- Se não houver produto disponível para aquele dia, pode incluir cliente para relacionamento.
 
 REGRAS:
 1. Produtos com ≤14 dias em estoque → estrategia "preco_cheio"

@@ -89,10 +89,9 @@ function fmtNum(n: number) { return fmt.format(n) }
 
 function isPlanStale(meta: MetaRow, vendidoMes: number): boolean {
   if (!meta.plano || !meta.plano_gerado_em) return true
-  const base      = meta.plano_vendido_base ?? 0
-  const diff      = Math.abs(vendidoMes - base)
-  const threshold = Math.max(30, meta.valor_meta * 0.03)
-  return diff > threshold
+  const base = meta.plano_vendido_base ?? 0
+  // Recalcula se qualquer venda foi registrada desde a última geração
+  return vendidoMes !== base
 }
 
 function getMesLabel(mes: string) {
@@ -249,6 +248,7 @@ export default function DashboardClient({
   const [generateError,  setGenerateError]  = useState<string | null>(null)
   const [showMetaModal,  setShowMetaModal]  = useState(false)
   const [showSaudeModal, setShowSaudeModal] = useState(false)
+  const [showNextDays,   setShowNextDays]   = useState(false)
 
   const hoje = new Date().toISOString().split('T')[0]
 
@@ -279,6 +279,18 @@ export default function DashboardClient({
     if (meta && isPlanStale(meta, vendidoMes)) generatePlan()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Recalcula quando o usuário volta à aba após registrar uma venda
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && meta && isPlanStale(meta, vendidoMes)) {
+        generatePlan()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, vendidoMes])
 
   async function handleSaveMeta(valor: number) {
     const res = await fetch('/api/salvar-meta', {
@@ -650,46 +662,52 @@ export default function DashboardClient({
                 {/* Próximos dias */}
                 {proximosDias.length > 0 && (
                   <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                    <div className="px-5 py-4 border-b border-zinc-800">
+                    <button
+                      onClick={() => setShowNextDays(v => !v)}
+                      className="w-full px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 transition"
+                    >
                       <h2 className="font-semibold">Próximos dias</h2>
-                    </div>
-                    <div className="divide-y divide-zinc-800">
-                      {proximosDias.map((dia, i) => (
-                        <div key={i} className="px-5 py-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div>
-                              <span className="font-medium text-sm">{dia.dia_semana}</span>
-                              <span className="text-zinc-500 text-sm ml-2">{dia.data.split('-').reverse().join('/')}</span>
+                      <span className={`text-zinc-400 text-xs transition-transform duration-200 ${showNextDays ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
+                    {showNextDays && (
+                      <div className="divide-y divide-zinc-800 border-t border-zinc-800">
+                        {proximosDias.map((dia, i) => (
+                          <div key={i} className="px-5 py-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <span className="font-medium text-sm">{dia.dia_semana}</span>
+                                <span className="text-zinc-500 text-sm ml-2">{dia.data.split('-').reverse().join('/')}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-sm font-bold text-violet-400">{fmtNum(dia.meta_dia)}</span>
+                                {pontoEqDiario > 0 && dia.meta_dia > 0 && (
+                                  <span className={`ml-2 text-xs ${dia.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {dia.meta_dia >= pontoEqDiario ? '✓' : '⚠'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="text-sm font-bold text-violet-400">{fmtNum(dia.meta_dia)}</span>
-                              {pontoEqDiario > 0 && (
-                                <span className={`ml-2 text-xs ${dia.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                  {dia.meta_dia >= pontoEqDiario ? '✓' : '⚠'}
-                                </span>
-                              )}
+                            <div className="space-y-1">
+                              {dia.produtos_priorizar.slice(0, 2).map((p, j) => (
+                                <div key={j} className="flex items-center gap-2 text-xs text-zinc-400">
+                                  <span className={p.estrategia === 'desconto' ? 'text-amber-400' : 'text-emerald-400'}>●</span>
+                                  <span className="truncate">{p.nome}</span>
+                                  <span className="shrink-0 font-medium">
+                                    {p.estrategia === 'desconto' && p.preco_com_desconto != null ? fmtNum(p.preco_com_desconto) : fmtNum(p.preco_venda)}
+                                  </span>
+                                </div>
+                              ))}
+                              {dia.clientes_contatar.slice(0, 1).map((c, j) => (
+                                <div key={j} className="flex items-center gap-2 text-xs text-zinc-500">
+                                  <span className="text-violet-400">●</span>
+                                  <span className="truncate">{c.nome}</span>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            {dia.produtos_priorizar.slice(0, 2).map((p, j) => (
-                              <div key={j} className="flex items-center gap-2 text-xs text-zinc-400">
-                                <span className={p.estrategia === 'desconto' ? 'text-amber-400' : 'text-emerald-400'}>●</span>
-                                <span className="truncate">{p.nome}</span>
-                                <span className="shrink-0 font-medium">
-                                  {p.estrategia === 'desconto' && p.preco_com_desconto != null ? fmtNum(p.preco_com_desconto) : fmtNum(p.preco_venda)}
-                                </span>
-                              </div>
-                            ))}
-                            {dia.clientes_contatar.slice(0, 1).map((c, j) => (
-                              <div key={j} className="flex items-center gap-2 text-xs text-zinc-500">
-                                <span className="text-violet-400">●</span>
-                                <span className="truncate">Contatar: {c.nome}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
