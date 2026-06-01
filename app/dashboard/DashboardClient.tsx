@@ -43,7 +43,8 @@ type Plano = {
     restante: number
     percentual: number
     dias_restantes: number
-    media_diaria_necessaria: number
+    media_diaria_necessaria?: number
+    vendas_necessarias?: number
   }
   dias: DiaPlano[]
 }
@@ -474,7 +475,8 @@ export default function DashboardClient({
               </div>
               <div className="flex justify-between text-xs text-zinc-500 mt-1.5">
                 <span>{pct}% atingido</span>
-                {plano && <span>Média necessária: {fmtNum(plano.resumo.media_diaria_necessaria)}/dia</span>}
+                {plano?.resumo.vendas_necessarias != null && <span>{plano.resumo.vendas_necessarias} vendas necessárias</span>}
+                {plano?.resumo.media_diaria_necessaria != null && plano.resumo.vendas_necessarias == null && <span>Média: {fmtNum(plano.resumo.media_diaria_necessaria)}/dia</span>}
               </div>
             </div>
 
