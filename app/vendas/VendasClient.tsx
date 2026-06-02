@@ -258,6 +258,8 @@ export default function VendasClient({
   const [valorContado, setValorContado] = useState('')
   const [caixaLoading, setCaixaLoading] = useState(false)
   const [showHistorico, setShowHistorico] = useState(false)
+  const [descontoVendaTipo, setDescontoVendaTipo] = useState<'%' | 'R$'>('%')
+  const [descontoVendaValor, setDescontoVendaValor] = useState('')
 
   /* ── Cliente autocomplete ── */
 
@@ -334,10 +336,16 @@ export default function VendasClient({
     return preco * qtd * (1 - desc / 100)
   }
 
-  const totalSugerido = form.produtos.some(p => p.precoUnitario)
+  const subtotalProdutos = form.produtos.some(p => p.precoUnitario)
     ? form.produtos.reduce((s, p) => s + calcLinhaTotal(p), 0)
     : null
 
+  const descontoVendaNum = parseFloat(descontoVendaValor) || 0
+  const descontoVendaAmt = subtotalProdutos != null && descontoVendaNum > 0
+    ? (descontoVendaTipo === '%' ? subtotalProdutos * descontoVendaNum / 100 : descontoVendaNum)
+    : 0
+
+  const totalSugerido = subtotalProdutos != null ? Math.max(0, subtotalProdutos - descontoVendaAmt) : null
   const totalFinal = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
 
   const estoqueFiltrado = (i: number) => {
@@ -489,7 +497,8 @@ export default function VendasClient({
   function openNew() {
     setEditing(null); setForm(EMPTY); setFormError('')
     setClienteDropdown(false); setShowPayment(false)
-    resetPayment(); setDrawer(true)
+    resetPayment(); setDescontoVendaTipo('%'); setDescontoVendaValor('')
+    setDrawer(true)
   }
 
   function openEdit(v: Venda) {
@@ -520,13 +529,13 @@ export default function VendasClient({
     setDrawer(false); setEditing(null); setFormError('')
     setClienteDropdown(false); setProdutoDropdownIdx(null); setShowScanner(null)
     setShowPayment(false); resetPayment()
+    setDescontoVendaTipo('%'); setDescontoVendaValor('')
   }
 
   /* ── Vender (new) → open payment overlay ── */
 
   function handleVender() {
     if (!caixa) { setFormError('Abra o caixa antes de registrar uma venda.'); return }
-    if (!form.clienteNome.trim()) { setFormError('Informe o nome do cliente.'); return }
     if (!form.dataVenda) { setFormError('Informe a data.'); return }
     if (totalFinal <= 0) { setFormError('Adicione produtos com preço ou informe o valor.'); return }
     setFormError('')
@@ -552,7 +561,7 @@ export default function VendasClient({
     const valor = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
     const payload = {
       cliente_id: form.clienteId || null,
-      cliente_nome: form.clienteNome.trim(),
+      cliente_nome: form.clienteNome.trim() || 'Avulso',
       valor,
       data_venda: form.dataVenda,
       forma_pagamento: fp || null,
@@ -582,15 +591,15 @@ export default function VendasClient({
   /* ── Save edit ── */
 
   async function handleSave() {
-    if (!form.clienteNome.trim()) { setFormError('Informe o nome do cliente.'); return }
-    if (!form.valor || Number(form.valor) <= 0) { setFormError('Informe o valor.'); return }
+    const finalValor = totalFinal > 0 ? totalFinal : Number(form.valor)
+    if (finalValor <= 0) { setFormError('Adicione produtos com preço ou informe o valor.'); return }
     if (!form.dataVenda) { setFormError('Informe a data.'); return }
     setSaving(true); setFormError('')
 
     const payload = {
       cliente_id: form.clienteId || null,
-      cliente_nome: form.clienteNome.trim(),
-      valor: Number(form.valor),
+      cliente_nome: form.clienteNome.trim() || 'Avulso',
+      valor: finalValor,
       data_venda: form.dataVenda,
       forma_pagamento: buildFP() || null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
@@ -1192,12 +1201,48 @@ export default function VendasClient({
                 >
                   <IconPlus /> Adicionar produto
                 </button>
+
+                {/* Desconto na venda */}
+                {subtotalProdutos != null && (
+                  <div className="flex flex-col gap-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-zinc-400">Desconto na venda</span>
+                      {descontoVendaAmt > 0 && (
+                        <span className="text-xs text-zinc-500">
+                          {formatBRL(subtotalProdutos)} → <span className="text-emerald-400 font-semibold">{formatBRL(totalSugerido!)}</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex rounded-lg border border-zinc-700 overflow-hidden shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setDescontoVendaTipo('%')}
+                          className={`px-3 py-2 text-sm font-medium transition cursor-pointer ${descontoVendaTipo === '%' ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                        >%</button>
+                        <button
+                          type="button"
+                          onClick={() => setDescontoVendaTipo('R$')}
+                          className={`px-3 py-2 text-sm font-medium transition cursor-pointer ${descontoVendaTipo === 'R$' ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                        >R$</button>
+                      </div>
+                      <input
+                        type="number" min="0" step={descontoVendaTipo === '%' ? '1' : '0.01'}
+                        max={descontoVendaTipo === '%' ? '100' : undefined}
+                        value={descontoVendaValor}
+                        onChange={e => setDescontoVendaValor(e.target.value)}
+                        placeholder={descontoVendaTipo === '%' ? '0' : '0,00'}
+                        className="flex-1 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <hr className="border-zinc-800" />
 
               {/* 2. CLIENTE */}
-              <Field label="Cliente *">
+              <Field label="Cliente">
                 <div className="relative" ref={dropdownRef}>
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"><IconUser /></span>
                   <input
@@ -1206,7 +1251,7 @@ export default function VendasClient({
                     onChange={e => handleClienteInput(e.target.value)}
                     onFocus={() => setClienteDropdown(true)}
                     onBlur={() => setTimeout(() => setClienteDropdown(false), 150)}
-                    placeholder="Buscar cliente por nome..."
+                    placeholder="Buscar cliente (opcional)..."
                     autoComplete="off"
                     className={`${INPUT} pl-9 ${form.clienteId ? 'border-violet-500/50' : ''}`}
                   />
