@@ -242,12 +242,6 @@ export default function EstoqueClient({
           </div>
           <div className="flex items-center gap-2">
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
-            <Link
-              href="/estoque/condicional"
-              className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
-            >
-              Condicional
-            </Link>
             <button
               onClick={() => csvInput.current?.click()}
               className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
@@ -267,6 +261,28 @@ export default function EstoqueClient({
               <IconPlus /> Novo Produto
             </Link>
           </div>
+        </div>
+
+        {/* Sub-navegação */}
+        <div className="flex gap-2 mb-4">
+          <Link
+            href="/estoque/condicional"
+            className="flex items-center gap-2 text-sm font-medium text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/25 rounded-xl px-4 py-2.5 transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            Condicional
+          </Link>
+          <Link
+            href="/estoque/recebimento"
+            className="flex items-center gap-2 text-sm font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 rounded-xl px-4 py-2.5 transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            Conferência
+          </Link>
         </div>
 
         {/* Badge de recebimento pendente */}
