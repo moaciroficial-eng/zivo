@@ -280,6 +280,23 @@ export default function EstoqueClient({
           )
         })()}
 
+        {/* Badge de condicional */}
+        {(() => {
+          const cond = produtos.filter(p => p.status === 'em_condicional')
+          if (!cond.length) return null
+          return (
+            <div className="mb-4 flex items-center justify-between gap-4 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-xl">
+              <div className="flex items-center gap-2.5 text-sm text-violet-400">
+                <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0"/>
+                {cond.length} peça{cond.length !== 1 ? 's' : ''} em condicional
+              </div>
+              <Link href="/estoque/condicional" className="text-sm font-semibold text-violet-400 hover:text-violet-300 transition whitespace-nowrap">
+                Ver condicional →
+              </Link>
+            </div>
+          )
+        })()}
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Produtos"       value={String(produtos.length)} />
