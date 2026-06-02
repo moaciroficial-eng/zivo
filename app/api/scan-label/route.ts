@@ -5,6 +5,9 @@ import { NextResponse } from 'next/server'
 
 const anthropic = new Anthropic()
 
+const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
+type SupportedType = typeof SUPPORTED_TYPES[number]
+
 export async function POST(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,24 +27,25 @@ export async function POST(request: NextRequest) {
 
   if (!image) return NextResponse.json({ error: 'Imagem não fornecida' }, { status: 400 })
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 512,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: (mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-              data: image,
+  const normalizedType: SupportedType =
+    (SUPPORTED_TYPES as readonly string[]).includes(mediaType) ? mediaType : 'image/jpeg'
+
+  let aiText: string
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: normalizedType, data: image },
             },
-          },
-          {
-            type: 'text',
-            text: `Analise esta imagem de etiqueta de produto de uma loja de roupas masculinas. Extraia as informações e retorne SOMENTE um JSON válido, sem markdown, sem explicação extra.
+            {
+              type: 'text',
+              text: `Analise esta imagem de etiqueta de produto de uma loja de roupas masculinas. Extraia as informações e retorne SOMENTE um JSON válido, sem markdown, sem explicação extra.
 
 Formato exato:
 {"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
@@ -61,15 +65,18 @@ Regras para "codigo_produto" (código de referência / SKU):
 - Ignore sequências numéricas longas (8+ dígitos) que são código de barras EAN/UPC
 - Retorne apenas o valor, sem o prefixo — ex: "123456" e não "REF: 123456"
 - Se houver ambiguidade entre dois possíveis códigos, prefira o mais curto e alfanumérico`,
-          },
-        ],
-      },
-    ],
-  })
+            },
+          ],
+        },
+      ],
+    })
+    aiText = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+  } catch (err) {
+    console.error('Anthropic scan-label error:', err)
+    return NextResponse.json({ error: 'Erro ao processar a imagem. Tente novamente.' }, { status: 500 })
+  }
 
-  const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  const jsonMatch = aiText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {
     return NextResponse.json({ error: 'Não foi possível extrair dados da imagem. Tente uma foto mais nítida.' }, { status: 422 })
   }
@@ -77,7 +84,6 @@ Regras para "codigo_produto" (código de referência / SKU):
   try {
     const data = JSON.parse(jsonMatch[0])
 
-    // Se a IA identificou a marca e não há preco_custo, busca o markup cadastrado
     if (data.marca && data.preco_venda != null && data.preco_custo == null) {
       const { data: marca } = await supabase
         .from('marcas')
