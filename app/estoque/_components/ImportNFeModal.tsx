@@ -308,6 +308,11 @@ export default function ImportNFeModal({
 
     const { data, error: err } = await supabase.from('estoque').insert(inserts).select()
     if (err) { setError(err.message); setImporting(false); return }
+    if (!data || data.length === 0) {
+      setError('Nenhum produto foi salvo. Verifique sua conexão e tente novamente.')
+      setImporting(false)
+      return
+    }
 
     // Salva metadados do grupo no localStorage para uso na tela de recebimento
     const meta: NfeGrupoMeta = {
