@@ -33,6 +33,8 @@ type EstoqueItem = {
   codigo_barras: string | null
 }
 
+type Filtro = 'hoje' | 'semana' | 'mes' | 'custom'
+
 type FormProduto = {
   estoqueId: string
   nome: string
@@ -220,6 +222,9 @@ export default function VendasClient({
   const [isHibrido, setIsHibrido] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
+  const [filtro, setFiltro] = useState<Filtro>('mes')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
 
   /* ── Cliente autocomplete ── */
 
@@ -559,9 +564,51 @@ export default function VendasClient({
 
   /* ── Derived ── */
 
-  const filtered = vendas.filter(v => v.cliente_nome.toLowerCase().includes(search.toLowerCase()))
-  const totalReceita = vendas.reduce((s, v) => s + Number(v.valor), 0)
-  const ticketMedio = vendas.length > 0 ? totalReceita / vendas.length : 0
+  const now = new Date()
+
+  function getDateRange(): { start: string; end: string } | null {
+    const todayStr = TODAY
+    if (filtro === 'hoje') return { start: todayStr, end: todayStr }
+    if (filtro === 'semana') {
+      const day = now.getDay()
+      const diff = day === 0 ? -6 : 1 - day
+      const monday = new Date(now)
+      monday.setDate(now.getDate() + diff)
+      return { start: monday.toISOString().split('T')[0], end: todayStr }
+    }
+    if (filtro === 'mes') {
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      return { start: `${year}-${month}-01`, end: todayStr }
+    }
+    if (filtro === 'custom' && customStart) {
+      return { start: customStart, end: customEnd || todayStr }
+    }
+    return null
+  }
+
+  function periodLabel(): string {
+    const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+    if (filtro === 'hoje') return `Hoje · ${now.getDate()} de ${MESES[now.getMonth()]}`
+    if (filtro === 'semana') {
+      const r = getDateRange()
+      return r ? `Esta semana · ${formatDate(r.start)} – ${formatDate(r.end)}` : 'Esta semana'
+    }
+    if (filtro === 'mes') return `${MESES[now.getMonth()]} de ${now.getFullYear()}`
+    if (filtro === 'custom' && customStart) {
+      return customEnd ? `${formatDate(customStart)} – ${formatDate(customEnd)}` : `A partir de ${formatDate(customStart)}`
+    }
+    return ''
+  }
+
+  const dateRange = getDateRange()
+  const vendasPeriodo = dateRange
+    ? vendas.filter(v => { const d = v.data_venda.slice(0, 10); return d >= dateRange.start && d <= dateRange.end })
+    : vendas
+
+  const filtered = vendasPeriodo.filter(v => v.cliente_nome.toLowerCase().includes(search.toLowerCase()))
+  const totalReceita = vendasPeriodo.reduce((s, v) => s + Number(v.valor), 0)
+  const ticketMedio = vendasPeriodo.length > 0 ? totalReceita / vendasPeriodo.length : 0
 
   /* ── Render ─────────────────────────────────────────────── */
 
@@ -607,7 +654,7 @@ export default function VendasClient({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Vendas</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">{vendas.length} venda{vendas.length !== 1 ? 's' : ''} registrada{vendas.length !== 1 ? 's' : ''}</p>
+            <p className="text-zinc-500 text-sm mt-0.5">{vendasPeriodo.length} venda{vendasPeriodo.length !== 1 ? 's' : ''} no período</p>
           </div>
           <div className="flex items-center gap-2">
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
@@ -627,11 +674,61 @@ export default function VendasClient({
           </div>
         </div>
 
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 mb-5">
+          {([
+            { key: 'hoje'   as Filtro, label: 'Hoje' },
+            { key: 'semana' as Filtro, label: 'Esta semana' },
+            { key: 'mes'    as Filtro, label: 'Este mês' },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => { setFiltro(key); setCustomStart(''); setCustomEnd('') }}
+              className={`text-sm px-3.5 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+                filtro === key
+                  ? 'bg-violet-600 text-white'
+                  : 'text-zinc-400 bg-zinc-800 hover:text-white border border-zinc-700 hover:border-zinc-500'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="text-zinc-700 hidden sm:block select-none">|</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={customStart}
+              max={TODAY}
+              onChange={e => { setCustomStart(e.target.value); setFiltro('custom') }}
+              className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition [color-scheme:dark]"
+            />
+            <span className="text-zinc-500 text-sm">–</span>
+            <input
+              type="date"
+              value={customEnd}
+              max={TODAY}
+              onChange={e => { setCustomEnd(e.target.value); setFiltro('custom') }}
+              className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition [color-scheme:dark]"
+            />
+            {filtro === 'custom' && (customStart || customEnd) && (
+              <button
+                onClick={() => { setFiltro('mes'); setCustomStart(''); setCustomEnd('') }}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Stats */}
+        <div className="mb-2">
+          <p className="text-xs font-medium text-zinc-500">{periodLabel()}</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <StatCard label="Total de Vendas" value={String(vendas.length)} />
-          <StatCard label="Receita Total" value={formatBRL(totalReceita)} />
-          <StatCard label="Ticket Médio" value={vendas.length > 0 ? formatBRL(ticketMedio) : '—'} />
+          <StatCard label="Vendas" value={String(vendasPeriodo.length)} />
+          <StatCard label="Total vendido" value={formatBRL(totalReceita)} />
+          <StatCard label="Ticket médio" value={vendasPeriodo.length > 0 ? formatBRL(ticketMedio) : '—'} />
         </div>
 
         {/* Toast */}
@@ -672,6 +769,14 @@ export default function VendasClient({
               <>
                 <p className="font-medium text-zinc-300">Nenhuma venda para &quot;{search}&quot;</p>
                 <button onClick={() => setSearch('')} className="text-sm text-violet-400 hover:text-violet-300 transition">Limpar busca</button>
+              </>
+            ) : vendasPeriodo.length === 0 && vendas.length > 0 ? (
+              <>
+                <p className="font-medium text-zinc-300">Sem vendas neste período</p>
+                <p className="text-zinc-500 text-sm">{periodLabel()}</p>
+                <button onClick={() => { setFiltro('mes'); setCustomStart(''); setCustomEnd('') }} className="text-sm text-violet-400 hover:text-violet-300 transition cursor-pointer">
+                  Ver mês atual
+                </button>
               </>
             ) : (
               <>

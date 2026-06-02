@@ -8,10 +8,10 @@ export default async function VendasPage() {
   if (!user) redirect('/')
 
   const [{ data: vendas }, { data: clientes }, { data: estoque }] = await Promise.all([
-    supabase.from('vendas').select('*').order('data_venda', { ascending: false }),
-    supabase.from('clientes').select('id, nome').order('nome'),
+    supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
+    supabase.from('clientes').select('id, nome').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, codigo_barras, status')
-      .not('status', 'eq', 'vendido').order('nome'),
+      .eq('user_id', user.id).not('status', 'eq', 'vendido').order('nome'),
   ])
 
   return (
