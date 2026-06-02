@@ -169,13 +169,22 @@ export default function ClientesClient({
     }
 
     if (editing) {
-      const { data, error } = await supabase.from('clientes').update(payload).eq('id', editing.id).select()
+      const { data, error } = await supabase
+        .from('clientes')
+        .update(payload)
+        .eq('id', editing.id)
+        .eq('user_id', user.id)
+        .select()
       if (error) { setFormError(error.message); setSaving(false); return }
-      const updated = data?.[0] ?? { ...editing, ...payload }
-      setClientes(cs => cs.map(c => c.id === editing.id ? updated : c))
+      if (!data || data.length === 0) {
+        setFormError('Não foi possível salvar. Tente novamente.')
+        setSaving(false)
+        return
+      }
+      setClientes(cs => cs.map(c => c.id === editing.id ? data[0] : c))
       showToast('Cliente atualizado com sucesso.')
     } else {
-      const { data, error } = await supabase.from('clientes').insert(payload).select()
+      const { data, error } = await supabase.from('clientes').insert({ ...payload, user_id: user.id }).select()
       if (error) { setFormError(error.message); setSaving(false); return }
       const inserted = data?.[0]
       if (inserted) setClientes(cs => [inserted, ...cs])
@@ -213,6 +222,7 @@ export default function ClientesClient({
       if (!rows.length) { showToast('Nenhum dado válido encontrado no CSV.', 'error'); return }
 
       const inserts = rows.map(r => ({
+        user_id: user.id,
         nome: r['nome'],
         telefone: r['telefone'] || null,
         email: r['email'] || null,
