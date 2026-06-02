@@ -68,7 +68,6 @@ type MetaRow = {
 type Props = {
   user: { id: string; email: string }
   mes: string
-  totalClientes: number
   totalReceita: number
   totalVendas: number
   vendidoMes: number
@@ -293,7 +292,7 @@ function SkeletonPlan() {
 /* ── Main component ───────────────────────────────────────────── */
 
 export default function DashboardClient({
-  user, mes, totalClientes, totalReceita, totalVendas, vendidoMes, metaInicial,
+  user, mes, totalReceita, totalVendas, vendidoMes, metaInicial,
 }: Props) {
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
@@ -466,11 +465,7 @@ export default function DashboardClient({
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <Link href="/clientes" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Clientes</p>
-            <p className="text-3xl font-bold mt-1">{totalClientes}</p>
-          </Link>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita Total</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{fmtNum(totalReceita)}</p>

@@ -17,12 +17,10 @@ export default async function DashboardPage() {
     : `${year}-${String(month + 1).padStart(2, '0')}-01`
 
   const [
-    { count: totalClientes },
     { data: todasVendas },
     { data: vendasMes },
     { data: metaRow },
   ] = await Promise.all([
-    supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
     supabase.from('vendas').select('valor').eq('user_id', user.id),
     supabase.from('vendas').select('valor').eq('user_id', user.id)
       .gte('data_venda', mesStart).lt('data_venda', nextMonth),
@@ -37,7 +35,6 @@ export default async function DashboardPage() {
     <DashboardClient
       user={{ id: user.id, email: user.email ?? '' }}
       mes={mes}
-      totalClientes={totalClientes ?? 0}
       totalReceita={totalReceita}
       totalVendas={totalVendas}
       vendidoMes={vendidoMes}
