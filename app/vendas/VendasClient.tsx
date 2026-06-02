@@ -20,6 +20,23 @@ type Venda = {
   data_venda: string
   forma_pagamento: string | null
   produtos: Produto[]
+  caixa_id: string | null
+  created_at: string
+}
+
+type Caixa = {
+  id: string
+  user_id: string
+  data_abertura: string
+  troco_inicial: number
+  data_fechamento: string | null
+  total_vendas: number | null
+  resumo_pagamentos: Record<string, number> | null
+  valor_esperado: number | null
+  valor_contado: number | null
+  diferenca: number | null
+  observacoes: string | null
+  status: 'aberto' | 'fechado'
   created_at: string
 }
 
@@ -63,6 +80,10 @@ type PagSlot = {
 /* ── Constants ──────────────────────────────────────────────── */
 
 const TODAY = new Date().toISOString().split('T')[0]
+
+const METODO_LABEL: Record<string, string> = {
+  pix: 'Pix', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', outros: 'Outros',
+}
 
 const METODOS = [
   { value: 'pix',      label: 'Pix' },
@@ -197,11 +218,15 @@ export default function VendasClient({
   initialVendas,
   clientes,
   estoqueItems,
+  caixaAtual,
+  historicoCaixas,
 }: {
   user: { id: string; email: string }
   initialVendas: Venda[]
   clientes: ClienteOption[]
   estoqueItems: EstoqueItem[]
+  caixaAtual: Caixa | null
+  historicoCaixas: Caixa[]
 }) {
   const supabase = createClient()
   const [vendas, setVendas] = useState(initialVendas)
@@ -225,6 +250,14 @@ export default function VendasClient({
   const [filtro, setFiltro] = useState<Filtro>('mes')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
+  const [caixa, setCaixa] = useState<Caixa | null>(caixaAtual)
+  const [historicoList, setHistoricoList] = useState<Caixa[]>(historicoCaixas)
+  const [showAbrirCaixa, setShowAbrirCaixa] = useState(false)
+  const [showFecharCaixa, setShowFecharCaixa] = useState(false)
+  const [trocoInicial, setTrocoInicial] = useState('')
+  const [valorContado, setValorContado] = useState('')
+  const [caixaLoading, setCaixaLoading] = useState(false)
+  const [showHistorico, setShowHistorico] = useState(false)
 
   /* ── Cliente autocomplete ── */
 
@@ -382,6 +415,75 @@ export default function VendasClient({
     setPagSlots([emptySlot()]); setIsHibrido(false)
   }
 
+  /* ── Caixa ── */
+
+  function calcResumo(vs: Venda[]): Record<string, number> {
+    const r: Record<string, number> = {}
+    for (const v of vs) {
+      const fp = v.forma_pagamento || ''
+      if (!fp) {
+        r['outros'] = (r['outros'] || 0) + Number(v.valor)
+      } else if (fp.includes('+')) {
+        fp.split('+').forEach(p => {
+          const [m, amount] = p.split(':')
+          const key = m.startsWith('credito_') ? 'credito' : m
+          r[key] = (r[key] || 0) + (parseFloat(amount) || 0)
+        })
+      } else {
+        const key = fp.startsWith('credito_') ? 'credito' : fp
+        r[key] = (r[key] || 0) + Number(v.valor)
+      }
+    }
+    return r
+  }
+
+  async function handleAbrirCaixa() {
+    setCaixaLoading(true)
+    const { data, error } = await supabase.from('caixas').insert({
+      user_id: user.id,
+      troco_inicial: parseFloat(trocoInicial) || 0,
+      status: 'aberto',
+    }).select().single()
+    if (error) { showToast(error.message, 'error'); setCaixaLoading(false); return }
+    setCaixa(data as Caixa)
+    setShowAbrirCaixa(false)
+    setTrocoInicial('')
+    setCaixaLoading(false)
+    showToast('Caixa aberto.')
+  }
+
+  async function handleFecharCaixa() {
+    if (!caixa) return
+    setCaixaLoading(true)
+    const vendasDoCaixa = vendas.filter(v => v.caixa_id === caixa.id)
+    const resumo = calcResumo(vendasDoCaixa)
+    const totalVendas = vendasDoCaixa.reduce((s, v) => s + Number(v.valor), 0)
+    const valorEsperado = caixa.troco_inicial + (resumo['dinheiro'] || 0)
+    const contado = parseFloat(valorContado) || 0
+    const diferenca = contado - valorEsperado
+    const { data, error } = await supabase
+      .from('caixas')
+      .update({
+        data_fechamento: new Date().toISOString(),
+        total_vendas: totalVendas,
+        resumo_pagamentos: resumo,
+        valor_esperado: valorEsperado,
+        valor_contado: contado,
+        diferenca,
+        status: 'fechado',
+      })
+      .eq('id', caixa.id)
+      .select()
+      .single()
+    if (error) { showToast(error.message, 'error'); setCaixaLoading(false); return }
+    setCaixa(null)
+    setHistoricoList(h => [data as Caixa, ...h])
+    setShowFecharCaixa(false)
+    setValorContado('')
+    setCaixaLoading(false)
+    showToast('Caixa fechado.')
+  }
+
   /* ── Drawer ── */
 
   function openNew() {
@@ -423,6 +525,7 @@ export default function VendasClient({
   /* ── Vender (new) → open payment overlay ── */
 
   function handleVender() {
+    if (!caixa) { setFormError('Abra o caixa antes de registrar uma venda.'); return }
     if (!form.clienteNome.trim()) { setFormError('Informe o nome do cliente.'); return }
     if (!form.dataVenda) { setFormError('Informe a data.'); return }
     if (totalFinal <= 0) { setFormError('Adicione produtos com preço ou informe o valor.'); return }
@@ -453,6 +556,7 @@ export default function VendasClient({
       valor,
       data_venda: form.dataVenda,
       forma_pagamento: fp || null,
+      caixa_id: caixa?.id ?? null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         qtd: Number(p.qtd) || 1,
@@ -601,6 +705,14 @@ export default function VendasClient({
     return ''
   }
 
+  const vendasCaixa = caixa ? vendas.filter(v => v.caixa_id === caixa.id) : []
+  const resumoCaixa = calcResumo(vendasCaixa)
+  const totalCaixa = vendasCaixa.reduce((s, v) => s + Number(v.valor), 0)
+  const dinheiroEmCaixa = resumoCaixa['dinheiro'] || 0
+  const valorEsperadoCaixa = caixa ? caixa.troco_inicial + dinheiroEmCaixa : 0
+  const contadoNum = parseFloat(valorContado) || 0
+  const diferencaCaixa = valorContado !== '' ? contadoNum - valorEsperadoCaixa : null
+
   const dateRange = getDateRange()
   const vendasPeriodo = dateRange
     ? vendas.filter(v => { const d = v.data_venda.slice(0, 10); return d >= dateRange.start && d <= dateRange.end })
@@ -672,6 +784,45 @@ export default function VendasClient({
               <IconPlus /> Nova Venda
             </button>
           </div>
+        </div>
+
+        {/* Caixa status bar */}
+        <div className={`rounded-2xl border p-4 mb-5 flex items-center justify-between gap-4 ${
+          caixa ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${caixa ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+            {caixa ? (
+              <div>
+                <p className="text-sm font-semibold text-emerald-400">Caixa aberto</p>
+                <p className="text-xs text-zinc-500">
+                  Desde {new Date(caixa.data_abertura).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {caixa.troco_inicial > 0 && ` · Troco: ${formatBRL(caixa.troco_inicial)}`}
+                  {vendasCaixa.length > 0 && ` · ${vendasCaixa.length} venda${vendasCaixa.length !== 1 ? 's' : ''} · ${formatBRL(totalCaixa)}`}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-semibold text-red-400">Caixa fechado</p>
+                <p className="text-xs text-zinc-500">Abra o caixa para registrar vendas</p>
+              </div>
+            )}
+          </div>
+          {caixa ? (
+            <button
+              onClick={() => { setValorContado(''); setShowFecharCaixa(true) }}
+              className="shrink-0 text-sm font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-xl px-4 py-2 transition cursor-pointer"
+            >
+              Fechar Caixa
+            </button>
+          ) : (
+            <button
+              onClick={() => { setTrocoInicial(''); setShowAbrirCaixa(true) }}
+              className="shrink-0 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-xl px-4 py-2 transition cursor-pointer"
+            >
+              Abrir Caixa
+            </button>
+          )}
         </div>
 
         {/* Filter bar */}
@@ -856,6 +1007,64 @@ export default function VendasClient({
         <p className="text-xs text-zinc-700 mt-4 font-mono">
           CSV: cliente_nome, valor, data_venda, produtos &nbsp;·&nbsp; produtos: <span className="text-zinc-600">nome1:qtd1;nome2:qtd2</span>
         </p>
+
+        {/* Histórico de caixas */}
+        {historicoList.length > 0 && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowHistorico(v => !v)}
+              className="flex items-center gap-2 text-sm font-semibold text-zinc-500 hover:text-zinc-300 transition cursor-pointer mb-3"
+            >
+              <span className={`text-xs transition-transform duration-200 inline-block ${showHistorico ? 'rotate-180' : ''}`}>▼</span>
+              Histórico de Caixas ({historicoList.length})
+            </button>
+            {showHistorico && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                {historicoList.map((c, i) => {
+                  const abertura = new Date(c.data_abertura)
+                  const fechamento = c.data_fechamento ? new Date(c.data_fechamento) : null
+                  return (
+                    <div key={c.id} className={`px-5 py-4 flex items-start justify-between gap-4 ${i < historicoList.length - 1 ? 'border-b border-zinc-800' : ''}`}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {abertura.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          {fechamento && (
+                            <span className="text-zinc-500 ml-2 text-xs">
+                              {abertura.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} – {fechamento.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </p>
+                        {c.resumo_pagamentos && (
+                          <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                            {Object.entries(c.resumo_pagamentos)
+                              .map(([k, v]) => `${METODO_LABEL[k] ?? k}: ${formatBRL(v as number)}`)
+                              .join(' · ')}
+                          </p>
+                        )}
+                        {c.troco_inicial > 0 && (
+                          <p className="text-xs text-zinc-600 mt-0.5">Troco inicial: {formatBRL(c.troco_inicial)}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-emerald-400">{formatBRL(c.total_vendas ?? 0)}</p>
+                        {c.diferenca !== null && (
+                          <p className={`text-xs font-medium mt-0.5 ${
+                            Math.abs(c.diferenca) < 0.01 ? 'text-zinc-500'
+                            : c.diferenca > 0 ? 'text-emerald-400'
+                            : 'text-red-400'
+                          }`}>
+                            {c.diferenca > 0.005 ? '+' : ''}{formatBRL(c.diferenca)}
+                            {' '}{Math.abs(c.diferenca) < 0.01 ? '(conferido)' : c.diferenca > 0 ? '(sobra)' : '(falta)'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* ── Drawer ──────────────────────────────────────────── */}
@@ -1259,6 +1468,136 @@ export default function VendasClient({
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Abrir Caixa ── */}
+      {showAbrirCaixa && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowAbrirCaixa(false)} />
+          <div className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-semibold text-lg">Abrir Caixa</h2>
+              <button onClick={() => setShowAbrirCaixa(false)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer"><IconX /></button>
+            </div>
+            <p className="text-sm text-zinc-500 mb-5">
+              {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+            <div className="flex flex-col gap-1.5 mb-6">
+              <label className="text-sm font-medium text-zinc-300">Troco inicial (R$)</label>
+              <input
+                type="number" min="0" step="0.01" autoFocus
+                value={trocoInicial}
+                onChange={e => setTrocoInicial(e.target.value)}
+                placeholder="0,00"
+                className={INPUT}
+              />
+              <p className="text-xs text-zinc-500">Valor em dinheiro já disponível no caixa antes das vendas.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowAbrirCaixa(false)} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 transition cursor-pointer">
+                Cancelar
+              </button>
+              <button onClick={handleAbrirCaixa} disabled={caixaLoading} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3 transition cursor-pointer">
+                {caixaLoading ? 'Abrindo...' : 'Abrir Caixa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Fechar Caixa ── */}
+      {showFecharCaixa && caixa && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowFecharCaixa(false)} />
+          <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+              <h2 className="font-semibold text-lg">Fechar Caixa</h2>
+              <button onClick={() => setShowFecharCaixa(false)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer"><IconX /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+              <p className="text-sm text-zinc-500">
+                Aberto às {new Date(caixa.data_abertura).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                {caixa.troco_inicial > 0 && ` · Troco inicial: ${formatBRL(caixa.troco_inicial)}`}
+              </p>
+
+              {/* Resumo por método */}
+              <div>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                  Resumo do dia · {vendasCaixa.length} venda{vendasCaixa.length !== 1 ? 's' : ''}
+                </p>
+                <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl overflow-hidden">
+                  {Object.keys(resumoCaixa).length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-zinc-500">Nenhuma venda registrada neste caixa.</p>
+                  ) : (
+                    <>
+                      {Object.entries(resumoCaixa).map(([metodo, valor]) => (
+                        <div key={metodo} className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-700/40 last:border-0">
+                          <span className="text-sm text-zinc-300">{METODO_LABEL[metodo] ?? metodo}</span>
+                          <span className="text-sm font-semibold text-emerald-400">{formatBRL(valor as number)}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between px-4 py-3 bg-zinc-800/80">
+                        <span className="text-sm font-semibold">Total vendido</span>
+                        <span className="text-base font-bold text-emerald-400">{formatBRL(totalCaixa)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Conferência de dinheiro */}
+              <div>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Conferência do caixa (dinheiro físico)</p>
+                <div className="bg-zinc-800/40 rounded-xl p-4 flex flex-col gap-2 text-sm mb-3">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Troco inicial</span><span>{formatBRL(caixa.troco_inicial)}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Vendas em dinheiro</span><span>{formatBRL(dinheiroEmCaixa)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold border-t border-zinc-700 pt-2 mt-1">
+                    <span>Esperado em caixa</span><span>{formatBRL(valorEsperadoCaixa)}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-zinc-300">Valor contado (R$)</label>
+                  <input
+                    type="number" min="0" step="0.01" autoFocus
+                    value={valorContado}
+                    onChange={e => setValorContado(e.target.value)}
+                    placeholder="0,00"
+                    className={INPUT}
+                  />
+                </div>
+                {diferencaCaixa !== null && (
+                  <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold ${
+                    Math.abs(diferencaCaixa) < 0.01 ? 'bg-zinc-800 text-zinc-400'
+                    : diferencaCaixa > 0 ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-red-500/10 text-red-400'
+                  }`}>
+                    <span>Diferença</span>
+                    <span>
+                      {diferencaCaixa > 0.005 ? '+' : ''}{formatBRL(diferencaCaixa)}
+                      {' '}
+                      {Math.abs(diferencaCaixa) < 0.01 ? '(conferido ✓)' : diferencaCaixa > 0 ? '(sobra)' : '(falta)'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-zinc-800 flex gap-3 shrink-0">
+              <button onClick={() => setShowFecharCaixa(false)} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 transition cursor-pointer">
+                Cancelar
+              </button>
+              <button onClick={handleFecharCaixa} disabled={caixaLoading} className="flex-1 text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-60 rounded-xl py-3 transition cursor-pointer">
+                {caixaLoading ? 'Fechando...' : 'Fechar Caixa'}
+              </button>
+            </div>
           </div>
         </div>
       )}

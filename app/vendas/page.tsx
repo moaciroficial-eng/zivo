@@ -7,11 +7,14 @@ export default async function VendasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  const [{ data: vendas }, { data: clientes }, { data: estoque }] = await Promise.all([
+  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: caixaAtual }, { data: historicoCaixas }] = await Promise.all([
     supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
     supabase.from('clientes').select('id, nome').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, codigo_barras, status')
       .eq('user_id', user.id).not('status', 'eq', 'vendido').order('nome'),
+    supabase.from('caixas').select('*').eq('user_id', user.id).eq('status', 'aberto').maybeSingle(),
+    supabase.from('caixas').select('*').eq('user_id', user.id).eq('status', 'fechado')
+      .order('data_fechamento', { ascending: false }).limit(20),
   ])
 
   return (
@@ -20,6 +23,8 @@ export default async function VendasPage() {
       initialVendas={vendas ?? []}
       clientes={clientes ?? []}
       estoqueItems={estoque ?? []}
+      caixaAtual={caixaAtual ?? null}
+      historicoCaixas={historicoCaixas ?? []}
     />
   )
 }
