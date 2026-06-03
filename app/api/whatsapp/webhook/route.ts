@@ -54,17 +54,18 @@ export async function POST(request: NextRequest) {
     const messages = Array.isArray(data) ? data : [data]
 
     for (const msg of messages) {
-      const key      = msg.key as Record<string, unknown>
-      const fromMe   = key?.fromMe as boolean
-      const remoteJid = key?.remoteJid as string
+      try {
+      const key       = (msg as Record<string, unknown>).key as Record<string, unknown> | undefined
+      const remoteJid = key?.remoteJid as string | undefined
+      const fromMe    = key?.fromMe as boolean
 
-      /* Ignora grupos */
-      if (remoteJid?.endsWith('@g.us')) continue
+      /* Ignora mensagens sem JID ou de grupos */
+      if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid.endsWith('@broadcast')) continue
 
-      const messageId   = key?.id as string
-      const pushName    = msg.pushName as string | null
-      const message     = msg.message as Record<string, unknown>
-      const tsRaw       = msg.messageTimestamp as number
+      const messageId   = key?.id as string | undefined
+      const pushName    = (msg as Record<string, unknown>).pushName as string | null
+      const message     = (msg as Record<string, unknown>).message as Record<string, unknown> | undefined
+      const tsRaw       = (msg as Record<string, unknown>).messageTimestamp as number | undefined
       const phone       = normalizePhone(remoteJid)
       const timestamp   = new Date((tsRaw ?? Date.now() / 1000) * 1000).toISOString()
       const { conteudo, tipo } = message ? extractConteudo(message) : { conteudo: null, tipo: 'desconhecido' }
@@ -117,6 +118,9 @@ export async function POST(request: NextRequest) {
           },
           { onConflict: 'message_id', ignoreDuplicates: true },
         )
+      } catch (err) {
+        console.error('Erro ao processar mensagem:', err)
+      }
     }
 
     return NextResponse.json({ ok: true })
