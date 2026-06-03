@@ -22,9 +22,12 @@ function normalizePhone(jid: unknown): string {
 
 export async function POST(request: NextRequest) {
   try {
-    /* Parse do body — qualquer falha retorna 200 */
+    /* Lê como texto primeiro — nunca lança em body vazio */
     let body: unknown
-    try { body = await request.json() } catch { /* body vazio ou não-JSON */ }
+    try {
+      const text = await request.text()
+      if (text) body = JSON.parse(text)
+    } catch { /* ignora body inválido */ }
 
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ ok: true })
