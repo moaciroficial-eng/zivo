@@ -17,6 +17,7 @@ export type Produto = {
   pis: string | null
   cofins: string | null
   cest: string | null
+  codigo_barras: string | null
   status: 'disponivel' | 'aguardando_recebimento' | 'em_condicional'
   nfe_grupo_id: string | null
   condicional_com: string | null
