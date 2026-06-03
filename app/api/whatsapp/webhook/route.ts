@@ -176,5 +176,15 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(_request: NextRequest) {
-  return NextResponse.json({ status: 'ok', webhook: 'zivo-whatsapp' })
+  return NextResponse.json({
+    status: 'ok',
+    webhook: 'zivo-whatsapp',
+    env: {
+      WHATSAPP_USER_ID:        !!process.env.WHATSAPP_USER_ID,
+      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      WHATSAPP_WEBHOOK_SECRET: !!process.env.WHATSAPP_WEBHOOK_SECRET,
+      NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    },
+    user_id_prefix: process.env.WHATSAPP_USER_ID?.slice(0, 8) ?? null,
+  })
 }
