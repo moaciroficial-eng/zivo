@@ -70,6 +70,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'chat'>('list')
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -155,16 +156,29 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setInput('')
     setSending(true)
     setSendError(null)
+
+    const isLid = selectedContato.jid?.endsWith('@lid')
+    const override = isLid ? lidPhone[selectedContato.id]?.replace(/\D/g, '') : undefined
+
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: selectedContato.phone, jid: selectedContato.jid, message: text }),
+        body: JSON.stringify({
+          phone: override ?? selectedContato.phone,
+          jid:   override ? undefined : selectedContato.jid,
+          message: text,
+        }),
       })
       if (!res.ok) {
         const errText = await res.text()
         setSendError(errText || `Erro ${res.status}`)
-        setTimeout(() => setSendError(null), 6000)
+        setTimeout(() => setSendError(null), 8000)
+      } else if (override) {
+        // Salva o número real no Supabase para próximas mensagens
+        const newJid = `${override}@s.whatsapp.net`
+        await supabase.from('whatsapp_contatos').update({ jid: newJid }).eq('id', selectedContato.id)
+        setContatos(cs => cs.map(c => c.id === selectedContato.id ? { ...c, jid: newJid } : c))
       }
     } catch (e) {
       setSendError('Falha de conexão')
@@ -290,15 +304,26 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-semibold uppercase text-zinc-200 select-none">
                   {(selectedContato.nome ?? selectedContato.phone)[0]}
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold leading-tight">
-                  {selectedContato.nome ?? phoneFromJid(selectedContato.jid) ?? selectedContato.phone}
-                </p>
-                {(phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)) && (
-                  <p className="text-[11px] text-zinc-500">
-                    {phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)}
+                    {selectedContato.nome ?? phoneFromJid(selectedContato.jid) ?? selectedContato.phone}
                   </p>
-                )}
+                  {(phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)) && (
+                    <p className="text-[11px] text-zinc-500">
+                      {phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)}
+                    </p>
+                  )}
+                  {selectedContato.jid?.endsWith('@lid') && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-yellow-500 shrink-0">ID privado — insira o número:</span>
+                      <input
+                        value={lidPhone[selectedContato.id] ?? ''}
+                        onChange={e => setLidPhone(m => ({ ...m, [selectedContato.id]: e.target.value }))}
+                        placeholder="5562999057784"
+                        className="text-[11px] bg-zinc-800 border border-yellow-600/40 rounded px-2 py-0.5 text-zinc-200 w-36 outline-none focus:border-yellow-500 [color-scheme:dark]"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
