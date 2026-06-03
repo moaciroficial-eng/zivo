@@ -41,7 +41,7 @@ export async function sendWhatsAppMessage({ phone, jid, message }: SendTextOptio
     },
     body: JSON.stringify({
       number,
-      text: message,
+      textMessage: { text: message },
     }),
   })
 
