@@ -172,8 +172,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       })
       if (!res.ok) {
         const errText = await res.text()
-        setSendError(errText || `Erro ${res.status}`)
-        setTimeout(() => setSendError(null), 8000)
+        const isLidError = errText.includes('"exists":false') || errText.includes("exists\":false")
+        setSendError(
+          isLidError
+            ? 'Contato usa ID privado (LID) — a Evolution API 0.4.x não suporta envio para este tipo de conta. Atualize para a Evolution API v2.x.'
+            : errText || `Erro ${res.status}`
+        )
+        setTimeout(() => setSendError(null), 10000)
       } else if (override) {
         // Salva o número real no Supabase para próximas mensagens
         const newJid = `${override}@s.whatsapp.net`
