@@ -82,6 +82,7 @@ const NAV_LINKS = [
   { href: '/vendas',               label: 'Vendas',        active: false },
   { href: '/calendario',           label: 'Calendário',    active: false },
   { href: '/estoque',              label: 'Estoque',       active: false },
+  { href: '/whatsapp',             label: 'WhatsApp',      active: false },
   { href: '/biblioteca',           label: 'Biblioteca',    active: false },
   { href: '/configuracoes/marcas', label: 'Configurações', active: false },
 ]
@@ -465,7 +466,7 @@ export default function DashboardClient({
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita Total</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{fmtNum(totalReceita)}</p>
@@ -473,6 +474,15 @@ export default function DashboardClient({
           <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas</p>
             <p className="text-3xl font-bold mt-1">{totalVendas}</p>
+          </Link>
+          <Link href="/whatsapp" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group flex flex-col justify-between">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">WhatsApp</p>
+            <div className="flex items-end justify-between mt-1">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span className="text-xs text-zinc-500 group-hover:text-zinc-400 transition">Abrir chat →</span>
+            </div>
           </Link>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Meta {getMesLabel(mes)}</p>
