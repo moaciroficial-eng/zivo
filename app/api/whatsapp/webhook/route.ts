@@ -176,15 +176,35 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(_request: NextRequest) {
+  const userId      = process.env.WHATSAPP_USER_ID
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  let contatosInfo: unknown = 'env vars ausentes'
+  if (userId && supabaseUrl && supabaseKey) {
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    const { data, error } = await supabase
+      .from('whatsapp_contatos')
+      .select('id, phone, nome, user_id')
+      .eq('user_id', userId)
+      .limit(5)
+    contatosInfo = error ? error.message : (data ?? []).map(c => ({
+      nome: c.nome,
+      phone: c.phone,
+      user_id_prefix: (c.user_id as string)?.slice(0, 8),
+    }))
+  }
+
   return NextResponse.json({
     status: 'ok',
     webhook: 'zivo-whatsapp',
     env: {
-      WHATSAPP_USER_ID:        !!process.env.WHATSAPP_USER_ID,
-      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      WHATSAPP_WEBHOOK_SECRET: !!process.env.WHATSAPP_WEBHOOK_SECRET,
-      NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      WHATSAPP_USER_ID:          !!userId,
+      SUPABASE_SERVICE_ROLE_KEY: !!supabaseKey,
+      WHATSAPP_WEBHOOK_SECRET:   !!process.env.WHATSAPP_WEBHOOK_SECRET,
+      NEXT_PUBLIC_SUPABASE_URL:  !!supabaseUrl,
     },
-    user_id_prefix: process.env.WHATSAPP_USER_ID?.slice(0, 8) ?? null,
+    whatsapp_user_id_prefix: userId?.slice(0, 8) ?? null,
+    contatos_encontrados: contatosInfo,
   })
 }
