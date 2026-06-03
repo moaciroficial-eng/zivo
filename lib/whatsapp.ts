@@ -20,9 +20,18 @@ export async function sendWhatsAppMessage({ phone, jid, message }: SendTextOptio
     throw new Error('Evolution API não configurada. Verifique EVOLUTION_API_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE.')
   }
 
-  // Usa o JID completo se disponível (necessário para LIDs e contas com dispositivo)
-  // Fallback para o número normalizado
-  const number = jid ?? phone
+  // Constrói o número para envio na ordem de confiabilidade:
+  // 1. JID completo armazenado (ex: 5511...@s.whatsapp.net ou @lid)
+  // 2. Número brasileiro real → append @s.whatsapp.net
+  // 3. Qualquer outro → tenta como-está (pode ser LID sem sufixo)
+  let number: string
+  if (jid) {
+    number = jid
+  } else if (/^55\d{10,11}$/.test(phone)) {
+    number = `${phone}@s.whatsapp.net`
+  } else {
+    number = phone
+  }
 
   const res = await fetch(`${BASE_URL}/message/sendText/${INSTANCE}`, {
     method: 'POST',

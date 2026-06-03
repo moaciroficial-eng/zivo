@@ -32,16 +32,23 @@ type Props = {
   initialContatos: Contato[]
 }
 
-/* Formata número brasileiro ou mostra JID resumido para LIDs */
-function fmtPhone(phone: string): string {
+/* Formata número brasileiro — retorna null se não for número real */
+function fmtPhone(phone: string): string | null {
   if (/^55\d{10,11}$/.test(phone)) {
     const local = phone.slice(2)
     return local.length === 11
       ? `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
       : `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
   }
-  // LID ou formato não-padrão — mostra reduzido
-  return phone.length > 12 ? `${phone.slice(0, 6)}…${phone.slice(-4)}` : phone
+  return null  // LID ou formato desconhecido — não exibe
+}
+
+/* Extrai número legível a partir do JID completo */
+function phoneFromJid(jid: string | null): string | null {
+  if (!jid) return null
+  if (!jid.endsWith('@s.whatsapp.net')) return null   // @lid ou outro — não é número real
+  const raw = jid.replace(/:\d+@.*$/, '').replace(/@.*$/, '')
+  return fmtPhone(raw)
 }
 
 function fmtTime(ts: string | null): string {
@@ -62,6 +69,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'chat'>('list')
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -146,14 +154,21 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     const text = input.trim()
     setInput('')
     setSending(true)
+    setSendError(null)
     try {
-      await fetch('/api/whatsapp/send', {
+      const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: selectedContato.phone, jid: selectedContato.jid, message: text }),
       })
+      if (!res.ok) {
+        const errText = await res.text()
+        setSendError(errText || `Erro ${res.status}`)
+        setTimeout(() => setSendError(null), 6000)
+      }
     } catch (e) {
-      console.error('Erro ao enviar mensagem:', e)
+      setSendError('Falha de conexão')
+      setTimeout(() => setSendError(null), 6000)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -276,8 +291,14 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   {(selectedContato.nome ?? selectedContato.phone)[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold leading-tight">{selectedContato.nome ?? fmtPhone(selectedContato.phone)}</p>
-                  <p className="text-[11px] text-zinc-500">{fmtPhone(selectedContato.phone)}</p>
+                  <p className="text-sm font-semibold leading-tight">
+                  {selectedContato.nome ?? phoneFromJid(selectedContato.jid) ?? selectedContato.phone}
+                </p>
+                {(phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)) && (
+                  <p className="text-[11px] text-zinc-500">
+                    {phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)}
+                  </p>
+                )}
                 </div>
               </div>
 
@@ -316,6 +337,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
               </div>
 
               {/* Input de envio */}
+              {sendError && (
+                <div className="mx-3 mb-1 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+                  {sendError}
+                </div>
+              )}
               <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2">
                 <input
                   ref={inputRef}
