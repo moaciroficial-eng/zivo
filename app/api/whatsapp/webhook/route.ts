@@ -17,7 +17,8 @@ function extractConteudo(message: Record<string, unknown>): { conteudo: string |
 
 function normalizePhone(jid: unknown): string {
   if (typeof jid !== 'string') return ''
-  return jid.replace(/@.*$/, '').replace(/\D/g, '')
+  // Remove device suffix (:1, :6…) antes do @, depois remove o domínio e não-dígitos
+  return jid.replace(/:\d+@.*$/, '').replace(/@.*$/, '').replace(/\D/g, '')
 }
 
 export async function POST(request: NextRequest) {
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
               {
                 user_id: userId,
                 phone,
+                jid: remoteJid,           // JID completo para envio (ex: 556299...@s.whatsapp.net ou @lid)
                 nome: pushName ?? phone,
                 ultima_mensagem: conteudo ?? tipo,
                 ultima_mensagem_at: timestamp,

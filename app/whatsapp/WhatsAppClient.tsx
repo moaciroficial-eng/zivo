@@ -9,6 +9,7 @@ import MobileNav from '@/app/components/MobileNav'
 type Contato = {
   id: string
   phone: string
+  jid: string | null
   nome: string | null
   foto_url: string | null
   ultima_mensagem: string | null
@@ -29,6 +30,18 @@ type Mensagem = {
 type Props = {
   user: { id: string; email: string }
   initialContatos: Contato[]
+}
+
+/* Formata número brasileiro ou mostra JID resumido para LIDs */
+function fmtPhone(phone: string): string {
+  if (/^55\d{10,11}$/.test(phone)) {
+    const local = phone.slice(2)
+    return local.length === 11
+      ? `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+      : `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
+  }
+  // LID ou formato não-padrão — mostra reduzido
+  return phone.length > 12 ? `${phone.slice(0, 6)}…${phone.slice(-4)}` : phone
 }
 
 function fmtTime(ts: string | null): string {
@@ -137,7 +150,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: selectedContato.phone, message: text }),
+        body: JSON.stringify({ phone: selectedContato.phone, jid: selectedContato.jid, message: text }),
       })
     } catch (e) {
       console.error('Erro ao enviar mensagem:', e)
@@ -263,8 +276,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   {(selectedContato.nome ?? selectedContato.phone)[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold leading-tight">{selectedContato.nome ?? selectedContato.phone}</p>
-                  <p className="text-[11px] text-zinc-500">+{selectedContato.phone}</p>
+                  <p className="text-sm font-semibold leading-tight">{selectedContato.nome ?? fmtPhone(selectedContato.phone)}</p>
+                  <p className="text-[11px] text-zinc-500">{fmtPhone(selectedContato.phone)}</p>
                 </div>
               </div>
 

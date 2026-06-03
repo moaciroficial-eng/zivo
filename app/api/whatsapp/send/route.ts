@@ -7,11 +7,12 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  let phone: string, message: string
+  let phone: string, message: string, jid: string | undefined
   try {
     const body = await request.json()
     phone   = body.phone
     message = body.message
+    jid     = body.jid ?? undefined
   } catch {
     return new NextResponse('Invalid JSON', { status: 400 })
   }
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await sendWhatsAppMessage({ phone, message })
+    await sendWhatsAppMessage({ phone, jid, message })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Erro ao enviar mensagem WhatsApp:', err)
