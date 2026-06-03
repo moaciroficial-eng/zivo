@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
     { data: estoque },
     { data: eventos },
   ] = await Promise.all([
-    supabase.from('clientes').select('nome,telefone,email,tamanho_camiseta,tamanho_calca,tamanho_tenis,data_nascimento,dia_pagamento,observacoes').limit(100),
-    supabase.from('vendas').select('cliente_nome,valor,data_venda,produtos').order('data_venda', { ascending: false }).limit(50),
-    supabase.from('estoque').select('nome,marca,categoria,tamanhos,preco_custo,preco_venda').limit(100),
-    supabase.from('eventos').select('nome,data,descricao').order('data', { ascending: true }).limit(30),
+    supabase.from('clientes').select('nome,telefone,tamanho_camiseta,tamanho_calca,tamanho_tenis,data_nascimento,observacoes').limit(40),
+    supabase.from('vendas').select('cliente_nome,valor,data_venda,produtos').order('data_venda', { ascending: false }).limit(20),
+    supabase.from('estoque').select('nome,marca,categoria,tamanhos,preco_custo,preco_venda').limit(40),
+    supabase.from('eventos').select('nome,data,descricao').order('data', { ascending: true }).limit(20),
   ])
 
   const totalReceita = vendas?.reduce((s, v) => s + Number(v.valor), 0) ?? 0
@@ -57,16 +57,16 @@ Hoje é ${today}.
 ## Dados atuais da loja
 
 ### Clientes (${clientes?.length ?? 0} cadastrados)
-${JSON.stringify(clientes ?? [], null, 2)}
+${JSON.stringify(clientes ?? [])}
 
 ### Vendas recentes — Receita total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalReceita)} (${vendas?.length ?? 0} registros)
-${JSON.stringify(vendas ?? [], null, 2)}
+${JSON.stringify(vendas ?? [])}
 
 ### Estoque (${estoque?.length ?? 0} produtos)
-${JSON.stringify(estoque ?? [], null, 2)}
+${JSON.stringify(estoque ?? [])}
 
 ### Calendário (${eventos?.length ?? 0} eventos)
-${JSON.stringify(eventos ?? [], null, 2)}
+${JSON.stringify(eventos ?? [])}
 
 ## Instruções adicionais
 - Responda sempre em português brasileiro informal, como um sócio falaria
@@ -102,11 +102,14 @@ ${JSON.stringify(eventos ?? [], null, 2)}
     async start(controller) {
       const encoder = new TextEncoder()
 
+      // System como array para habilitar prompt caching (cache de 5 min no input)
+      const systemCached = [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }]
+
       // First call — non-streaming so we can detect and execute tool use
       const response1 = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
-        system,
+        system: systemCached,
         tools,
         messages,
       })
@@ -146,7 +149,7 @@ ${JSON.stringify(eventos ?? [], null, 2)}
         const stream2 = anthropic.messages.stream({
           model: 'claude-sonnet-4-6',
           max_tokens: 512,
-          system,
+          system: systemCached,
           tools,
           messages: followUpMessages,
         })

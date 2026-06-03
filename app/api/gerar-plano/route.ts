@@ -64,12 +64,12 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .not('preco_venda', 'is', null)
       .not('status', 'eq', 'vendido')
-      .order('preco_venda', { ascending: false }).limit(25),
+      .order('preco_venda', { ascending: false }).limit(20),
     supabase.from('clientes').select('id, nome, telefone, data_nascimento')
-      .eq('user_id', user.id).limit(30),
+      .eq('user_id', user.id).limit(20),
     supabase.from('vendas').select('cliente_id, data_venda')
       .eq('user_id', user.id).not('cliente_id', 'is', null)
-      .order('data_venda', { ascending: false }).limit(500),
+      .order('data_venda', { ascending: false }).limit(150),
   ])
 
   const vendas    = vendasRes.data   ?? []
