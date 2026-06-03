@@ -22,42 +22,28 @@ function normalizePhone(jid: unknown): string {
 
 export async function POST(request: NextRequest) {
   try {
-    /* Valida segredo */
-    const secret = request.nextUrl.searchParams.get('secret')
-    if (!secret || secret !== process.env.WHATSAPP_WEBHOOK_SECRET) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
-    const userId = process.env.WHATSAPP_USER_ID
-    if (!userId) {
-      console.error('WHATSAPP_USER_ID não configurado')
-      return new NextResponse('WHATSAPP_USER_ID não configurado', { status: 500 })
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Supabase env vars ausentes')
-      return new NextResponse('Supabase não configurado', { status: 500 })
-    }
-
-    /* Criado dentro do handler para garantir que as env vars existem */
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    /* Parse do body */
+    /* Parse do body — qualquer falha retorna 200 */
     let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return new NextResponse('Invalid JSON', { status: 400 })
-    }
+    try { body = await request.json() } catch { /* body vazio ou não-JSON */ }
 
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return NextResponse.json({ ok: true, ignored: 'invalid body' })
+      return NextResponse.json({ ok: true })
     }
 
     const payload = body as Record<string, unknown>
-    const event = payload.event as string | undefined
+    const event   = payload.event as string | undefined
+
+    /* Só processa eventos reais se as env vars estiverem configuradas */
+    const userId      = process.env.WHATSAPP_USER_ID
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!userId || !supabaseUrl || !supabaseKey) {
+      console.warn('Webhook recebido mas env vars não configuradas:', { userId: !!userId, supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey })
+      return NextResponse.json({ ok: true })
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     /* ── messages.upsert ── */
     if (event === 'messages.upsert') {
@@ -180,14 +166,10 @@ export async function POST(request: NextRequest) {
 
   } catch (err) {
     console.error('Erro fatal no webhook:', err)
-    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 })
+    return NextResponse.json({ ok: true })
   }
 }
 
-export async function GET(request: NextRequest) {
-  const secret = request.nextUrl.searchParams.get('secret')
-  if (secret === process.env.WHATSAPP_WEBHOOK_SECRET) {
-    return NextResponse.json({ status: 'ok', webhook: 'zivo-whatsapp' })
-  }
-  return new NextResponse('Unauthorized', { status: 401 })
+export async function GET(_request: NextRequest) {
+  return NextResponse.json({ status: 'ok', webhook: 'zivo-whatsapp' })
 }
