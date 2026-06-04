@@ -37,9 +37,11 @@ create index if not exists whatsapp_contatos_user_ts
 alter table whatsapp_contatos  enable row level security;
 alter table whatsapp_mensagens enable row level security;
 
+drop policy if exists "Users own contatos" on whatsapp_contatos;
 create policy "Users own contatos" on whatsapp_contatos
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "Users own mensagens" on whatsapp_mensagens;
 create policy "Users own mensagens" on whatsapp_mensagens
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 

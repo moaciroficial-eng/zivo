@@ -13,6 +13,7 @@ create table if not exists metas (
 
 alter table metas enable row level security;
 
+drop policy if exists "Users manage own metas" on metas;
 create policy "Users manage own metas" on metas
   for all
   using  (auth.uid() = user_id)

@@ -18,6 +18,7 @@ create table if not exists caixas (
 
 alter table caixas enable row level security;
 
+drop policy if exists "Users manage own caixas" on caixas;
 create policy "Users manage own caixas" on caixas
   for all
   using  (auth.uid() = user_id)

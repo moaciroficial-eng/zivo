@@ -12,6 +12,7 @@ create table if not exists biblioteca_fotos (
 
 alter table biblioteca_fotos enable row level security;
 
+drop policy if exists "users own biblioteca_fotos" on biblioteca_fotos;
 create policy "users own biblioteca_fotos"
   on biblioteca_fotos for all
   using  (auth.uid() = user_id)
