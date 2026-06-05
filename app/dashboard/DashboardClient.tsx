@@ -70,6 +70,7 @@ type Props = {
   totalReceita: number
   totalVendas: number
   vendidoMes: number
+  lucroMes: number | null
   metaInicial: MetaRow | null
   vendasPorDia: { day: number; valor: number }[]
 }
@@ -282,7 +283,7 @@ function SkeletonPlan() {
 /* ── Main component ───────────────────────────────────────────── */
 
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, metaInicial, vendasPorDia,
+  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, metaInicial, vendasPorDia,
 }: Props) {
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
@@ -423,7 +424,7 @@ export default function DashboardClient({
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita Total</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{fmtNum(totalReceita)}</p>
@@ -460,6 +461,26 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        {/* Lucro do mês */}
+        {lucroMes !== null && (
+          <div className={`rounded-2xl border px-5 py-4 mb-6 flex items-center justify-between gap-4 ${
+            lucroMes >= 0
+              ? 'bg-emerald-500/5 border-emerald-500/20'
+              : 'bg-red-500/5 border-red-500/20'
+          }`}>
+            <div>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Lucro bruto — {getMesLabel(mes)}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${lucroMes >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtNum(lucroMes)}
+              </p>
+              <p className="text-xs text-zinc-500 mt-0.5">receita {fmtNum(vendidoMes)} − custo {fmtNum(vendidoMes - lucroMes)}</p>
+            </div>
+            <div className={`text-3xl font-bold ${lucroMes >= 0 ? 'text-emerald-500/30' : 'text-red-500/30'}`}>
+              {lucroMes >= 0 ? '↑' : '↓'}
+            </div>
+          </div>
+        )}
 
         <SalesChart data={vendasPorDia} mes={mes} />
 

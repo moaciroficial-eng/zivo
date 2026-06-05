@@ -22,13 +22,10 @@ export default async function DashboardPage() {
   const [
     { data: todasVendas },
     { data: vendasMes },
-    { data: vendasDias },
     { data: metaRow },
   ] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id),
-    supabase.from('vendas').select('valor').eq('user_id', user.id)
-      .gte('data_venda', mesStart).lt('data_venda', nextMonth),
-    supabase.from('vendas').select('data_venda, valor').eq('user_id', user.id)
+    supabase.from('vendas').select('valor, data_venda, produtos').eq('user_id', user.id)
       .gte('data_venda', mesStart).lt('data_venda', nextMonth),
     supabase.from('metas').select('*').eq('user_id', user.id).eq('mes', mes).maybeSingle(),
   ])
@@ -37,10 +34,25 @@ export default async function DashboardPage() {
   const vendidoMes   = (vendasMes   ?? []).reduce((s, v) => s + Number(v.valor), 0)
   const totalVendas  = todasVendas?.length ?? 0
 
+  // Lucro do mês: só conta vendas onde preco_custo foi registrado
+  type ProdVenda = { qtd?: number; preco_unitario?: number; desconto?: number; preco_custo?: number }
+  let custoProdutosMes = 0
+  let vendasComCusto = 0
+  for (const v of vendasMes ?? []) {
+    const prods = (Array.isArray(v.produtos) ? v.produtos : []) as ProdVenda[]
+    for (const p of prods) {
+      if (p.preco_custo != null) {
+        custoProdutosMes += p.preco_custo * (p.qtd ?? 1)
+        vendasComCusto++
+      }
+    }
+  }
+  const lucroMes = vendasComCusto > 0 ? vendidoMes - custoProdutosMes : null
+
   // Aggregate daily sales for chart
   const dailyMap: Record<number, number> = {}
-  for (const v of vendasDias ?? []) {
-    const day = parseInt(v.data_venda.slice(8, 10))
+  for (const v of vendasMes ?? []) {
+    const day = parseInt((v.data_venda as string).slice(8, 10))
     dailyMap[day] = (dailyMap[day] ?? 0) + Number(v.valor)
   }
   const vendasPorDia = Object.entries(dailyMap).map(([day, valor]) => ({ day: Number(day), valor }))
@@ -52,6 +64,7 @@ export default async function DashboardPage() {
       totalReceita={totalReceita}
       totalVendas={totalVendas}
       vendidoMes={vendidoMes}
+      lucroMes={lucroMes}
       metaInicial={metaRow ?? null}
       vendasPorDia={vendasPorDia}
     />

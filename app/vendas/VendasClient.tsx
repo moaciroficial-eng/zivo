@@ -7,7 +7,7 @@ import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeSc
 
 /* ── Types ─────────────────────────────────────────────────── */
 
-type Produto = { nome: string; qtd: number; preco_unitario?: number; desconto?: number }
+type Produto = { nome: string; qtd: number; preco_unitario?: number; desconto?: number; preco_custo?: number }
 
 type Venda = {
   id: string
@@ -45,6 +45,7 @@ type EstoqueItem = {
   nome: string
   marca: string | null
   preco_venda: number | null
+  preco_custo: number | null
   codigo_barras: string | null
 }
 
@@ -56,6 +57,7 @@ type FormProduto = {
   qtd: string
   precoUnitario: string
   desconto: string
+  precoCusto: string
 }
 
 type FormState = {
@@ -92,7 +94,7 @@ const METODOS = [
 
 const PARCELAS = [1, 2, 3, 4, 6, 10, 12]
 
-const EMPTY_PRODUTO: FormProduto = { estoqueId: '', nome: '', qtd: '1', precoUnitario: '', desconto: '0' }
+const EMPTY_PRODUTO: FormProduto = { estoqueId: '', nome: '', qtd: '1', precoUnitario: '', desconto: '0', precoCusto: '' }
 
 const EMPTY: FormState = {
   clienteSearch: '', clienteId: '', clienteNome: '',
@@ -292,11 +294,12 @@ export default function VendasClient({
 
   function selectEstoqueItem(i: number, item: EstoqueItem) {
     const preco = item.preco_venda != null ? String(item.preco_venda) : ''
+    const custo = item.preco_custo != null ? String(item.preco_custo) : ''
     const nome = item.nome + (item.marca ? ` (${item.marca})` : '')
     setForm(f => ({
       ...f,
       produtos: f.produtos.map((p, idx) =>
-        idx === i ? { ...p, estoqueId: item.id, nome, precoUnitario: preco, desconto: '0' } : p
+        idx === i ? { ...p, estoqueId: item.id, nome, precoUnitario: preco, desconto: '0', precoCusto: custo } : p
       ),
     }))
     setProdutoDropdownIdx(null)
@@ -517,6 +520,7 @@ export default function VendasClient({
         qtd: String(p.qtd),
         precoUnitario: p.preco_unitario != null ? String(p.preco_unitario) : '',
         desconto: p.desconto != null ? String(p.desconto) : '0',
+        precoCusto: p.preco_custo != null ? String(p.preco_custo) : '',
       })),
     })
     setFormError(''); setClienteDropdown(false); setProdutoDropdownIdx(null)
@@ -570,6 +574,7 @@ export default function VendasClient({
         qtd: Number(p.qtd) || 1,
         preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
         desconto: p.desconto ? Number(p.desconto) : null,
+        preco_custo: p.precoCusto ? Number(p.precoCusto) : null,
       })),
     }
     const { data, error } = await supabase.from('vendas').insert(payload).select().single()
@@ -606,6 +611,7 @@ export default function VendasClient({
         qtd: Number(p.qtd) || 1,
         preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
         desconto: p.desconto ? Number(p.desconto) : null,
+        preco_custo: p.precoCusto ? Number(p.precoCusto) : null,
       })),
     }
     const { data, error } = await supabase.from('vendas').update(payload).eq('id', editing!.id).select()
