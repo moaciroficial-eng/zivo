@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import EstoqueClient from './EstoqueClient'
+
+export const metadata: Metadata = { title: 'Estoque — Zivo' }
 
 export default async function EstoquePage() {
   const supabase = await createClient()

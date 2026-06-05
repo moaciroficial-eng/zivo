@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import CalendarioClient from './CalendarioClient'
+
+export const metadata: Metadata = { title: 'Calendário — Zivo' }
 
 export default async function CalendarioPage() {
   const supabase = await createClient()

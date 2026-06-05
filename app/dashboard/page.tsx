@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from './DashboardClient'
+
+export const metadata: Metadata = { title: 'Dashboard — Zivo' }
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -19,10 +22,13 @@ export default async function DashboardPage() {
   const [
     { data: todasVendas },
     { data: vendasMes },
+    { data: vendasDias },
     { data: metaRow },
   ] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id),
     supabase.from('vendas').select('valor').eq('user_id', user.id)
+      .gte('data_venda', mesStart).lt('data_venda', nextMonth),
+    supabase.from('vendas').select('data_venda, valor').eq('user_id', user.id)
       .gte('data_venda', mesStart).lt('data_venda', nextMonth),
     supabase.from('metas').select('*').eq('user_id', user.id).eq('mes', mes).maybeSingle(),
   ])
@@ -30,6 +36,14 @@ export default async function DashboardPage() {
   const totalReceita = (todasVendas ?? []).reduce((s, v) => s + Number(v.valor), 0)
   const vendidoMes   = (vendasMes   ?? []).reduce((s, v) => s + Number(v.valor), 0)
   const totalVendas  = todasVendas?.length ?? 0
+
+  // Aggregate daily sales for chart
+  const dailyMap: Record<number, number> = {}
+  for (const v of vendasDias ?? []) {
+    const day = parseInt(v.data_venda.slice(8, 10))
+    dailyMap[day] = (dailyMap[day] ?? 0) + Number(v.valor)
+  }
+  const vendasPorDia = Object.entries(dailyMap).map(([day, valor]) => ({ day: Number(day), valor }))
 
   return (
     <DashboardClient
@@ -39,6 +53,7 @@ export default async function DashboardPage() {
       totalVendas={totalVendas}
       vendidoMes={vendidoMes}
       metaInicial={metaRow ?? null}
+      vendasPorDia={vendasPorDia}
     />
   )
 }

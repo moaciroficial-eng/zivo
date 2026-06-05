@@ -122,6 +122,7 @@ function NavItem({ href, label, icon, onClick }: {
     <Link
       href={href}
       onClick={onClick}
+      title={label}
       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group ${
         active
           ? 'bg-violet-500/15 text-violet-300 shadow-[inset_0_0_0_1px_rgba(139,92,246,0.2)]'

@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import BibliotecaClient from './BibliotecaClient'
+
+export const metadata: Metadata = { title: 'Biblioteca — Zivo' }
 
 export default async function BibliotecaPage() {
   const supabase = await createClient()

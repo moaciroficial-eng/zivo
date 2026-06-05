@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import VendasClient from './VendasClient'
+
+export const metadata: Metadata = { title: 'Vendas — Zivo' }
 
 export default async function VendasPage() {
   const supabase = await createClient()

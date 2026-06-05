@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import MetaModal from './MetaModal'
 import SaudeFinanceiraModal, { type SaudeDados } from './SaudeFinanceiraModal'
 import AiChat from '@/app/components/AiChat'
+import SalesChart from '@/app/components/SalesChart'
 
 /* ── Types ────────────────────────────────────────────────────── */
 
@@ -70,6 +71,7 @@ type Props = {
   totalVendas: number
   vendidoMes: number
   metaInicial: MetaRow | null
+  vendasPorDia: { day: number; valor: number }[]
 }
 
 /* ── Constants ────────────────────────────────────────────────── */
@@ -280,7 +282,7 @@ function SkeletonPlan() {
 /* ── Main component ───────────────────────────────────────────── */
 
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, metaInicial,
+  user, mes, totalReceita, totalVendas, vendidoMes, metaInicial, vendasPorDia,
 }: Props) {
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
@@ -458,6 +460,8 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        <SalesChart data={vendasPorDia} mes={mes} />
 
         {/* ── Meta section ──────────────────────────────────────── */}
         {!meta ? (
