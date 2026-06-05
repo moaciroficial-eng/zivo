@@ -3,11 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { logout } from '@/app/actions/auth'
 import MetaModal from './MetaModal'
 import SaudeFinanceiraModal, { type SaudeDados } from './SaudeFinanceiraModal'
 import AiChat from '@/app/components/AiChat'
-import MobileNav from '@/app/components/MobileNav'
 
 /* ── Types ────────────────────────────────────────────────────── */
 
@@ -75,17 +73,6 @@ type Props = {
 }
 
 /* ── Constants ────────────────────────────────────────────────── */
-
-const NAV_LINKS = [
-  { href: '/dashboard',            label: 'Dashboard',     active: true  },
-  { href: '/clientes',             label: 'Clientes',      active: false },
-  { href: '/vendas',               label: 'Vendas',        active: false },
-  { href: '/calendario',           label: 'Calendário',    active: false },
-  { href: '/estoque',              label: 'Estoque',       active: false },
-  { href: '/whatsapp',             label: 'WhatsApp',      active: false },
-  { href: '/biblioteca',           label: 'Biblioteca',    active: false },
-  { href: '/configuracoes/marcas', label: 'Configurações', active: false },
-]
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 function fmtNum(n: number) { return fmt.format(n) }
@@ -426,38 +413,7 @@ export default function DashboardClient({
   const hc = healthStatus ? healthConfig[healthStatus] : null
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white pb-20 md:pb-0">
-
-      {/* Header */}
-      <header className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <Link href="/dashboard" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-                  <circle cx="12" cy="12" r="3" fill="white"/>
-                </svg>
-              </div>
-              <span className="font-bold">zivo</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-1 text-sm">
-              {NAV_LINKS.map(l => (
-                <Link key={l.href} href={l.href}
-                  className={`px-3 py-1.5 rounded-lg transition ${l.active ? 'font-medium bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                >{l.label}</Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-zinc-400 hidden sm:block">{user.email}</span>
-            <form action={logout}>
-              <button type="submit" className="text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-1.5 transition cursor-pointer">Sair</button>
-            </form>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-[#09090b] text-white">
       <div className="max-w-5xl mx-auto px-6 py-8">
 
         <div className="mb-6">
@@ -878,7 +834,6 @@ export default function DashboardClient({
       </div>
 
       <AiChat />
-      <MobileNav />
 
       {showMetaModal && (
         <MetaModal

@@ -3,8 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { logout } from '@/app/actions/auth'
-import MobileNav from '@/app/components/MobileNav'
 import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeScanner'
 import type { Produto } from '../types'
 
@@ -72,16 +70,6 @@ const IconPackage = ({ size = 14 }: { size?: number }) => (
 )
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
-
-const NAV_LINKS = [
-  { href: '/dashboard',            label: 'Dashboard'     },
-  { href: '/clientes',             label: 'Clientes'      },
-  { href: '/vendas',               label: 'Vendas'        },
-  { href: '/calendario',           label: 'Calendário'    },
-  { href: '/estoque',              label: 'Estoque'       },
-  { href: '/biblioteca',           label: 'Biblioteca'    },
-  { href: '/configuracoes/marcas', label: 'Configurações' },
-]
 
 /* ── Main component ── */
 
@@ -254,38 +242,7 @@ export default function CondicionalClient({
 
   /* ── Render ── */
   return (
-    <div className="min-h-screen bg-[#09090b] text-white pb-20 md:pb-0">
-
-      {/* Header */}
-      <header className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <Link href="/dashboard" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-                  <circle cx="12" cy="12" r="3" fill="white"/>
-                </svg>
-              </div>
-              <span className="font-bold">zivo</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-1 text-sm">
-              {NAV_LINKS.map(l => (
-                <Link key={l.href} href={l.href} className="px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition">{l.label}</Link>
-              ))}
-              <span className="text-zinc-700 select-none">/</span>
-              <span className="px-3 py-1.5 font-medium bg-zinc-800 rounded-lg">Condicional</span>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-zinc-400 hidden sm:block">{user.email}</span>
-            <form action={logout}>
-              <button type="submit" className="text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-1.5 transition cursor-pointer">Sair</button>
-            </form>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-[#09090b] text-white">
       <main className="max-w-5xl mx-auto px-6 py-8">
 
         {/* Title + scan button */}
@@ -535,7 +492,6 @@ export default function CondicionalClient({
         />
       )}
 
-      <MobileNav />
     </div>
   )
 }
