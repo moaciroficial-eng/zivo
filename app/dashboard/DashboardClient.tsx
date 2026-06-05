@@ -425,7 +425,7 @@ export default function DashboardClient({
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 sm:grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita Total</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{fmtNum(totalReceita)}</p>
@@ -434,25 +434,6 @@ export default function DashboardClient({
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas</p>
             <p className="text-3xl font-bold mt-1">{totalVendas}</p>
           </Link>
-          <div className={`bg-zinc-900 border rounded-2xl p-5 flex flex-col justify-between ${
-            lucroMes === null ? 'border-zinc-800' :
-            lucroMes >= 0 ? 'border-emerald-500/20' : 'border-red-500/20'
-          }`}>
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
-              Lucro {getMesLabel(mes)}
-              {lucroParcial && <span className="text-[9px] text-amber-400 font-medium">parcial</span>}
-            </p>
-            {lucroMes !== null ? (
-              <>
-                <p className={`text-2xl font-bold mt-1 ${lucroMes >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {fmtNum(lucroMes)}
-                </p>
-                <p className="text-[10px] text-zinc-600 mt-1">custo {fmtNum(vendidoMes - lucroMes)}</p>
-              </>
-            ) : (
-              <p className="text-zinc-600 text-sm mt-1">Cadastre custos no estoque</p>
-            )}
-          </div>
           <Link href="/whatsapp" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">WhatsApp</p>
             <div className="flex items-end justify-between mt-1">
@@ -481,6 +462,30 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        {/* Lucro do mês */}
+        {lucroMes !== null && (
+          <div className={`rounded-2xl border px-5 py-4 mb-6 flex items-center justify-between gap-4 ${
+            lucroMes >= 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'
+          }`}>
+            <div>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                Lucro bruto — {getMesLabel(mes)}
+                {lucroParcial && <span className="text-amber-400 normal-case font-normal text-[10px]">parcial</span>}
+              </p>
+              <p className={`text-2xl font-bold mt-0.5 ${lucroMes >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtNum(lucroMes)}
+              </p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                receita {fmtNum(vendidoMes)} − custo {fmtNum(vendidoMes - lucroMes)}
+                {lucroParcial && ' · alguns produtos sem custo cadastrado'}
+              </p>
+            </div>
+            <div className={`text-4xl font-bold shrink-0 ${lucroMes >= 0 ? 'text-emerald-500/20' : 'text-red-500/20'}`}>
+              {lucroMes >= 0 ? '↑' : '↓'}
+            </div>
+          </div>
+        )}
 
         <SalesChart data={vendasPorDia} mes={mes} />
 
