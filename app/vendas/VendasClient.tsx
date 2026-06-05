@@ -560,6 +560,7 @@ export default function VendasClient({
     const fp = buildFP()
     const valor = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
     const payload = {
+      user_id: user.id,
       cliente_id: form.clienteId || null,
       cliente_nome: form.clienteNome.trim() || 'Avulso',
       valor,
@@ -647,6 +648,7 @@ export default function VendasClient({
             }).filter(p => p.nome)
           : []
         return {
+          user_id: user.id,
           cliente_nome: r['cliente_nome'],
           cliente_id: null,
           valor: Number(r['valor'].replace(',', '.')) || 0,
