@@ -418,7 +418,6 @@ export default function DashboardClient({
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Autenticado como <span className="text-violet-400">{user.email}</span></p>
         </div>
 
         {/* Summary cards */}
