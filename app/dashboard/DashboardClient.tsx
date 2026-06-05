@@ -71,6 +71,7 @@ type Props = {
   totalVendas: number
   vendidoMes: number
   lucroMes: number | null
+  lucroParcial: boolean
   metaInicial: MetaRow | null
   vendasPorDia: { day: number; valor: number }[]
 }
@@ -283,7 +284,7 @@ function SkeletonPlan() {
 /* ── Main component ───────────────────────────────────────────── */
 
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, metaInicial, vendasPorDia,
+  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia,
 }: Props) {
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
@@ -470,11 +471,17 @@ export default function DashboardClient({
               : 'bg-red-500/5 border-red-500/20'
           }`}>
             <div>
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Lucro bruto — {getMesLabel(mes)}</p>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                Lucro bruto — {getMesLabel(mes)}
+                {lucroParcial && <span className="ml-2 text-amber-400 normal-case font-normal">parcial</span>}
+              </p>
               <p className={`text-2xl font-bold mt-0.5 ${lucroMes >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {fmtNum(lucroMes)}
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5">receita {fmtNum(vendidoMes)} − custo {fmtNum(vendidoMes - lucroMes)}</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                receita {fmtNum(vendidoMes)} − custo {fmtNum(vendidoMes - lucroMes)}
+                {lucroParcial && ' · alguns produtos sem custo cadastrado'}
+              </p>
             </div>
             <div className={`text-3xl font-bold ${lucroMes >= 0 ? 'text-emerald-500/30' : 'text-red-500/30'}`}>
               {lucroMes >= 0 ? '↑' : '↓'}

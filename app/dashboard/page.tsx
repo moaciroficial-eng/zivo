@@ -22,11 +22,13 @@ export default async function DashboardPage() {
   const [
     { data: todasVendas },
     { data: vendasMes },
+    { data: estoqueItems },
     { data: metaRow },
   ] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id),
     supabase.from('vendas').select('valor, data_venda, produtos').eq('user_id', user.id)
       .gte('data_venda', mesStart).lt('data_venda', nextMonth),
+    supabase.from('estoque').select('nome, marca, preco_custo').eq('user_id', user.id),
     supabase.from('metas').select('*').eq('user_id', user.id).eq('mes', mes).maybeSingle(),
   ])
 
@@ -34,20 +36,34 @@ export default async function DashboardPage() {
   const vendidoMes   = (vendasMes   ?? []).reduce((s, v) => s + Number(v.valor), 0)
   const totalVendas  = todasVendas?.length ?? 0
 
-  // Lucro do mês: só conta vendas onde preco_custo foi registrado
-  type ProdVenda = { qtd?: number; preco_unitario?: number; desconto?: number; preco_custo?: number }
+  // Mapa de custo por nome do produto (nome exibido no formulário de venda)
+  const custoPorNome: Record<string, number> = {}
+  for (const item of estoqueItems ?? []) {
+    if (item.preco_custo == null) continue
+    const nomeExibido = item.nome + (item.marca ? ` (${item.marca})` : '')
+    custoPorNome[nomeExibido] = item.preco_custo
+    custoPorNome[item.nome]   = item.preco_custo
+  }
+
+  // Lucro do mês: usa preco_custo salvo na venda ou faz lookup no estoque pelo nome
+  type ProdVenda = { nome?: string; qtd?: number; preco_unitario?: number; desconto?: number; preco_custo?: number }
   let custoProdutosMes = 0
-  let vendasComCusto = 0
+  let itensComCusto = 0
+  let itensSemCusto = 0
   for (const v of vendasMes ?? []) {
     const prods = (Array.isArray(v.produtos) ? v.produtos : []) as ProdVenda[]
     for (const p of prods) {
-      if (p.preco_custo != null) {
-        custoProdutosMes += p.preco_custo * (p.qtd ?? 1)
-        vendasComCusto++
+      const qtd = p.qtd ?? 1
+      const custo = p.preco_custo ?? (p.nome ? custoPorNome[p.nome] : undefined)
+      if (custo != null) {
+        custoProdutosMes += custo * qtd
+        itensComCusto++
+      } else {
+        itensSemCusto++
       }
     }
   }
-  const lucroMes = vendasComCusto > 0 ? vendidoMes - custoProdutosMes : null
+  const lucroMes = itensComCusto > 0 ? vendidoMes - custoProdutosMes : null
 
   // Aggregate daily sales for chart
   const dailyMap: Record<number, number> = {}
@@ -65,6 +81,7 @@ export default async function DashboardPage() {
       totalVendas={totalVendas}
       vendidoMes={vendidoMes}
       lucroMes={lucroMes}
+      lucroParcial={itensSemCusto > 0}
       metaInicial={metaRow ?? null}
       vendasPorDia={vendasPorDia}
     />
