@@ -70,6 +70,12 @@ const IconBack = () => (
     <polyline points="15 18 9 12 15 6"/>
   </svg>
 )
+const IconTrash = ({ size = 16 }: { size?: number }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+)
 
 /* ── Component ── */
 
@@ -103,6 +109,8 @@ export default function ConferenciaClient({
   // Estado de fechamento
   const [closing,          setClosing]           = useState(false)
   const [showCloseConfirm, setShowCloseConfirm]  = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting,          setDeleting]          = useState(false)
   const [toast,            setToast]             = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
@@ -197,6 +205,28 @@ export default function ConferenciaClient({
     router.push('/estoque')
   }
 
+  /* ── Excluir nota ── */
+
+  async function deleteNota() {
+    setDeleting(true)
+    const { error } = await supabase
+      .from('estoque')
+      .delete()
+      .eq('nfe_grupo_id', grupoId)
+      .eq('user_id', user.id)
+      .eq('status', 'aguardando_recebimento')
+    if (error) {
+      showToast('Erro ao excluir a nota fiscal.', 'error')
+      setDeleting(false)
+      return
+    }
+    try {
+      localStorage.removeItem(COUNTS_KEY)
+      localStorage.removeItem(`nfe_grupo_${grupoId}`)
+    } catch { /* ignore */ }
+    router.push('/estoque/recebimento')
+  }
+
   /* ── Derived ── */
 
   const totalEsperado = produtos.reduce((s, p) => s + totalQtd(p.tamanhos), 0)
@@ -246,13 +276,24 @@ export default function ConferenciaClient({
               </p>
             </div>
           </div>
-          <button
-            onClick={() => closeConferencia()}
-            disabled={closing}
-            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-lg px-5 py-2.5 transition cursor-pointer shrink-0"
-          >
-            {closing ? <><IconSpinner size={14}/> Fechando...</> : 'Fechar Conferência'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={closing || deleting}
+              title="Excluir nota e produtos"
+              className="flex items-center gap-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 bg-red-500/5 hover:bg-red-500/10 disabled:opacity-50 rounded-lg px-4 py-2.5 transition cursor-pointer"
+            >
+              <IconTrash size={15}/>
+              <span className="hidden sm:inline">Excluir nota</span>
+            </button>
+            <button
+              onClick={() => closeConferencia()}
+              disabled={closing || deleting}
+              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-lg px-5 py-2.5 transition cursor-pointer"
+            >
+              {closing ? <><IconSpinner size={14}/> Fechando...</> : 'Fechar Conferência'}
+            </button>
+          </div>
         </div>
 
         {/* Toast */}
@@ -506,6 +547,42 @@ export default function ConferenciaClient({
         </div>
 
       </main>
+
+      {/* ── Modal de confirmação de exclusão ── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center text-red-400 shrink-0">
+                <IconTrash size={18}/>
+              </div>
+              <div>
+                <h3 className="font-bold">Excluir nota fiscal?</h3>
+                <p className="text-zinc-500 text-sm">{produtos.length} produto{produtos.length !== 1 ? 's' : ''} serão removidos do estoque</p>
+              </div>
+            </div>
+            <p className="text-sm text-zinc-400 mb-5">
+              Todos os produtos importados desta NF-e que ainda estão aguardando conferência serão <strong className="text-red-400">permanentemente excluídos</strong> do estoque. Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg py-2.5 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { setShowDeleteConfirm(false); deleteNota() }}
+                disabled={deleting}
+                className="flex-1 text-sm font-semibold bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 rounded-lg py-2.5 transition cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? <><IconSpinner size={13}/> Excluindo...</> : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal de confirmação de fechamento ── */}
       {showCloseConfirm && (
