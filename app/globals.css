@@ -18,7 +18,7 @@ body {
 .sidebar-drawer.sidebar-open {
   transform: translateX(0);
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .sidebar-drawer {
     transform: translateX(0);
   }

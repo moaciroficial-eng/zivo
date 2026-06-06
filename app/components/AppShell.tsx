@@ -20,7 +20,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="relative min-h-screen bg-[#09090b] text-white overflow-x-hidden">
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 bg-black/60 z-30 backdrop-blur-sm md:hidden transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/60 z-30 backdrop-blur-sm lg:hidden transition-opacity duration-300 ${
           sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setSidebarOpen(false)}
@@ -29,9 +29,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content — no margin on mobile (sidebar is off-screen), ml-60 on desktop */}
-      <div className="md:ml-60 flex flex-col min-h-screen">
+      <div className="lg:ml-60 flex flex-col min-h-screen">
         {/* Mobile top bar */}
-        <div className="md:hidden sticky top-0 z-20 flex items-center gap-3 px-4 py-3 bg-zinc-950/95 border-b border-zinc-800/60 backdrop-blur-md">
+        <div className="lg:hidden sticky top-0 z-20 flex items-center gap-3 px-4 py-3 bg-zinc-950/95 border-b border-zinc-800/60 backdrop-blur-md">
           <button
             onClick={() => setSidebarOpen(true)}
             aria-label="Abrir menu"
