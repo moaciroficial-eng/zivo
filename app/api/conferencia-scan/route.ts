@@ -56,10 +56,10 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicação:
   "etiqueta": {
     "nome": "nome identificado na etiqueta ou null",
     "marca": "marca ou null",
-    "tamanho": "tamanho (P/M/G/42/etc) ou null",
+    "tamanho": "tamanho (P/M/G/GG/42/etc) ou null",
     "cor": "cor ou null",
     "preco_venda": 89.90,
-    "codigo_produto": "código ou null"
+    "codigo_produto": "código de referência ou null — leia o campo REF ou SKU da etiqueta"
   },
   "match_produto_id": "EXATAMENTE um dos ids da lista acima, ou null se não encontrar correspondência",
   "confianca": "alta|media|baixa|nenhuma",
@@ -67,9 +67,11 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicação:
   "ok": true
 }
 
-Regras de comparação:
+Regras de comparação — siga NESTA ORDEM:
+1. CÓDIGO (mais confiável): O código na etiqueta (campo REF/SKU) pode ser prefixo do código no catálogo. Ex: "PO.10.0279" na etiqueta corresponde a "PO.10.0279699G" no catálogo — são o mesmo produto. Use isso como critério PRINCIPAL.
+2. NOME: Compare o nome do produto na etiqueta com os nomes da lista.
+3. TAMANHO: Quando houver múltiplos produtos com mesmo código base, o tamanho desempata.
 - "match_produto_id" deve ser EXATAMENTE um dos ids listados, ou null
-- Use código do produto (cProd/SKU) quando disponível na etiqueta — é o critério mais confiável
 - Considere divergências de nome, tamanho, cor, código — NÃO mencione diferença de preço nas divergências
 - "ok" = true se produto bate com a nota sem divergências críticas (pequenas variações tipográficas são ok)
 - "confianca": alta = correspondência clara, media = provável, baixa = incerto, nenhuma = sem match`
@@ -106,6 +108,36 @@ Regras de comparação:
     if (result.match_produto_id && !produtos.find(p => p.id === result.match_produto_id)) {
       result.match_produto_id = null
       result.confianca = 'nenhuma'
+    }
+
+    // Override server-side por código: mais confiável que a IA para prefixo de SKU
+    // Ex: etiqueta "PO.10.0279" → produto "PO.10.0279699G"
+    if (result.etiqueta?.codigo_produto) {
+      const normalize = (s: string) => s.replace(/[\s.\-]/g, '').toUpperCase()
+      const labelCode = normalize(result.etiqueta.codigo_produto)
+      const labelSize = result.etiqueta.tamanho?.trim().toUpperCase()
+
+      const codeMatches = produtos.filter(p => {
+        if (!p.codigo_produto) return false
+        const prodCode = normalize(p.codigo_produto)
+        return prodCode.startsWith(labelCode) || labelCode.startsWith(prodCode)
+      })
+
+      let bestMatch: typeof produtos[0] | undefined
+      if (codeMatches.length === 1) {
+        bestMatch = codeMatches[0]
+      } else if (codeMatches.length > 1 && labelSize) {
+        // Usa tamanho para desempatar entre produtos com mesmo prefixo de código
+        bestMatch = codeMatches.find(p => {
+          const words = (p.nome ?? '').split(' ')
+          return words[words.length - 1].toUpperCase() === labelSize
+        }) ?? codeMatches[0]
+      }
+
+      if (bestMatch && bestMatch.id !== result.match_produto_id) {
+        result.match_produto_id = bestMatch.id
+        result.confianca = 'alta'
+      }
     }
 
     // Inclui preco_venda esperado do produto matched para comparação no cliente
