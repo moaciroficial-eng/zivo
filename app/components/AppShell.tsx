@@ -10,28 +10,31 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
+    setSidebarOpen(false)
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [pathname])
 
   if (pathname === '/') return <>{children}</>
 
   return (
-    <div className="flex min-h-screen bg-[#09090b] text-white">
+    <div className="relative min-h-screen bg-[#09090b] text-white overflow-x-hidden">
       {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div
+        className={`fixed inset-0 bg-black/60 z-30 backdrop-blur-sm md:hidden transition-opacity duration-300 ${
+          sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setSidebarOpen(false)}
+      />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 md:ml-60 flex flex-col min-h-screen min-w-0">
+      {/* Main content — no margin on mobile (sidebar is off-screen), ml-60 on desktop */}
+      <div className="md:ml-60 flex flex-col min-h-screen">
         {/* Mobile top bar */}
         <div className="md:hidden sticky top-0 z-20 flex items-center gap-3 px-4 py-3 bg-zinc-950/95 border-b border-zinc-800/60 backdrop-blur-md">
           <button
             onClick={() => setSidebarOpen(true)}
+            aria-label="Abrir menu"
             className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
