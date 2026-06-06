@@ -10,3 +10,16 @@ body {
   color: #fafafa;
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Sidebar mobile behavior — não depende do scan do Tailwind */
+.sidebar-drawer {
+  transform: translateX(-100%);
+}
+.sidebar-drawer.sidebar-open {
+  transform: translateX(0);
+}
+@media (min-width: 768px) {
+  .sidebar-drawer {
+    transform: translateX(0);
+  }
+}
