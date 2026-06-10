@@ -40,6 +40,8 @@ type Caixa = {
 
 type ClienteOption = { id: string; nome: string }
 
+type TamanhoQtd = { tamanho: string; qtd: number }
+
 type EstoqueItem = {
   id: string
   nome: string
@@ -47,13 +49,17 @@ type EstoqueItem = {
   preco_venda: number | null
   preco_custo: number | null
   codigo_barras: string | null
+  tamanhos: TamanhoQtd[] | null
 }
+
+type EstoqueFlat = EstoqueItem & { _tamanho: string | null }
 
 type Filtro = 'hoje' | 'semana' | 'mes' | 'custom'
 
 type FormProduto = {
   estoqueId: string
   nome: string
+  tamanho: string
   qtd: string
   precoUnitario: string
   desconto: string
@@ -94,7 +100,7 @@ const METODOS = [
 
 const PARCELAS = [1, 2, 3, 4, 6, 10, 12]
 
-const EMPTY_PRODUTO: FormProduto = { estoqueId: '', nome: '', qtd: '1', precoUnitario: '', desconto: '0', precoCusto: '' }
+const EMPTY_PRODUTO: FormProduto = { estoqueId: '', nome: '', tamanho: '', qtd: '1', precoUnitario: '', desconto: '0', precoCusto: '' }
 
 const EMPTY: FormState = {
   clienteSearch: '', clienteId: '', clienteNome: '',
@@ -292,23 +298,25 @@ export default function VendasClient({
     setForm(f => ({ ...f, produtos: f.produtos.map((p, idx) => idx === i ? { ...p, [key]: val } : p) }))
   }
 
-  function selectEstoqueItem(i: number, item: EstoqueItem) {
+  function selectEstoqueItem(i: number, item: EstoqueFlat) {
     const preco = item.preco_venda != null ? String(item.preco_venda) : ''
     const custo = item.preco_custo != null ? String(item.preco_custo) : ''
-    const nome = item.nome + (item.marca ? ` (${item.marca})` : '')
-    setForm(f => ({
-      ...f,
-      produtos: f.produtos.map((p, idx) =>
-        idx === i ? { ...p, estoqueId: item.id, nome, precoUnitario: preco, desconto: '0', precoCusto: custo } : p
-      ),
-    }))
+    const tamanhoStr = item._tamanho ? ` ${item._tamanho}` : ''
+    const nome = item.nome + tamanhoStr + (item.marca ? ` (${item.marca})` : '')
+    setForm(f => {
+      const newProdutos = f.produtos.map((p, idx) =>
+        idx === i ? { ...p, estoqueId: item.id, nome, tamanho: item._tamanho ?? '', precoUnitario: preco, desconto: '0', precoCusto: custo } : p
+      )
+      if (i === f.produtos.length - 1) newProdutos.push({ ...EMPTY_PRODUTO })
+      return { ...f, produtos: newProdutos }
+    })
     setProdutoDropdownIdx(null)
   }
 
   function onScanBarcode(barcode: string, idx: number) {
     setShowScanner(null)
     const found = estoqueItems.find(e => e.codigo_barras === barcode)
-    if (found) { selectEstoqueItem(idx, found); showToast(`Produto encontrado: ${found.nome}`) }
+    if (found) { selectEstoqueItem(idx, { ...found, _tamanho: null }); showToast(`Produto encontrado: ${found.nome}`) }
     else showToast(`Código ${barcode} não encontrado no estoque`, 'error')
   }
 
@@ -323,11 +331,19 @@ export default function VendasClient({
       const itemMarca = (item.marca ?? '').toLowerCase()
       nomeLower.split(' ').filter(w => w.length > 2).forEach(w => { if (itemNome.includes(w)) score += 2 })
       if (marcaLower && itemMarca.includes(marcaLower)) score += 3
-      if (data.tamanho && itemNome.endsWith(' ' + data.tamanho.toLowerCase())) score += 2
+      if (data.tamanho && (item.tamanhos ?? []).some(t => t.tamanho.toLowerCase() === data.tamanho!.toLowerCase())) score += 2
       return { item, score }
     }).filter(s => s.score > 0).sort((a, b) => b.score - a.score)
-    if (scored.length > 0) { selectEstoqueItem(idx, scored[0].item); showToast(`Produto: ${scored[0].item.nome}`) }
-    else { setProdutoField(idx, 'nome', [data.nome, data.marca, data.tamanho].filter(Boolean).join(' ')); showToast('Produto não encontrado — verifique o nome', 'error') }
+    if (scored.length > 0) {
+      const matchedTamanho = data.tamanho
+        ? ((scored[0].item.tamanhos ?? []).find(t => t.tamanho.toLowerCase() === data.tamanho!.toLowerCase())?.tamanho ?? data.tamanho)
+        : null
+      selectEstoqueItem(idx, { ...scored[0].item, _tamanho: matchedTamanho })
+      showToast(`Produto: ${scored[0].item.nome}`)
+    } else {
+      setProdutoField(idx, 'nome', [data.nome, data.marca, data.tamanho].filter(Boolean).join(' '))
+      showToast('Produto não encontrado — verifique o nome', 'error')
+    }
   }
 
   function calcLinhaTotal(p: FormProduto): number {
@@ -349,10 +365,22 @@ export default function VendasClient({
   const totalSugerido = subtotalProdutos != null ? Math.max(0, subtotalProdutos - descontoVendaAmt) : null
   const totalFinal = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
 
-  const estoqueFiltrado = (i: number) => {
+  const estoqueFiltrado = (i: number): EstoqueFlat[] => {
     const q = form.produtos[i]?.nome?.toLowerCase() ?? ''
     if (q.length < 1) return []
-    return estoqueItems.filter(e => (e.nome + (e.marca ?? '')).toLowerCase().includes(q)).slice(0, 7)
+    const matched = estoqueItems
+      .filter(e => (e.nome + (e.marca ?? '')).toLowerCase().includes(q))
+      .slice(0, 8)
+    const result: EstoqueFlat[] = []
+    for (const item of matched) {
+      const sizes = (item.tamanhos ?? []).filter(t => t.qtd > 0)
+      if (sizes.length <= 1) {
+        result.push({ ...item, _tamanho: sizes[0]?.tamanho ?? null })
+      } else {
+        for (const t of sizes) result.push({ ...item, _tamanho: t.tamanho })
+      }
+    }
+    return result.slice(0, 9)
   }
 
   /* ── Toast ── */
@@ -1105,13 +1133,18 @@ export default function VendasClient({
                           {estoqueFiltrado(i).length > 0 ? (
                             estoqueFiltrado(i).map(item => (
                               <button
-                                key={item.id}
+                                key={item.id + (item._tamanho ?? '')}
                                 type="button"
                                 onMouseDown={() => selectEstoqueItem(i, item)}
                                 className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
                               >
-                                <span className="text-zinc-200 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
-                                {item.preco_venda != null && <span className="text-emerald-400 text-xs shrink-0">{formatBRL(item.preco_venda)}</span>}
+                                <span className="text-zinc-200 flex-1 min-w-0 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {item._tamanho && (
+                                    <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold">{item._tamanho}</span>
+                                  )}
+                                  {item.preco_venda != null && <span className="text-emerald-400 text-xs">{formatBRL(item.preco_venda)}</span>}
+                                </div>
                               </button>
                             ))
                           ) : (
