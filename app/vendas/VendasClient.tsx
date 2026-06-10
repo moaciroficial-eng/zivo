@@ -254,6 +254,7 @@ export default function VendasClient({
   const [isHibrido, setIsHibrido] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
+  const productSearchRef = useRef<HTMLInputElement>(null)
   const [filtro, setFiltro] = useState<Filtro>('mes')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -303,6 +304,7 @@ export default function VendasClient({
     }))
     setProductSearch('')
     setProductDropdown(false)
+    setTimeout(() => productSearchRef.current?.focus(), 0)
   }
 
   function onScanBarcode(barcode: string) {
@@ -1110,6 +1112,7 @@ export default function VendasClient({
                   <div className="flex gap-2">
                     <input
                       type="text"
+                      ref={productSearchRef}
                       value={productSearch}
                       onChange={e => { setProductSearch(e.target.value); setProductDropdown(true) }}
                       onFocus={() => setProductDropdown(true)}
