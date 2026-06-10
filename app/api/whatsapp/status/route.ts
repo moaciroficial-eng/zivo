@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     // Desconectado — pede QR code
     const connect = await evo(`/instance/connect/${INSTANCE}`)
-    const qrcode = connect?.qrcode?.base64 ?? connect?.base64 ?? null
+    const qrcode = connect?.base64 ?? connect?.qrcode?.base64 ?? null
 
     return NextResponse.json({ connected: false, qrcode })
   } catch (err) {

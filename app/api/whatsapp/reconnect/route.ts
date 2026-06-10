@@ -6,6 +6,8 @@ const BASE_URL = process.env.EVOLUTION_API_URL?.replace(/\/$/, '')
 const API_KEY  = process.env.EVOLUTION_API_KEY
 const INSTANCE = process.env.EVOLUTION_INSTANCE
 
+function wait(ms: number) { return new Promise(r => setTimeout(r, ms)) }
+
 async function evo(method: string, path: string) {
   if (!BASE_URL || !API_KEY || !INSTANCE) throw new Error('Evolution API não configurada')
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -13,8 +15,6 @@ async function evo(method: string, path: string) {
     headers: { apikey: API_KEY, 'Content-Type': 'application/json' },
     cache: 'no-store',
   })
-  // Ignora erros de logout (instância pode já estar desconectada)
-  if (!res.ok && method !== 'DELETE') throw new Error(`Evolution ${res.status}: ${await res.text()}`)
   try { return await res.json() } catch { return {} }
 }
 
@@ -28,18 +28,33 @@ export async function POST(request: NextRequest) {
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
   try {
-    // 1. Força logout da sessão atual (ignora erro se já desconectado)
+    // 1. Logout para limpar sessão corrompida (ignora erro)
     await evo('DELETE', `/instance/logout/${INSTANCE}`)
+    await wait(1500)
 
-    // Aguarda 1s para a instância resetar
-    await new Promise(r => setTimeout(r, 1000))
+    // 2. Restart da instância para sair do estado "connecting" travado
+    await evo('PUT', `/instance/restart/${INSTANCE}`)
+    await wait(2000)
 
-    // 2. Busca QR code novo
+    // 3. Busca QR code
     const connect = await evo('GET', `/instance/connect/${INSTANCE}`)
-    const qrcode = connect?.qrcode?.base64 ?? connect?.base64 ?? null
 
+    // Evolution API v2 retorna diretamente base64, v1 retorna dentro de qrcode
+    const qrcode = connect?.base64 ?? connect?.qrcode?.base64 ?? null
+
+    // Se ainda não gerou (count:0), tenta mais uma vez após espera
     if (!qrcode) {
-      return NextResponse.json({ ok: false, error: 'QR code não retornado. Tente novamente em alguns segundos.' })
+      await wait(2000)
+      const retry = await evo('GET', `/instance/connect/${INSTANCE}`)
+      const qrRetry = retry?.base64 ?? retry?.qrcode?.base64 ?? null
+      if (!qrRetry) {
+        return NextResponse.json({
+          ok: false,
+          error: 'QR code ainda não gerado. Aguarde alguns segundos e tente novamente.',
+          raw: retry,
+        })
+      }
+      return NextResponse.json({ ok: true, qrcode: qrRetry })
     }
 
     return NextResponse.json({ ok: true, qrcode })
