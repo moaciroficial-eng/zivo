@@ -7,7 +7,7 @@ import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeSc
 
 /* ── Types ─────────────────────────────────────────────────── */
 
-type Produto = { nome: string; qtd: number; preco_unitario?: number; desconto?: number; preco_custo?: number }
+type Produto = { nome: string; qtd: number; tamanho?: string; preco_unitario?: number; desconto?: number; preco_custo?: number }
 
 type Venda = {
   id: string
@@ -605,6 +605,7 @@ export default function VendasClient({
       caixa_id: findCaixaIdForDate(form.dataVenda),
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
+        tamanho: p.tamanho || undefined,
         qtd: Number(p.qtd) || 1,
         preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
         desconto: p.desconto ? Number(p.desconto) : null,
@@ -642,6 +643,7 @@ export default function VendasClient({
       forma_pagamento: buildFP() || null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
+        tamanho: p.tamanho || undefined,
         qtd: Number(p.qtd) || 1,
         preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
         desconto: p.desconto ? Number(p.desconto) : null,
