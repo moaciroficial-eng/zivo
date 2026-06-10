@@ -103,17 +103,37 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setStatusError(null)
     setQrcode(null)
     try {
+      // Passo 1: deleta e recria a instância
       const res = await fetch('/api/whatsapp/reconnect', { method: 'POST' })
       const data = await res.json()
-      if (data.ok) {
-        setConnected(false)
-        setQrcode(data.qrcode)
-      } else {
-        setStatusError(data.error ?? 'Erro ao reconectar')
+      if (!data.ok) { setStatusError(data.error ?? 'Erro ao reiniciar instância'); setReconnecting(false); return }
+
+      // Passo 2: polling — tenta buscar o QR de 3 em 3 segundos por até 30s
+      let attempts = 0
+      const maxAttempts = 10
+      const poll = async () => {
+        attempts++
+        try {
+          const r = await fetch('/api/whatsapp/reconnect')
+          const d = await r.json()
+          if (d.qrcode) {
+            setQrcode(d.qrcode)
+            setConnected(false)
+            setReconnecting(false)
+          } else if (attempts < maxAttempts) {
+            setTimeout(poll, 3000)
+          } else {
+            setStatusError('QR code não gerado após 30s. Verifique o servidor Evolution API.')
+            setReconnecting(false)
+          }
+        } catch {
+          setStatusError('Falha ao buscar QR code')
+          setReconnecting(false)
+        }
       }
+      setTimeout(poll, 3000)
     } catch {
       setStatusError('Falha de conexão com o servidor')
-    } finally {
       setReconnecting(false)
     }
   }

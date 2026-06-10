@@ -19,6 +19,7 @@ async function evo(method: string, path: string, body?: unknown) {
   try { return await res.json() } catch { return {} }
 }
 
+/* POST /api/whatsapp/reconnect — deleta e recria a instância */
 export async function POST(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,40 +30,31 @@ export async function POST(request: NextRequest) {
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
   try {
-    // 1. Deleta a instância travada
     await evo('DELETE', `/instance/delete/${INSTANCE}`)
-    await wait(2000)
-
-    // 2. Recria a instância limpa
+    await wait(1500)
     await evo('POST', '/instance/create', {
       instanceName: INSTANCE,
       integration: 'WHATSAPP-BAILEYS',
       qrcode: true,
     })
-    await wait(2000)
-
-    // 3. Busca o QR code
-    const connect = await evo('GET', `/instance/connect/${INSTANCE}`)
-    const qrcode = connect?.base64 ?? connect?.qrcode?.base64 ?? null
-
-    if (!qrcode) {
-      // Tenta mais uma vez após espera extra
-      await wait(2000)
-      const retry = await evo('GET', `/instance/connect/${INSTANCE}`)
-      const qrRetry = retry?.base64 ?? retry?.qrcode?.base64 ?? null
-      return NextResponse.json({
-        ok: !!qrRetry,
-        qrcode: qrRetry,
-        error: qrRetry ? undefined : 'QR não retornado após recriar. Tente novamente.',
-        raw: qrRetry ? undefined : retry,
-      })
-    }
-
-    return NextResponse.json({ ok: true, qrcode })
+    // Retorna imediatamente — o cliente vai fazer polling via GET
+    return NextResponse.json({ ok: true })
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'Erro desconhecido' },
-      { status: 200 },
-    )
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : 'Erro' })
   }
+}
+
+/* GET /api/whatsapp/reconnect — tenta buscar o QR code da instância */
+export async function GET(request: NextRequest) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } },
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return new NextResponse('Unauthorized', { status: 401 })
+
+  const connect = await evo('GET', `/instance/connect/${INSTANCE}`)
+  const qrcode = connect?.base64 ?? connect?.qrcode?.base64 ?? null
+  return NextResponse.json({ qrcode })
 }
