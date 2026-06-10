@@ -1,6 +1,6 @@
-/** Redimensiona uma imagem para no máximo 1024px e retorna base64 JPEG. */
+/** Redimensiona uma imagem para no máximo 1600px e retorna base64 JPEG. */
 export async function imageToBase64(file: File): Promise<string> {
-  const MAX = 1024
+  const MAX = 1600
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas indisponível')
