@@ -8,11 +8,12 @@ const INSTANCE = process.env.EVOLUTION_INSTANCE
 
 function wait(ms: number) { return new Promise(r => setTimeout(r, ms)) }
 
-async function evo(method: string, path: string) {
+async function evo(method: string, path: string, body?: unknown) {
   if (!BASE_URL || !API_KEY || !INSTANCE) throw new Error('Evolution API não configurada')
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: { apikey: API_KEY, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
     cache: 'no-store',
   })
   try { return await res.json() } catch { return {} }
@@ -28,33 +29,33 @@ export async function POST(request: NextRequest) {
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
   try {
-    // 1. Logout para limpar sessão corrompida (ignora erro)
-    await evo('DELETE', `/instance/logout/${INSTANCE}`)
-    await wait(1500)
-
-    // 2. Restart da instância para sair do estado "connecting" travado
-    await evo('PUT', `/instance/restart/${INSTANCE}`)
+    // 1. Deleta a instância travada
+    await evo('DELETE', `/instance/delete/${INSTANCE}`)
     await wait(2000)
 
-    // 3. Busca QR code
-    const connect = await evo('GET', `/instance/connect/${INSTANCE}`)
+    // 2. Recria a instância limpa
+    await evo('POST', '/instance/create', {
+      instanceName: INSTANCE,
+      integration: 'WHATSAPP-BAILEYS',
+      qrcode: true,
+    })
+    await wait(2000)
 
-    // Evolution API v2 retorna diretamente base64, v1 retorna dentro de qrcode
+    // 3. Busca o QR code
+    const connect = await evo('GET', `/instance/connect/${INSTANCE}`)
     const qrcode = connect?.base64 ?? connect?.qrcode?.base64 ?? null
 
-    // Se ainda não gerou (count:0), tenta mais uma vez após espera
     if (!qrcode) {
+      // Tenta mais uma vez após espera extra
       await wait(2000)
       const retry = await evo('GET', `/instance/connect/${INSTANCE}`)
       const qrRetry = retry?.base64 ?? retry?.qrcode?.base64 ?? null
-      if (!qrRetry) {
-        return NextResponse.json({
-          ok: false,
-          error: 'QR code ainda não gerado. Aguarde alguns segundos e tente novamente.',
-          raw: retry,
-        })
-      }
-      return NextResponse.json({ ok: true, qrcode: qrRetry })
+      return NextResponse.json({
+        ok: !!qrRetry,
+        qrcode: qrRetry,
+        error: qrRetry ? undefined : 'QR não retornado após recriar. Tente novamente.',
+        raw: qrRetry ? undefined : retry,
+      })
     }
 
     return NextResponse.json({ ok: true, qrcode })
