@@ -258,9 +258,7 @@ export default function VendasClient({
   const [customEnd, setCustomEnd] = useState('')
   const [caixa, setCaixa] = useState<Caixa | null>(caixaAtual)
   const [historicoList, setHistoricoList] = useState<Caixa[]>(historicoCaixas)
-  const [showAbrirCaixa, setShowAbrirCaixa] = useState(false)
   const [showFecharCaixa, setShowFecharCaixa] = useState(false)
-  const [trocoInicial, setTrocoInicial] = useState('')
   const [valorContado, setValorContado] = useState('')
   const [caixaLoading, setCaixaLoading] = useState(false)
   const [showHistorico, setShowHistorico] = useState(false)
@@ -478,15 +476,23 @@ export default function VendasClient({
     setCaixaLoading(true)
     const { data, error } = await supabase.from('caixas').insert({
       user_id: user.id,
-      troco_inicial: parseFloat(trocoInicial) || 0,
+      troco_inicial: 0,
       status: 'aberto',
     }).select().single()
     if (error) { showToast(error.message, 'error'); setCaixaLoading(false); return }
     setCaixa(data as Caixa)
-    setShowAbrirCaixa(false)
-    setTrocoInicial('')
     setCaixaLoading(false)
     showToast('Caixa aberto.')
+  }
+
+  function findCaixaIdForDate(date: string): string | null {
+    if (!date || date >= TODAY) return caixa?.id ?? null
+    const match = historicoList.find(c => {
+      const aberturaDate = c.data_abertura.split('T')[0]
+      const fechamentoDate = c.data_fechamento ? c.data_fechamento.split('T')[0] : aberturaDate
+      return aberturaDate <= date && date <= fechamentoDate
+    })
+    return match?.id ?? null
   }
 
   async function handleFecharCaixa() {
@@ -545,6 +551,7 @@ export default function VendasClient({
       produtos: (v.produtos ?? []).map(p => ({
         estoqueId: '',
         nome: p.nome,
+        tamanho: '',
         qtd: String(p.qtd),
         precoUnitario: p.preco_unitario != null ? String(p.preco_unitario) : '',
         desconto: p.desconto != null ? String(p.desconto) : '0',
@@ -565,7 +572,6 @@ export default function VendasClient({
   /* ── Vender (new) → open payment overlay ── */
 
   function handleVender() {
-    if (!caixa) { setFormError('Abra o caixa antes de registrar uma venda.'); return }
     if (!form.dataVenda) { setFormError('Informe a data.'); return }
     if (totalFinal <= 0) { setFormError('Adicione produtos com preço ou informe o valor.'); return }
     setFormError('')
@@ -596,7 +602,7 @@ export default function VendasClient({
       valor,
       data_venda: form.dataVenda,
       forma_pagamento: fp || null,
-      caixa_id: caixa?.id ?? null,
+      caixa_id: findCaixaIdForDate(form.dataVenda),
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         qtd: Number(p.qtd) || 1,
@@ -822,14 +828,15 @@ export default function VendasClient({
               onClick={() => { setValorContado(''); setShowFecharCaixa(true) }}
               className="shrink-0 text-sm font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-xl px-4 py-2 transition cursor-pointer"
             >
-              Fechar Caixa
+              Encerrar dia
             </button>
           ) : (
             <button
-              onClick={() => { setTrocoInicial(''); setShowAbrirCaixa(true) }}
-              className="shrink-0 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-xl px-4 py-2 transition cursor-pointer"
+              onClick={handleAbrirCaixa}
+              disabled={caixaLoading}
+              className="shrink-0 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl px-4 py-2 transition cursor-pointer"
             >
-              Abrir Caixa
+              {caixaLoading ? 'Abrindo...' : 'Abrir'}
             </button>
           )}
         </div>
@@ -1287,6 +1294,9 @@ export default function VendasClient({
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Data *">
                   <input type="date" value={form.dataVenda} onChange={e => setForm(f => ({ ...f, dataVenda: e.target.value }))} className={INPUT} />
+                  {form.dataVenda && form.dataVenda < TODAY && (
+                    <p className="text-xs text-amber-400 mt-1">Retroativa — caixa de {formatDate(form.dataVenda)}</p>
+                  )}
                 </Field>
                 <Field label={totalSugerido != null ? `Valor — auto` : 'Valor (R$) *'}>
                   <input
@@ -1518,41 +1528,6 @@ export default function VendasClient({
               </div>
             )}
 
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal Abrir Caixa ── */}
-      {showAbrirCaixa && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowAbrirCaixa(false)} />
-          <div className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="font-semibold text-lg">Abrir Caixa</h2>
-              <button onClick={() => setShowAbrirCaixa(false)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer"><IconX /></button>
-            </div>
-            <p className="text-sm text-zinc-500 mb-5">
-              {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-            <div className="flex flex-col gap-1.5 mb-6">
-              <label className="text-sm font-medium text-zinc-300">Troco inicial (R$)</label>
-              <input
-                type="number" min="0" step="0.01" autoFocus
-                value={trocoInicial}
-                onChange={e => setTrocoInicial(e.target.value)}
-                placeholder="0,00"
-                className={INPUT}
-              />
-              <p className="text-xs text-zinc-500">Valor em dinheiro já disponível no caixa antes das vendas.</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowAbrirCaixa(false)} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 transition cursor-pointer">
-                Cancelar
-              </button>
-              <button onClick={handleAbrirCaixa} disabled={caixaLoading} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3 transition cursor-pointer">
-                {caixaLoading ? 'Abrindo...' : 'Abrir Caixa'}
-              </button>
-            </div>
           </div>
         </div>
       )}
