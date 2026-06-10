@@ -246,8 +246,9 @@ export default function VendasClient({
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [clienteDropdown, setClienteDropdown] = useState(false)
-  const [produtoDropdownIdx, setProdutoDropdownIdx] = useState<number | null>(null)
-  const [showScanner, setShowScanner] = useState<number | null>(null)
+  const [productSearch, setProductSearch] = useState('')
+  const [productDropdown, setProductDropdown] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [pagSlots, setPagSlots] = useState<PagSlot[]>([emptySlot()])
   const [isHibrido, setIsHibrido] = useState(false)
@@ -283,43 +284,36 @@ export default function VendasClient({
 
   /* ── Produtos ── */
 
-  function addProduto() {
-    setForm(f => ({ ...f, produtos: [...f.produtos, { ...EMPTY_PRODUTO }] }))
-  }
-
   function removeProduto(i: number) {
     setForm(f => ({ ...f, produtos: f.produtos.filter((_, idx) => idx !== i) }))
-    setProdutoDropdownIdx(null)
   }
 
   function setProdutoField(i: number, key: keyof FormProduto, val: string) {
     setForm(f => ({ ...f, produtos: f.produtos.map((p, idx) => idx === i ? { ...p, [key]: val } : p) }))
   }
 
-  function selectEstoqueItem(i: number, item: EstoqueFlat) {
+  function addFromSearch(item: EstoqueFlat) {
     const preco = item.preco_venda != null ? String(item.preco_venda) : ''
     const custo = item.preco_custo != null ? String(item.preco_custo) : ''
     const tamanhoStr = item._tamanho ? ` ${item._tamanho}` : ''
     const nome = item.nome + tamanhoStr + (item.marca ? ` (${item.marca})` : '')
-    setForm(f => {
-      const newProdutos = f.produtos.map((p, idx) =>
-        idx === i ? { ...p, estoqueId: item.id, nome, tamanho: item._tamanho ?? '', precoUnitario: preco, desconto: '0', precoCusto: custo } : p
-      )
-      if (i === f.produtos.length - 1) newProdutos.push({ ...EMPTY_PRODUTO })
-      return { ...f, produtos: newProdutos }
-    })
-    setProdutoDropdownIdx(null)
+    setForm(f => ({
+      ...f,
+      produtos: [...f.produtos, { estoqueId: item.id, nome, tamanho: item._tamanho ?? '', qtd: '1', precoUnitario: preco, desconto: '0', precoCusto: custo }],
+    }))
+    setProductSearch('')
+    setProductDropdown(false)
   }
 
-  function onScanBarcode(barcode: string, idx: number) {
-    setShowScanner(null)
+  function onScanBarcode(barcode: string) {
+    setShowScanner(false)
     const found = estoqueItems.find(e => e.codigo_barras === barcode)
-    if (found) { selectEstoqueItem(idx, { ...found, _tamanho: null }); showToast(`Produto encontrado: ${found.nome}`) }
+    if (found) { addFromSearch({ ...found, _tamanho: null }); showToast(`Produto encontrado: ${found.nome}`) }
     else showToast(`Código ${barcode} não encontrado no estoque`, 'error')
   }
 
-  function onLabelScanned(data: ScanLabelResult, idx: number) {
-    setShowScanner(null)
+  function onLabelScanned(data: ScanLabelResult) {
+    setShowScanner(false)
     if (!data.nome && !data.marca) { showToast('Não foi possível identificar o produto', 'error'); return }
     const nomeLower  = (data.nome  ?? '').toLowerCase()
     const marcaLower = (data.marca ?? '').toLowerCase()
@@ -336,11 +330,14 @@ export default function VendasClient({
       const matchedTamanho = data.tamanho
         ? ((scored[0].item.tamanhos ?? []).find(t => t.tamanho.toLowerCase() === data.tamanho!.toLowerCase())?.tamanho ?? data.tamanho)
         : null
-      selectEstoqueItem(idx, { ...scored[0].item, _tamanho: matchedTamanho })
+      addFromSearch({ ...scored[0].item, _tamanho: matchedTamanho })
       showToast(`Produto: ${scored[0].item.nome}`)
     } else {
-      setProdutoField(idx, 'nome', [data.nome, data.marca, data.tamanho].filter(Boolean).join(' '))
-      showToast('Produto não encontrado — verifique o nome', 'error')
+      setForm(f => ({
+        ...f,
+        produtos: [...f.produtos, { estoqueId: '', nome: [data.nome, data.marca, data.tamanho].filter(Boolean).join(' '), tamanho: data.tamanho ?? '', qtd: '1', precoUnitario: '', desconto: '0', precoCusto: '' }],
+      }))
+      showToast('Produto não encontrado no estoque — verifique o nome', 'error')
     }
   }
 
@@ -363,8 +360,8 @@ export default function VendasClient({
   const totalSugerido = subtotalProdutos != null ? Math.max(0, subtotalProdutos - descontoVendaAmt) : null
   const totalFinal = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
 
-  const estoqueFiltrado = (i: number): EstoqueFlat[] => {
-    const q = form.produtos[i]?.nome?.toLowerCase() ?? ''
+  const produtosFiltrados: EstoqueFlat[] = (() => {
+    const q = productSearch.toLowerCase()
     if (q.length < 1) return []
     const matched = estoqueItems
       .filter(e => (e.nome + (e.marca ?? '')).toLowerCase().includes(q))
@@ -372,14 +369,11 @@ export default function VendasClient({
     const result: EstoqueFlat[] = []
     for (const item of matched) {
       const sizes = (item.tamanhos ?? []).filter(t => t.qtd > 0)
-      if (sizes.length <= 1) {
-        result.push({ ...item, _tamanho: sizes[0]?.tamanho ?? null })
-      } else {
-        for (const t of sizes) result.push({ ...item, _tamanho: t.tamanho })
-      }
+      if (sizes.length <= 1) result.push({ ...item, _tamanho: sizes[0]?.tamanho ?? null })
+      else for (const t of sizes) result.push({ ...item, _tamanho: t.tamanho })
     }
     return result.slice(0, 9)
-  }
+  })()
 
   /* ── Toast ── */
 
@@ -564,7 +558,7 @@ export default function VendasClient({
 
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
-    setClienteDropdown(false); setProdutoDropdownIdx(null); setShowScanner(null)
+    setClienteDropdown(false); setProductSearch(''); setProductDropdown(false); setShowScanner(false)
     setShowPayment(false); resetPayment()
     setDescontoVendaTipo('%'); setDescontoVendaValor('')
   }
@@ -1111,110 +1105,95 @@ export default function VendasClient({
                   )}
                 </div>
 
-                {form.produtos.map((p, i) => (
-                  <div key={i} className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3 flex flex-col gap-2">
-                    {/* Nome + Scan */}
-                    <div className="relative flex gap-2">
-                      <input
-                        type="text"
-                        value={p.nome}
-                        onChange={e => { setProdutoField(i, 'nome', e.target.value); setProdutoField(i, 'estoqueId', ''); setProdutoDropdownIdx(i) }}
-                        onFocus={() => setProdutoDropdownIdx(i)}
-                        onBlur={() => setTimeout(() => setProdutoDropdownIdx(null), 200)}
-                        placeholder="Buscar produto do estoque..."
-                        className="flex-1 bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowScanner(i)}
-                        className="p-2 bg-zinc-900 border border-zinc-700 text-violet-400 hover:bg-zinc-800 rounded-lg transition cursor-pointer shrink-0"
-                        title="Escanear etiqueta"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
-                          <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
-                          <line x1="7" y1="12" x2="7" y2="12.01"/><line x1="12" y1="8" x2="12" y2="16"/>
-                          <line x1="17" y1="12" x2="17" y2="12.01"/>
-                        </svg>
-                      </button>
-                      {produtoDropdownIdx === i && p.nome.length >= 1 && (
-                        <div className="absolute z-20 top-full left-0 right-10 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
-                          {estoqueFiltrado(i).length > 0 ? (
-                            estoqueFiltrado(i).map(item => (
-                              <button
-                                key={item.id + (item._tamanho ?? '')}
-                                type="button"
-                                onMouseDown={() => selectEstoqueItem(i, item)}
-                                className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
-                              >
-                                <span className="text-zinc-200 flex-1 min-w-0 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {item._tamanho && (
-                                    <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold">{item._tamanho}</span>
-                                  )}
-                                  {item.preco_venda != null && <span className="text-emerald-400 text-xs">{formatBRL(item.preco_venda)}</span>}
-                                </div>
-                              </button>
-                            ))
-                          ) : (
-                            <p className="px-3 py-2.5 text-xs text-zinc-500">Nenhum produto encontrado</p>
-                          )}
-                        </div>
+                {/* Barra de busca */}
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={e => { setProductSearch(e.target.value); setProductDropdown(true) }}
+                      onFocus={() => setProductDropdown(true)}
+                      onBlur={() => setTimeout(() => setProductDropdown(false), 200)}
+                      placeholder="Buscar e adicionar produto..."
+                      className="flex-1 bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowScanner(true)}
+                      className="p-2 bg-zinc-900 border border-zinc-700 text-violet-400 hover:bg-zinc-800 rounded-lg transition cursor-pointer shrink-0"
+                      title="Escanear etiqueta"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                        <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                        <line x1="7" y1="12" x2="7" y2="12.01"/><line x1="12" y1="8" x2="12" y2="16"/>
+                        <line x1="17" y1="12" x2="17" y2="12.01"/>
+                      </svg>
+                    </button>
+                  </div>
+                  {productDropdown && productSearch.length >= 1 && (
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
+                      {produtosFiltrados.length > 0 ? (
+                        produtosFiltrados.map(item => (
+                          <button
+                            key={item.id + (item._tamanho ?? '')}
+                            type="button"
+                            onMouseDown={() => addFromSearch(item)}
+                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
+                          >
+                            <span className="text-zinc-200 flex-1 min-w-0 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {item._tamanho && (
+                                <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold">{item._tamanho}</span>
+                              )}
+                              {item.preco_venda != null && <span className="text-emerald-400 text-xs">{formatBRL(item.preco_venda)}</span>}
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2.5 text-xs text-zinc-500">Nenhum produto encontrado</p>
                       )}
                     </div>
+                  )}
+                </div>
 
-                    {/* Qtd + Preço + Desconto */}
-                    <div className="flex gap-2 items-end">
-                      <div className="flex flex-col flex-1">
-                        <span className="text-[10px] text-zinc-500 mb-0.5">Qtd</span>
-                        <input
-                          type="number" min="1"
-                          value={p.qtd}
-                          onChange={e => setProdutoField(i, 'qtd', e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
-                        />
-                      </div>
-                      <div className="flex flex-col flex-[2]">
-                        <span className="text-[10px] text-zinc-500 mb-0.5">Preço (R$)</span>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={p.precoUnitario}
-                          onChange={e => setProdutoField(i, 'precoUnitario', e.target.value)}
-                          placeholder="0,00"
-                          className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
-                        />
-                      </div>
-                      <div className="flex flex-col flex-1">
-                        <span className="text-[10px] text-zinc-500 mb-0.5">Desc %</span>
-                        <input
-                          type="number" min="0" max="100"
-                          value={p.desconto}
-                          onChange={e => setProdutoField(i, 'desconto', e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition"
-                        />
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-zinc-500 mb-0.5">Total</span>
-                        <span className="text-sm font-semibold text-emerald-400 py-1.5">{p.precoUnitario ? formatBRL(calcLinhaTotal(p)) : '—'}</span>
-                      </div>
+                {/* Produtos selecionados */}
+                {form.produtos.map((p, i) => (
+                  <div key={i} className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3 flex flex-col gap-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm text-zinc-200 font-medium leading-snug flex-1 min-w-0">{p.nome}</span>
                       <button
                         type="button"
                         onClick={() => removeProduto(i)}
-                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0"
+                        className="p-1 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0 mt-0.5"
                       >
                         <IconX size={14} />
                       </button>
                     </div>
+                    <div className="flex gap-2 items-end">
+                      <div className="flex flex-col flex-1">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Qtd</span>
+                        <input type="number" min="1" value={p.qtd} onChange={e => setProdutoField(i, 'qtd', e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
+                      </div>
+                      <div className="flex flex-col flex-[2]">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Preço (R$)</span>
+                        <input type="number" min="0" step="0.01" value={p.precoUnitario} onChange={e => setProdutoField(i, 'precoUnitario', e.target.value)}
+                          placeholder="0,00"
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
+                      </div>
+                      <div className="flex flex-col flex-1">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Desc %</span>
+                        <input type="number" min="0" max="100" value={p.desconto} onChange={e => setProdutoField(i, 'desconto', e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
+                      </div>
+                      <div className="flex flex-col items-end shrink-0">
+                        <span className="text-[10px] text-zinc-500 mb-0.5">Total</span>
+                        <span className="text-sm font-semibold text-emerald-400 py-1.5">{p.precoUnitario ? formatBRL(calcLinhaTotal(p)) : '—'}</span>
+                      </div>
+                    </div>
                   </div>
                 ))}
-
-                <button
-                  type="button"
-                  onClick={addProduto}
-                  className="flex items-center gap-2 text-sm text-zinc-400 hover:text-violet-400 hover:bg-zinc-800 border border-dashed border-zinc-700 hover:border-violet-500/50 rounded-xl px-4 py-3 transition cursor-pointer w-full justify-center"
-                >
-                  <IconPlus /> Adicionar produto
-                </button>
 
                 {/* Desconto na venda */}
                 {subtotalProdutos != null && (
@@ -1629,11 +1608,11 @@ export default function VendasClient({
         </div>
       )}
 
-      {showScanner !== null && (
+      {showScanner && (
         <BarcodeScanner
-          onScan={code => onScanBarcode(code, showScanner)}
-          onClose={() => setShowScanner(null)}
-          onLabelScan={data => onLabelScanned(data, showScanner)}
+          onScan={onScanBarcode}
+          onClose={() => setShowScanner(false)}
+          onLabelScan={onLabelScanned}
         />
       )}
     </div>
