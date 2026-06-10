@@ -552,7 +552,7 @@ export default function VendasClient({
         precoCusto: p.preco_custo != null ? String(p.preco_custo) : '',
       })),
     })
-    setFormError(''); setClienteDropdown(false); setProdutoDropdownIdx(null)
+    setFormError(''); setClienteDropdown(false); setProductSearch(''); setProductDropdown(false)
     setShowPayment(false); setDrawer(true)
   }
 
