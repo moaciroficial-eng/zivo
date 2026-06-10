@@ -70,10 +70,34 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'chat'>('list')
+  const [connected, setConnected] = useState<boolean | null>(null)
+  const [qrcode, setQrcode] = useState<string | null>(null)
+  const [statusError, setStatusError] = useState<string | null>(null)
+  const [checkingStatus, setCheckingStatus] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
+
+  /* ── Status da conexão WhatsApp ── */
+  async function checkStatus() {
+    setCheckingStatus(true)
+    setStatusError(null)
+    try {
+      const res = await fetch('/api/whatsapp/status')
+      const data = await res.json()
+      setConnected(data.connected)
+      setQrcode(data.qrcode ?? null)
+      if (data.error) setStatusError(data.error)
+    } catch {
+      setConnected(false)
+      setStatusError('Não foi possível contactar o servidor WhatsApp')
+    } finally {
+      setCheckingStatus(false)
+    }
+  }
+
+  useEffect(() => { checkStatus() }, [])
 
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
@@ -203,6 +227,47 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
   return (
     <div className="flex-1 flex flex-col bg-[#09090b] text-white overflow-hidden">
+
+      {/* ── Painel de status da conexão ── */}
+      {connected === false && (
+        <div className="shrink-0 border-b border-zinc-800 bg-zinc-950 px-4 py-3 flex flex-col items-center gap-3">
+          {statusError ? (
+            <div className="w-full max-w-sm text-center">
+              <p className="text-sm font-semibold text-red-400 mb-1">Servidor offline</p>
+              <p className="text-xs text-zinc-500 mb-3">{statusError}</p>
+              <button onClick={checkStatus} disabled={checkingStatus}
+                className="text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer disabled:opacity-50">
+                {checkingStatus ? 'Verificando...' : 'Tentar novamente'}
+              </button>
+            </div>
+          ) : qrcode ? (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm font-semibold text-amber-400">WhatsApp desconectado — escaneie o QR code</p>
+              <img src={qrcode} alt="QR Code WhatsApp" className="w-48 h-48 rounded-xl border border-zinc-700" />
+              <button onClick={checkStatus} disabled={checkingStatus}
+                className="text-xs text-zinc-400 hover:text-white transition cursor-pointer">
+                {checkingStatus ? 'Verificando...' : 'Já escaneei — verificar conexão'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+              <p className="text-sm text-red-400">WhatsApp desconectado</p>
+              <button onClick={checkStatus} disabled={checkingStatus}
+                className="text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg px-3 py-1.5 transition cursor-pointer disabled:opacity-50">
+                {checkingStatus ? 'Carregando...' : 'Mostrar QR code'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {connected === true && (
+        <div className="shrink-0 border-b border-zinc-800 bg-zinc-950 px-4 py-2 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <p className="text-xs text-emerald-400 font-medium">WhatsApp conectado</p>
+        </div>
+      )}
 
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden">
