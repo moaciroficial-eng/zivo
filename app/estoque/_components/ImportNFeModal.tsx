@@ -66,10 +66,12 @@ function extractTax(group: Element | null, variants: string[], rateTag: string):
 
 function inferCategoria(nome: string): Produto['categoria'] {
   const n = nome.toUpperCase()
-  if (/CAMISETA|(?<![A-Z])CAMISA(?![A-Z])|(?<![A-Z])POLO(?![A-Z])|T[-\s]?SHIRT/.test(n)) return 'camiseta'
+  if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                                     return 'polo'
+  if (/CAMISETA|(?<![A-Z])CAMISA(?![A-Z])|T[-\s]?SHIRT/.test(n))                           return 'camiseta'
   if (/(?<![A-Z])REGATA(?![A-Z])/.test(n))                                                  return 'regata'
   if (/CALCA|CAL[CÇ]A|BERMUDA|SHORT|JEANS|SARJA|JOGGER|MOLETOM/.test(n))                   return 'calca'
-  if (/TENIS|T[EÊ]NIS|SAPATENIS|(?<![A-Z])BOTA(?![A-Z])|SANDAL|CHINELO/.test(n))           return 'tenis'
+  if (/CHINELO/.test(n))                                                                     return 'chinelo'
+  if (/TENIS|T[EÊ]NIS|SAPATENIS|(?<![A-Z])BOTA(?![A-Z])|SANDAL/.test(n))                  return 'tenis'
   return 'outros'
 }
 
@@ -126,7 +128,7 @@ function parseXML(xml: string): ParsedNFe | { error: string } {
 /* ── Helpers ── */
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
-  camiseta: 'Camiseta', regata: 'Regata', calca: 'Calça', tenis: 'Tênis', outros: 'Outros',
+  camiseta: 'Camiseta', regata: 'Regata', calca: 'Calça', tenis: 'Tênis', chinelo: 'Chinelo', outros: 'Outros',
 }
 
 function fBRL(v: number | null) {

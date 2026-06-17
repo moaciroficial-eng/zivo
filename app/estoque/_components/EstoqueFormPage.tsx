@@ -9,7 +9,7 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
   if (sp.nome)     next.nome  = sp.nome
   if (sp.marca)    next.marca = sp.marca
   const cat = sp.categoria as Produto['categoria'] | undefined
-  if (cat && ['camiseta','regata','calca','tenis','outros'].includes(cat)) {
+  if (cat && ['camiseta','regata','calca','polo','tenis','chinelo','outros'].includes(cat)) {
     next.categoria  = cat
     next.tamanhos   = []
     next.qtd_outros = '0'
@@ -52,7 +52,9 @@ const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
   camiseta: ['P', 'M', 'G', 'GG', 'XGG'],
   regata:   ['P', 'M', 'G', 'GG', 'XGG'],
   calca:    ['38', '40', '42', '44', '46', '48', '50'],
+  polo:     ['P', 'M', 'G', 'GG', 'XGG'],
   tenis:    ['37', '38', '39', '40', '41', '42', '43', '44'],
+  chinelo:  ['37/38', '39/40', '41/42', '43/44'],
   outros:   [],
 }
 
@@ -60,7 +62,9 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta',
   regata:   'Regata',
   calca:    'Calça',
+  polo:     'Polo',
   tenis:    'Tênis',
+  chinelo:  'Chinelos',
   outros:   'Outros',
 }
 
@@ -68,7 +72,9 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
   calca:    'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  polo:     'bg-sky-500/15 text-sky-300 border-sky-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+  chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',
   outros:   'bg-zinc-700/50 text-zinc-300 border-zinc-600',
 }
 
@@ -564,8 +570,8 @@ export default function EstoqueFormPage({
 
               {/* Categoria */}
               <Field label="Categoria *">
-                <div className="grid grid-cols-5 gap-2">
-                  {(['camiseta', 'regata', 'calca', 'tenis', 'outros'] as Produto['categoria'][]).map(cat => (
+                <div className="grid grid-cols-6 gap-2">
+                  {(['camiseta', 'regata', 'calca', 'polo', 'tenis', 'chinelo', 'outros'] as Produto['categoria'][]).map(cat => (
                     <button
                       key={cat}
                       type="button"
