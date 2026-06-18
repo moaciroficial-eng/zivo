@@ -83,12 +83,35 @@ type PagSlot = {
   recebido: string
 }
 
+type Parcela = {
+  id: string
+  crediario_id: string
+  numero: number
+  valor: number
+  data_vencimento: string
+  pago: boolean
+  data_pagamento: string | null
+}
+
+type CrediarioItem = {
+  id: string
+  venda_id: string | null
+  cliente_id: string | null
+  cliente_nome: string
+  valor_total: number
+  valor_entrada: number
+  num_parcelas: number
+  status: 'aberto' | 'quitado'
+  created_at: string
+  parcelas_crediario: Parcela[]
+}
+
 /* ── Constants ──────────────────────────────────────────────── */
 
 const TODAY = new Date().toISOString().split('T')[0]
 
 const METODO_LABEL: Record<string, string> = {
-  pix: 'Pix', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', outros: 'Outros',
+  pix: 'Pix', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', crediario: 'Crediário', outros: 'Outros',
 }
 
 const METODOS = [
@@ -97,6 +120,8 @@ const METODOS = [
   { value: 'debito',   label: 'Débito' },
   { value: 'credito',  label: 'Crédito' },
 ]
+
+const PARCELAS_CREDIARIO = [1, 2, 3, 4, 6, 10, 12]
 
 const PARCELAS = [1, 2, 3, 4, 6, 10, 12]
 
@@ -140,12 +165,14 @@ function labelMetodo(m: string): string {
   if (m === 'pix') return 'Pix'
   if (m === 'dinheiro') return 'Dinheiro'
   if (m === 'debito') return 'Débito'
+  if (m === 'crediario') return 'Crediário'
   if (m.startsWith('credito_')) return `Crédito ${m.replace('credito_', '')}`
   return m
 }
 
 function labelPagamento(fp: string): string {
   if (!fp) return '—'
+  if (fp === 'crediario') return 'Crediário'
   if (fp.includes('+')) {
     return fp.split('+').map(p => {
       const [m, amount] = p.split(':')
@@ -190,10 +217,12 @@ const IconArrowLeft = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" h
 const IconZap = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
 const IconBanknote = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
 const IconCard = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+const IconCalendarClock = ({ size = 28 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><circle cx="18" cy="18" r="4"/><path d="M18 16v2l1 1"/></svg>
 
 function MetodoIcon({ value }: { value: string }) {
   if (value === 'pix') return <IconZap />
   if (value === 'dinheiro') return <IconBanknote />
+  if (value === 'crediario') return <IconCalendarClock />
   return <IconCard />
 }
 
@@ -226,6 +255,7 @@ export default function VendasClient({
   estoqueItems,
   caixaAtual,
   historicoCaixas,
+  initialCrediarios,
 }: {
   user: { id: string; email: string }
   initialVendas: Venda[]
@@ -233,6 +263,7 @@ export default function VendasClient({
   estoqueItems: EstoqueItem[]
   caixaAtual: Caixa | null
   historicoCaixas: Caixa[]
+  initialCrediarios: CrediarioItem[]
 }) {
   const supabase = createClient()
   const [vendas, setVendas] = useState(initialVendas)
@@ -266,6 +297,11 @@ export default function VendasClient({
   const [showHistorico, setShowHistorico] = useState(false)
   const [descontoVendaTipo, setDescontoVendaTipo] = useState<'%' | 'R$'>('%')
   const [descontoVendaValor, setDescontoVendaValor] = useState('')
+  const [crediarios, setCrediarios] = useState<CrediarioItem[]>(initialCrediarios)
+  const [showCrediarioSection, setShowCrediarioSection] = useState(false)
+  const [crEntrada, setCrEntrada] = useState('')
+  const [crParcelas, setCrParcelas] = useState<number | null>(null)
+  const [crDataPrimeira, setCrDataPrimeira] = useState('')
 
   /* ── Cliente autocomplete ── */
 
@@ -420,12 +456,14 @@ export default function VendasClient({
     }
     const s = pagSlots[0]
     if (!s.metodo) return ''
+    if (s.metodo === 'crediario') return 'crediario'
     return s.metodo === 'credito' && s.parcelas ? `credito_${s.parcelas}x` : s.metodo
   }
 
   function canConfirmPayment(): boolean {
     if (isHibrido) return pagSlots.every(s => s.metodo && (s.metodo !== 'credito' || !!s.parcelas) && parseFloat(s.valor) > 0)
     const s = pagSlots[0]
+    if (s.metodo === 'crediario') return crParcelas !== null && crDataPrimeira !== ''
     return !!s.metodo && (s.metodo !== 'credito' || !!s.parcelas)
   }
 
@@ -438,12 +476,14 @@ export default function VendasClient({
       }).join(' + ')
     }
     const s = pagSlots[0]
+    if (s.metodo === 'crediario') return `Crediário${crParcelas ? ` ${crParcelas}x` : ''}`
     const m = s.metodo === 'credito' && s.parcelas ? `credito_${s.parcelas}x` : s.metodo
     return labelMetodo(m)
   }
 
   function resetPayment() {
     setPagSlots([emptySlot()]); setIsHibrido(false)
+    setCrEntrada(''); setCrParcelas(null); setCrDataPrimeira('')
   }
 
   /* ── Caixa ── */
@@ -611,6 +651,40 @@ export default function VendasClient({
     const { data, error } = await supabase.from('vendas').insert(payload).select().single()
     if (error) { setFormError(error.message); setSaving(false); setShowPayment(false); return }
     setVendas(vs => [data, ...vs])
+
+    if (fp === 'crediario' && data) {
+      const entrada = parseFloat(crEntrada) || 0
+      const restante = Math.max(0, valor - entrada)
+      const numParcelas = crParcelas ?? 1
+      const valorParcela = numParcelas > 0 ? restante / numParcelas : restante
+      const { data: crData, error: crError } = await supabase.from('crediario').insert({
+        user_id: user.id,
+        venda_id: data.id,
+        cliente_id: payload.cliente_id,
+        cliente_nome: payload.cliente_nome,
+        valor_total: valor,
+        valor_entrada: entrada,
+        num_parcelas: numParcelas,
+        status: 'aberto',
+      }).select().single()
+      if (!crError && crData) {
+        const [y, mo, d] = crDataPrimeira.split('-').map(Number)
+        const parcelas = Array.from({ length: numParcelas }, (_, i) => {
+          const dt = new Date(y, mo - 1 + i, d)
+          return {
+            user_id: user.id,
+            crediario_id: crData.id,
+            numero: i + 1,
+            valor: parseFloat(valorParcela.toFixed(2)),
+            data_vencimento: dt.toISOString().split('T')[0],
+            pago: false,
+          }
+        })
+        const { data: pData } = await supabase.from('parcelas_crediario').insert(parcelas).select()
+        setCrediarios(cs => [{ ...crData, parcelas_crediario: pData ?? [] } as CrediarioItem, ...cs])
+      }
+    }
+
     showToast('Venda registrada.')
     if (payload.produtos.length > 0) {
       const mes = payload.data_venda.slice(0, 7)
@@ -621,6 +695,31 @@ export default function VendasClient({
       }).catch(() => {})
     }
     setSaving(false); closeDrawer()
+  }
+
+  async function handleMarcarPago(crediarioId: string, parcelaId: string) {
+    const today = new Date().toISOString().split('T')[0]
+    const { error } = await supabase
+      .from('parcelas_crediario')
+      .update({ pago: true, data_pagamento: today })
+      .eq('id', parcelaId)
+    if (error) { showToast(error.message, 'error'); return }
+
+    const cr = crediarios.find(c => c.id === crediarioId)
+    if (!cr) return
+    const updatedParcelas = cr.parcelas_crediario.map(p =>
+      p.id === parcelaId ? { ...p, pago: true, data_pagamento: today } : p
+    )
+    const allPaid = updatedParcelas.every(p => p.pago)
+    if (allPaid) {
+      await supabase.from('crediario').update({ status: 'quitado' }).eq('id', crediarioId)
+      setCrediarios(cs => cs.filter(c => c.id !== crediarioId))
+    } else {
+      setCrediarios(cs => cs.map(c =>
+        c.id === crediarioId ? { ...c, parcelas_crediario: updatedParcelas } : c
+      ))
+    }
+    showToast('Parcela marcada como paga.')
   }
 
   /* ── Save edit ── */
@@ -768,6 +867,10 @@ export default function VendasClient({
   const filtered = vendasPeriodo.filter(v => v.cliente_nome.toLowerCase().includes(search.toLowerCase()))
   const totalReceita = vendasPeriodo.reduce((s, v) => s + Number(v.valor), 0)
   const ticketMedio = vendasPeriodo.length > 0 ? totalReceita / vendasPeriodo.length : 0
+  const totalAReceber = crediarios.reduce((s, c) => {
+    const pago = c.parcelas_crediario.filter(p => p.pago).reduce((a, p) => a + Number(p.valor), 0)
+    return s + (Number(c.valor_total) - Number(c.valor_entrada) - pago)
+  }, 0)
 
   /* ── Render ─────────────────────────────────────────────── */
 
@@ -890,10 +993,11 @@ export default function VendasClient({
         <div className="mb-2">
           <p className="text-xs font-medium text-zinc-500">{periodLabel()}</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <StatCard label="Vendas" value={String(vendasPeriodo.length)} />
           <StatCard label="Total vendido" value={formatBRL(totalReceita)} />
           <StatCard label="Ticket médio" value={vendasPeriodo.length > 0 ? formatBRL(ticketMedio) : '—'} />
+          <StatCard label="A receber" value={totalAReceber > 0 ? formatBRL(totalAReceber) : '—'} />
         </div>
 
         {/* Toast */}
@@ -1021,6 +1125,85 @@ export default function VendasClient({
         <p className="text-xs text-zinc-700 mt-4 font-mono">
           CSV: cliente_nome, valor, data_venda, produtos &nbsp;·&nbsp; produtos: <span className="text-zinc-600">nome1:qtd1;nome2:qtd2</span>
         </p>
+
+        {/* Crediário em aberto */}
+        {crediarios.length > 0 && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowCrediarioSection(v => !v)}
+              className="flex items-center gap-2 text-sm font-semibold text-zinc-500 hover:text-zinc-300 transition cursor-pointer mb-3"
+            >
+              <span className={`text-xs transition-transform duration-200 inline-block ${showCrediarioSection ? 'rotate-180' : ''}`}>▼</span>
+              Crediário em Aberto ({crediarios.length}) &nbsp;·&nbsp; <span className="text-amber-400">{formatBRL(totalAReceber)}</span>
+            </button>
+            {showCrediarioSection && (
+              <div className="flex flex-col gap-4">
+                {crediarios.map(cr => {
+                  const pagos = cr.parcelas_crediario.filter(p => p.pago).length
+                  const restante = cr.parcelas_crediario.filter(p => !p.pago).reduce((s, p) => s + Number(p.valor), 0)
+                  return (
+                    <div key={cr.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs font-bold shrink-0">
+                            {cr.cliente_nome.charAt(0).toUpperCase()}
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold">{cr.cliente_nome}</p>
+                            <p className="text-xs text-zinc-500">
+                              Total: {formatBRL(cr.valor_total)}
+                              {cr.valor_entrada > 0 && ` · Entrada: ${formatBRL(cr.valor_entrada)}`}
+                              {' '}· {pagos}/{cr.num_parcelas} parcelas pagas
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-amber-400">{formatBRL(restante)}</p>
+                          <p className="text-xs text-zinc-500">a receber</p>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-zinc-800/60">
+                        {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
+                          <div key={p.id} className={`flex items-center justify-between px-5 py-3 ${p.pago ? 'opacity-40' : ''}`}>
+                            <div>
+                              <p className="text-sm font-medium">
+                                Parcela {p.numero}/{cr.num_parcelas} &nbsp;·&nbsp; {formatBRL(p.valor)}
+                              </p>
+                              <p className={`text-xs mt-0.5 ${
+                                p.pago ? 'text-emerald-400' :
+                                p.data_vencimento < new Date().toISOString().split('T')[0] ? 'text-red-400' : 'text-zinc-500'
+                              }`}>
+                                {p.pago
+                                  ? `Paga em ${formatDate(p.data_pagamento ?? p.data_vencimento)}`
+                                  : p.data_vencimento < new Date().toISOString().split('T')[0]
+                                    ? `Venceu em ${formatDate(p.data_vencimento)} — atrasada`
+                                    : `Vence em ${formatDate(p.data_vencimento)}`
+                                }
+                              </p>
+                            </div>
+                            {!p.pago && (
+                              <button
+                                onClick={() => handleMarcarPago(cr.id, p.id)}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
+                              >
+                                <IconCheck size={12} /> Recebido
+                              </button>
+                            )}
+                            {p.pago && (
+                              <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+                                <IconCheck size={12} /> Pago
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Histórico de caixas */}
         {historicoList.length > 0 && (
@@ -1375,6 +1558,23 @@ export default function VendasClient({
                           ))}
                         </div>
 
+                        {/* Crediário — botão separado full-width */}
+                        <button
+                          type="button"
+                          onClick={() => { updateSlot(0, { metodo: 'crediario', parcelas: null, recebido: '' }); setCrEntrada(''); setCrParcelas(null); setCrDataPrimeira('') }}
+                          className={`flex items-center gap-3 w-full px-4 py-4 rounded-2xl border-2 transition cursor-pointer ${
+                            s.metodo === 'crediario'
+                              ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                              : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                          }`}
+                        >
+                          <MetodoIcon value="crediario" />
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold text-sm">Crediário</span>
+                            <span className="text-xs opacity-60">Pagar parcelado direto com a loja</span>
+                          </div>
+                        </button>
+
                         {s.metodo === 'dinheiro' && (
                           <div className="flex flex-col gap-2">
                             <label className="text-sm font-medium text-zinc-400">Valor recebido</label>
@@ -1410,7 +1610,57 @@ export default function VendasClient({
                           </div>
                         )}
 
-                        {s.metodo && (
+                        {s.metodo === 'crediario' && (
+                          <div className="flex flex-col gap-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4">
+                            <div>
+                              <p className="text-sm font-medium text-zinc-300 mb-2">Entrada (pago agora) — opcional</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-zinc-400 shrink-0">R$</span>
+                                <input
+                                  type="number" min="0" step="0.01" max={totalFinal}
+                                  value={crEntrada}
+                                  onChange={e => setCrEntrada(e.target.value)}
+                                  placeholder="0,00"
+                                  className={INPUT}
+                                />
+                              </div>
+                              {crEntrada && parseFloat(crEntrada) > 0 && parseFloat(crEntrada) < totalFinal && (
+                                <p className="text-xs text-zinc-500 mt-1.5">
+                                  Restante a parcelar: <span className="text-amber-400 font-semibold">{formatBRL(Math.max(0, totalFinal - parseFloat(crEntrada)))}</span>
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-zinc-300 mb-2">Número de parcelas</p>
+                              <div className="grid grid-cols-4 gap-2">
+                                {PARCELAS_CREDIARIO.map(n => (
+                                  <button key={n} type="button" onClick={() => setCrParcelas(n)}
+                                    className={`py-3.5 rounded-xl border text-sm font-bold transition cursor-pointer ${crParcelas === n ? 'border-amber-500 bg-amber-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-600'}`}
+                                  >{n}x</button>
+                                ))}
+                              </div>
+                            </div>
+                            {crParcelas && (
+                              <div>
+                                <p className="text-sm font-medium text-zinc-300 mb-2">Vencimento da 1ª parcela</p>
+                                <input
+                                  type="date"
+                                  value={crDataPrimeira}
+                                  min={TODAY}
+                                  onChange={e => setCrDataPrimeira(e.target.value)}
+                                  className={`${INPUT} [color-scheme:dark]`}
+                                />
+                                {crDataPrimeira && crParcelas && (
+                                  <p className="text-xs text-zinc-500 mt-1.5">
+                                    {crParcelas}x de {formatBRL(Math.max(0, totalFinal - (parseFloat(crEntrada) || 0)) / crParcelas)}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {s.metodo && s.metodo !== 'crediario' && (
                           <button type="button" onClick={enableHibrido}
                             className="text-sm text-zinc-600 hover:text-violet-400 transition text-left"
                           >

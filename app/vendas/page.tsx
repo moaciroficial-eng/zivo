@@ -35,11 +35,13 @@ export default async function VendasPage() {
   d.setUTCDate(d.getUTCDate() + 1)
   const tomorrow = d.toISOString().split('T')[0]
 
-  const [{ data: vendas }, { data: clientes }, { data: estoque }] = await Promise.all([
+  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }] = await Promise.all([
     supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
     supabase.from('clientes').select('id, nome').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, codigo_barras, status, tamanhos')
       .eq('user_id', user.id).not('status', 'eq', 'vendido').order('nome'),
+    supabase.from('crediario').select('*, parcelas_crediario(*)').eq('user_id', user.id)
+      .eq('status', 'aberto').order('created_at', { ascending: false }),
   ])
 
   let { data: caixaAtual } = await supabase.from('caixas')
@@ -90,6 +92,7 @@ export default async function VendasPage() {
       estoqueItems={estoque ?? []}
       caixaAtual={caixaAtual ?? null}
       historicoCaixas={historicoCaixas ?? []}
+      initialCrediarios={crediarios ?? []}
     />
   )
 }

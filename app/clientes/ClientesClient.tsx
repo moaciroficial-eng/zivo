@@ -31,6 +31,31 @@ type FormState = {
   observacoes: string
 }
 
+type HistoricoVenda = {
+  id: string
+  valor: number
+  data_venda: string
+  forma_pagamento: string | null
+  produtos: { nome: string; qtd: number }[]
+}
+
+type HistoricoCrediario = {
+  id: string
+  valor_total: number
+  valor_entrada: number
+  num_parcelas: number
+  status: string
+  created_at: string
+  parcelas_crediario: {
+    id: string
+    numero: number
+    valor: number
+    data_vencimento: string
+    pago: boolean
+    data_pagamento: string | null
+  }[]
+}
+
 const EMPTY: FormState = {
   nome: '', telefone: '', email: '',
   tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '',
@@ -55,6 +80,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function formatDate(d: string) {
   const [y, m, day] = d.split('-')
   return `${day}/${m}/${y}`
+}
+
+function formatBRL(v: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+}
+
+function labelMetodo(m: string): string {
+  if (m === 'pix') return 'Pix'
+  if (m === 'dinheiro') return 'Dinheiro'
+  if (m === 'debito') return 'Débito'
+  if (m === 'crediario') return 'Crediário'
+  if (m.startsWith('credito_')) return `Crédito ${m.replace('credito_', '')}`
+  return m
+}
+
+function labelPagamento(fp: string | null): string {
+  if (!fp) return '—'
+  if (fp === 'crediario') return 'Crediário'
+  if (fp.includes('+')) {
+    return fp.split('+').map(p => {
+      const [met] = p.split(':')
+      return labelMetodo(met)
+    }).join(' + ')
+  }
+  return labelMetodo(fp)
 }
 
 const IconPlus = () => (
@@ -95,6 +145,12 @@ const IconSearch = () => (
     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
 )
+const IconHistory = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/>
+    <path d="M12 7v5l4 2"/>
+  </svg>
+)
 
 export default function ClientesClient({
   user,
@@ -115,6 +171,11 @@ export default function ClientesClient({
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
+  const [historicoModal, setHistoricoModal] = useState(false)
+  const [historicoCliente, setHistoricoCliente] = useState<Cliente | null>(null)
+  const [historicoVendas, setHistoricoVendas] = useState<HistoricoVenda[]>([])
+  const [historicoCrediarios, setHistoricoCrediarios] = useState<HistoricoCrediario[]>([])
+  const [loadingHistorico, setLoadingHistorico] = useState(false)
 
   function field(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -148,6 +209,23 @@ export default function ClientesClient({
 
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
+  }
+
+  async function openHistorico(c: Cliente) {
+    setHistoricoCliente(c)
+    setHistoricoVendas([])
+    setHistoricoCrediarios([])
+    setHistoricoModal(true)
+    setLoadingHistorico(true)
+    const [{ data: vendas }, { data: crediarios }] = await Promise.all([
+      supabase.from('vendas').select('id, valor, data_venda, forma_pagamento, produtos')
+        .eq('cliente_id', c.id).order('data_venda', { ascending: false }),
+      supabase.from('crediario').select('*, parcelas_crediario(*)')
+        .eq('cliente_id', c.id).order('created_at', { ascending: false }),
+    ])
+    setHistoricoVendas((vendas ?? []) as HistoricoVenda[])
+    setHistoricoCrediarios((crediarios ?? []) as HistoricoCrediario[])
+    setLoadingHistorico(false)
   }
 
   async function handleSave() {
@@ -404,6 +482,13 @@ export default function ClientesClient({
                           ) : (
                             <>
                               <button
+                                onClick={() => openHistorico(c)}
+                                className="p-1.5 text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"
+                                title="Histórico"
+                              >
+                                <IconHistory />
+                              </button>
+                              <button
                                 onClick={() => openEdit(c)}
                                 className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"
                                 title="Editar"
@@ -433,6 +518,108 @@ export default function ClientesClient({
           CSV: nome, telefone, email, tamanho_camiseta, tamanho_calca, tamanho_tenis, data_nascimento, dia_pagamento, observacoes
         </p>
       </main>
+
+      {/* Modal Histórico */}
+      {historicoModal && historicoCliente && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setHistoricoModal(false)} />
+          <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col max-h-[88vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+              <div>
+                <h2 className="font-semibold text-lg">Histórico</h2>
+                <p className="text-sm text-zinc-400">{historicoCliente.nome}</p>
+              </div>
+              <button onClick={() => setHistoricoModal(false)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer">
+                <IconX />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+              {loadingHistorico ? (
+                <p className="text-sm text-zinc-500 text-center py-8">Carregando...</p>
+              ) : (
+                <>
+                  {/* Resumo */}
+                  {historicoVendas.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Compras</p>
+                        <p className="text-xl font-bold mt-0.5">{historicoVendas.length}</p>
+                      </div>
+                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total gasto</p>
+                        <p className="text-xl font-bold text-emerald-400 mt-0.5">
+                          {formatBRL(historicoVendas.reduce((s, v) => s + Number(v.valor), 0))}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Crediários abertos */}
+                  {historicoCrediarios.filter(c => c.status === 'aberto').length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Crediário em Aberto</p>
+                      <div className="flex flex-col gap-2">
+                        {historicoCrediarios.filter(c => c.status === 'aberto').map(cr => {
+                          const pendentes = cr.parcelas_crediario.filter(p => !p.pago)
+                          const restante = pendentes.reduce((s, p) => s + Number(p.valor), 0)
+                          return (
+                            <div key={cr.id} className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium">
+                                  {cr.num_parcelas}x de {formatBRL((Number(cr.valor_total) - Number(cr.valor_entrada)) / cr.num_parcelas)}
+                                  {cr.valor_entrada > 0 && <span className="text-zinc-500"> · entrada {formatBRL(cr.valor_entrada)}</span>}
+                                </p>
+                                <p className="text-sm font-bold text-amber-400">{formatBRL(restante)} restante</p>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
+                                  <div key={p.id} className={`flex items-center justify-between text-xs ${p.pago ? 'text-zinc-600' : ''}`}>
+                                    <span>Parcela {p.numero} · {formatDate(p.data_vencimento)}</span>
+                                    <span className={p.pago ? 'text-emerald-600' : p.data_vencimento < new Date().toISOString().split('T')[0] ? 'text-red-400' : 'text-zinc-400'}>
+                                      {p.pago ? 'Paga' : formatBRL(p.valor)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista de compras */}
+                  {historicoVendas.length === 0 ? (
+                    <p className="text-sm text-zinc-500 text-center py-6">Nenhuma compra registrada para este cliente.</p>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras</p>
+                      <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl overflow-hidden divide-y divide-zinc-800/60">
+                        {historicoVendas.map(v => {
+                          const prods = Array.isArray(v.produtos) ? v.produtos : []
+                          return (
+                            <div key={v.id} className="flex items-start justify-between px-4 py-3 gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">{formatDate(v.data_venda)}</p>
+                                <p className="text-xs text-zinc-500 mt-0.5">
+                                  {labelPagamento(v.forma_pagamento)}
+                                  {prods.length > 0 && ` · ${prods[0].nome}${prods.length > 1 ? ` +${prods.length - 1}` : ''}`}
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold text-emerald-400 shrink-0">{formatBRL(Number(v.valor))}</p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Drawer */}
       {drawer && (
