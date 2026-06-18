@@ -184,12 +184,14 @@ export async function POST(request: NextRequest) {
 
     if (direcao === 'recebida') {
       /* Verifica se há conversa automatizada ativa para este contato */
-      const { data: estadoAtivo } = await supabase
+      const { data: estadosAtivos } = await supabase
         .from('agente_conversa_estado')
         .select('id, tarefa_id')
         .eq('contato_id', contato.id)
         .eq('status', 'aguardando')
-        .maybeSingle()
+        .order('updated_at', { ascending: false })
+        .limit(1)
+      const estadoAtivo = estadosAtivos?.[0] ?? null
 
       if (estadoAtivo) {
         /* Continua a conversa automatizada */

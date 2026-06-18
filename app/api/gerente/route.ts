@@ -38,24 +38,33 @@ export async function POST(request: NextRequest) {
   const totalContatos = contatos?.length ?? 0
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
 
+  /* Lista de contatos para o Gerente referenciar por nome */
+  const listaContatos = (contatos ?? [])
+    .map((c: { id: string; nome: string; phone: string }) => `- ${c.nome ?? c.phone} (id: ${c.id})`)
+    .join('\n')
+
   const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
 Você recebe comandos do dono da loja e coordena os agentes para executar.
 
+CONTATOS DISPONÍVEIS NO WHATSAPP:
+${listaContatos}
+
 DADOS DA LOJA:
-- Total de contatos WhatsApp: ${totalContatos}
 - Clientes sem data de nascimento: ${semCadastroCompleto}
 
 Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON:
 {
-  "resposta": "texto amigável explicando o que vai fazer e pedindo confirmação",
+  "resposta": "texto amigável confirmando EXATAMENTE para quem vai enviar e pedindo confirmação",
   "tarefa": {
     "titulo": "título curto da tarefa",
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
-    "instrucao": "instrução detalhada para o agente executar a conversa — inclua: o objetivo, as perguntas a fazer em ordem, como guardar as respostas e como encerrar a conversa",
-    "filtro_contatos": "todos | sem_nascimento | sem_tamanho | funil_topo | funil_fundo | personalizado",
-    "aguardando_confirmacao": true
+    "instrucao": "instrução detalhada para o agente executar a conversa — inclua: o objetivo, as perguntas a fazer em ordem, como guardar as respostas e como encerrar a conversa com agradecimento",
+    "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo",
+    "contatos_especificos": ["id-uuid-aqui"] // use quando o supervisor mencionar pessoa(s) específica(s) pelo nome — preencha com os IDs da lista acima
   }
 }
+
+REGRA IMPORTANTE: Se o supervisor mencionar um nome específico (ex: "só a Maria", "manda pra Maria Eduarda"), use "contatos_especificos" com o ID correto da lista. Só use "filtro_contatos" quando for um grupo genérico.
 
 Se for apenas uma pergunta ou conversa (sem tarefa), responda em JSON:
 {
@@ -92,17 +101,25 @@ IMPORTANTE: Responda SEMPRE em JSON válido.`
   /* Se há tarefa, pré-calcula quantos e quem vai receber para mostrar na confirmação */
   let previewContatos: { id: string; nome: string }[] = []
   if (parsed.tarefa) {
-    let q = admin.from('whatsapp_contatos').select('id, nome, phone').eq('user_id', user.id)
-    if (parsed.tarefa.filtro_contatos === 'funil_topo') q = q.eq('funil_etapa', 'topo')
-    else if (parsed.tarefa.filtro_contatos === 'funil_fundo') q = q.eq('funil_etapa', 'fundo')
-    else if (parsed.tarefa.filtro_contatos === 'sem_nascimento') {
-      const { data: semNasc } = await admin.from('clientes').select('id').eq('user_id', user.id).is('data_nascimento', null)
-      const ids = (semNasc ?? []).map((c: { id: string }) => c.id)
-      if (ids.length > 0) q = q.in('cliente_id', ids)
-      else return NextResponse.json({ ok: true, resposta: 'Todos os clientes já têm data de nascimento cadastrada! Não há ninguém pra atualizar.', tarefa: null })
+    if (parsed.tarefa.contatos_especificos?.length > 0) {
+      const { data: preview } = await admin
+        .from('whatsapp_contatos').select('id, nome')
+        .eq('user_id', user.id)
+        .in('id', parsed.tarefa.contatos_especificos)
+      previewContatos = (preview ?? []) as { id: string; nome: string }[]
+    } else {
+      let q = admin.from('whatsapp_contatos').select('id, nome').eq('user_id', user.id)
+      if (parsed.tarefa.filtro_contatos === 'funil_topo') q = q.eq('funil_etapa', 'topo')
+      else if (parsed.tarefa.filtro_contatos === 'funil_fundo') q = q.eq('funil_etapa', 'fundo')
+      else if (parsed.tarefa.filtro_contatos === 'sem_nascimento') {
+        const { data: semNasc } = await admin.from('clientes').select('id').eq('user_id', user.id).is('data_nascimento', null)
+        const ids = (semNasc ?? []).map((c: { id: string }) => c.id)
+        if (ids.length > 0) q = q.in('cliente_id', ids)
+        else return NextResponse.json({ ok: true, resposta: 'Todos os clientes já têm data de nascimento cadastrada!', tarefa: null, previewContatos: [] })
+      }
+      const { data: preview } = await q.limit(500)
+      previewContatos = (preview ?? []) as { id: string; nome: string }[]
     }
-    const { data: preview } = await q.limit(500)
-    previewContatos = (preview ?? []) as { id: string; nome: string }[]
   }
 
   return NextResponse.json({
@@ -127,19 +144,31 @@ export async function PUT(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  /* Seleciona contatos com base no filtro */
-  let query = admin.from('whatsapp_contatos').select('id, nome, phone').eq('user_id', user.id)
+  /* Seleciona contatos com base no filtro ou lista específica */
+  let contatosList: { id: string; nome: string; phone: string }[] = []
 
-  if (tarefa.filtro_contatos === 'funil_topo') query = query.eq('funil_etapa', 'topo')
-  else if (tarefa.filtro_contatos === 'funil_fundo') query = query.eq('funil_etapa', 'fundo')
-  else if (tarefa.filtro_contatos === 'sem_nascimento') {
-    /* Clientes sem data de nascimento */
-    const { data: semNasc } = await admin.from('clientes').select('id').eq('user_id', user.id).is('data_nascimento', null)
-    const ids = (semNasc ?? []).map(c => c.id)
-    if (ids.length > 0) query = query.in('cliente_id', ids)
+  if (tarefa.contatos_especificos?.length > 0) {
+    /* Contatos nomeados explicitamente pelo supervisor */
+    const { data } = await admin
+      .from('whatsapp_contatos')
+      .select('id, nome, phone')
+      .eq('user_id', user.id)
+      .in('id', tarefa.contatos_especificos)
+    contatosList = (data ?? []) as typeof contatosList
+  } else {
+    let query = admin.from('whatsapp_contatos').select('id, nome, phone').eq('user_id', user.id)
+    if (tarefa.filtro_contatos === 'funil_topo') query = query.eq('funil_etapa', 'topo')
+    else if (tarefa.filtro_contatos === 'funil_fundo') query = query.eq('funil_etapa', 'fundo')
+    else if (tarefa.filtro_contatos === 'sem_nascimento') {
+      const { data: semNasc } = await admin.from('clientes').select('id').eq('user_id', user.id).is('data_nascimento', null)
+      const ids = (semNasc ?? []).map((c: { id: string }) => c.id)
+      if (ids.length > 0) query = query.in('cliente_id', ids)
+    }
+    const { data } = await query.limit(500)
+    contatosList = (data ?? []) as typeof contatosList
   }
 
-  const { data: contatos } = await query.limit(500)
+  const contatos = contatosList
   const lista = contatos ?? []
 
   /* Cria a tarefa */
