@@ -89,10 +89,27 @@ IMPORTANTE: Responda SEMPRE em JSON válido.`
     user_id: user.id, papel: 'gerente', conteudo: parsed.resposta,
   }).select().single()
 
+  /* Se há tarefa, pré-calcula quantos e quem vai receber para mostrar na confirmação */
+  let previewContatos: { id: string; nome: string }[] = []
+  if (parsed.tarefa) {
+    let q = admin.from('whatsapp_contatos').select('id, nome, phone').eq('user_id', user.id)
+    if (parsed.tarefa.filtro_contatos === 'funil_topo') q = q.eq('funil_etapa', 'topo')
+    else if (parsed.tarefa.filtro_contatos === 'funil_fundo') q = q.eq('funil_etapa', 'fundo')
+    else if (parsed.tarefa.filtro_contatos === 'sem_nascimento') {
+      const { data: semNasc } = await admin.from('clientes').select('id').eq('user_id', user.id).is('data_nascimento', null)
+      const ids = (semNasc ?? []).map((c: { id: string }) => c.id)
+      if (ids.length > 0) q = q.in('cliente_id', ids)
+      else return NextResponse.json({ ok: true, resposta: 'Todos os clientes já têm data de nascimento cadastrada! Não há ninguém pra atualizar.', tarefa: null })
+    }
+    const { data: preview } = await q.limit(500)
+    previewContatos = (preview ?? []) as { id: string; nome: string }[]
+  }
+
   return NextResponse.json({
     ok: true,
     resposta: parsed.resposta,
     tarefa: parsed.tarefa ?? null,
+    previewContatos,
     msgId: msgGerente?.id,
   })
 }

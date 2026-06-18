@@ -90,6 +90,7 @@ export default function AgentesClient({
   const [gerenteInput, setGerenteInput] = useState('')
   const [gerentePensando, setGerentePensando] = useState(false)
   const [tarefaPendente, setTarefaPendente] = useState<Record<string, unknown> | null>(null)
+  const [previewContatos, setPreviewContatos] = useState<{id:string;nome:string}[]>([])
   const [confirmando, setConfirmando] = useState(false)
   const router = useRouter()
 
@@ -110,7 +111,10 @@ export default function AgentesClient({
       })
       const data = await res.json()
       setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: data.resposta, tarefa: data.tarefa }])
-      if (data.tarefa) setTarefaPendente(data.tarefa)
+      if (data.tarefa) {
+        setTarefaPendente(data.tarefa)
+        setPreviewContatos(data.previewContatos ?? [])
+      }
     } finally {
       setGerentePensando(false)
     }
@@ -208,20 +212,36 @@ export default function AgentesClient({
                 }`}>
                   <p className="whitespace-pre-wrap leading-relaxed">{m.conteudo}</p>
                   {m.tarefa && tarefaPendente && (
-                    <div className="mt-3 pt-3 border-t border-white/10 flex gap-2">
-                      <button
-                        onClick={confirmarTarefa}
-                        disabled={confirmando}
-                        className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-                      >
-                        {confirmando ? 'Iniciando...' : '✓ Confirmar e executar'}
-                      </button>
-                      <button
-                        onClick={() => setTarefaPendente(null)}
-                        className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-xs rounded-lg transition cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      {previewContatos.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-[11px] text-zinc-400 mb-1.5">
+                            Vai enviar para {previewContatos.length} contato{previewContatos.length > 1 ? 's' : ''}:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {previewContatos.map(c => (
+                              <span key={c.id} className="text-[11px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full">
+                                {c.nome}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={confirmarTarefa}
+                          disabled={confirmando}
+                          className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                        >
+                          {confirmando ? 'Iniciando...' : `✓ Confirmar e enviar para ${previewContatos.length}`}
+                        </button>
+                        <button
+                          onClick={() => { setTarefaPendente(null); setPreviewContatos([]) }}
+                          className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-xs rounded-lg transition cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
