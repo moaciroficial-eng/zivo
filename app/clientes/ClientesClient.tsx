@@ -175,6 +175,7 @@ export default function ClientesClient({
   const [historicoVendas, setHistoricoVendas] = useState<HistoricoVenda[]>([])
   const [historicoCrediarios, setHistoricoCrediarios] = useState<HistoricoCrediario[]>([])
   const [loadingHistorico, setLoadingHistorico] = useState(false)
+  const [expandedVenda, setExpandedVenda] = useState<string | null>(null)
 
   function field(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -596,95 +597,139 @@ export default function ClientesClient({
               <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5 flex flex-col gap-5">
                 {loadingHistorico ? (
                   <p className="text-sm text-zinc-500 text-center py-10">Carregando...</p>
-                ) : (
-                  <>
-                    {/* Resumo */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
-                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Compras</p>
-                        <p className="text-xl font-bold mt-0.5">{historicoVendas.filter(v => v.forma_pagamento !== 'crediario' || !v.produtos || (v.produtos as {nome:string}[]).length === 0).length > 0 ? historicoVendas.filter(v => !(v.forma_pagamento === 'crediario' && Array.isArray(v.produtos) && v.produtos.length === 0)).length : historicoVendas.length}</p>
-                      </div>
-                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
-                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total gasto</p>
-                        <p className="text-xl font-bold text-emerald-400 mt-0.5">
-                          {formatBRL(historicoVendas.reduce((s, v) => s + Number(v.valor), 0))}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Crediários */}
-                    {historicoCrediarios.filter(c => c.status === 'aberto').length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Crediário em Aberto</p>
-                        <div className="flex flex-col gap-3">
-                          {historicoCrediarios.filter(c => c.status === 'aberto').map(cr => {
-                            const restante = cr.parcelas_crediario.filter(p => !p.pago).reduce((s, p) => s + Number(p.valor), 0)
-                            const today = new Date().toISOString().split('T')[0]
-                            return (
-                              <div key={cr.id} className="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden">
-                                <div className="flex items-center justify-between px-4 py-3 border-b border-amber-500/10">
-                                  <p className="text-sm font-medium">
-                                    {cr.num_parcelas}x de {formatBRL((Number(cr.valor_total) - Number(cr.valor_entrada)) / cr.num_parcelas)}
-                                    {cr.valor_entrada > 0 && <span className="text-zinc-500 text-xs"> · entrada {formatBRL(cr.valor_entrada)}</span>}
-                                  </p>
-                                  <p className="text-sm font-bold text-amber-400">{formatBRL(restante)} restante</p>
-                                </div>
-                                <div className="divide-y divide-amber-500/10">
-                                  {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
-                                    <div key={p.id} className={`flex items-center justify-between px-4 py-2.5 ${p.pago ? 'opacity-40' : ''}`}>
-                                      <div>
-                                        <p className="text-sm font-medium">Parcela {p.numero} · {formatBRL(p.valor)}</p>
-                                        <p className={`text-xs mt-0.5 ${p.pago ? 'text-emerald-400' : p.data_vencimento < today ? 'text-red-400' : 'text-zinc-500'}`}>
-                                          {p.pago ? `Paga em ${formatDate(p.data_pagamento ?? p.data_vencimento)}` : p.data_vencimento < today ? `Atrasada · venceu ${formatDate(p.data_vencimento)}` : `Vence ${formatDate(p.data_vencimento)}`}
-                                        </p>
-                                      </div>
-                                      {!p.pago && (
-                                        <button
-                                          onClick={() => handleMarcarParcelaPaga(cr.id, p.id)}
-                                          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
-                                        >
-                                          <IconCheck size={12} /> Recebido
-                                        </button>
-                                      )}
-                                      {p.pago && <span className="text-xs text-emerald-500 flex items-center gap-1"><IconCheck size={12} /> Pago</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })}
+                ) : (() => {
+                  type Prod = { nome: string; qtd: number; tamanho?: string; preco_unitario?: number; desconto?: number }
+                  const compras = historicoVendas.filter(v => {
+                    const prods = Array.isArray(v.produtos) ? v.produtos as Prod[] : []
+                    return prods.length > 0
+                  })
+                  const totalRecebido = historicoVendas.reduce((s, v) => s + Number(v.valor), 0)
+                  const today = new Date().toISOString().split('T')[0]
+                  return (
+                    <>
+                      {/* Resumo */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
+                          <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Compras</p>
+                          <p className="text-xl font-bold mt-0.5">{compras.length}</p>
+                        </div>
+                        <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
+                          <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total recebido</p>
+                          <p className="text-xl font-bold text-emerald-400 mt-0.5">{formatBRL(totalRecebido)}</p>
                         </div>
                       </div>
-                    )}
 
-                    {/* Histórico de compras */}
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras</p>
-                      {historicoVendas.length === 0 ? (
-                        <p className="text-sm text-zinc-500 text-center py-6">Nenhuma compra registrada.</p>
-                      ) : (
-                        <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl overflow-hidden divide-y divide-zinc-800/60">
-                          {historicoVendas.map(v => {
-                            const prods = Array.isArray(v.produtos) ? v.produtos as {nome:string;qtd:number}[] : []
-                            const isParcelaCr = v.forma_pagamento === 'crediario' && prods.length === 0
-                            return (
-                              <div key={v.id} className="flex items-start justify-between px-4 py-3 gap-3">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium">{formatDate(v.data_venda)}</p>
-                                  <p className="text-xs text-zinc-500 mt-0.5">
-                                    {isParcelaCr ? 'Crediário · parcela recebida' : labelPagamento(v.forma_pagamento)}
-                                    {!isParcelaCr && prods.length > 0 && ` · ${prods[0].nome}${prods.length > 1 ? ` +${prods.length - 1}` : ''}`}
-                                  </p>
+                      {/* Crediários em aberto */}
+                      {historicoCrediarios.filter(c => c.status === 'aberto').length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Crediário em Aberto</p>
+                          <div className="flex flex-col gap-3">
+                            {historicoCrediarios.filter(c => c.status === 'aberto').map(cr => {
+                              const restante = cr.parcelas_crediario.filter(p => !p.pago).reduce((s, p) => s + Number(p.valor), 0)
+                              return (
+                                <div key={cr.id} className="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden">
+                                  <div className="flex items-center justify-between px-4 py-3 border-b border-amber-500/10">
+                                    <p className="text-sm font-medium">
+                                      {cr.num_parcelas}x de {formatBRL((Number(cr.valor_total) - Number(cr.valor_entrada)) / cr.num_parcelas)}
+                                      {cr.valor_entrada > 0 && <span className="text-zinc-500 text-xs"> · entrada {formatBRL(cr.valor_entrada)}</span>}
+                                    </p>
+                                    <p className="text-sm font-bold text-amber-400">{formatBRL(restante)} restante</p>
+                                  </div>
+                                  <div className="divide-y divide-amber-500/10">
+                                    {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
+                                      <div key={p.id} className={`flex items-center justify-between px-4 py-2.5 ${p.pago ? 'opacity-40' : ''}`}>
+                                        <div>
+                                          <p className="text-sm font-medium">Parcela {p.numero} · {formatBRL(p.valor)}</p>
+                                          <p className={`text-xs mt-0.5 ${p.pago ? 'text-emerald-400' : p.data_vencimento < today ? 'text-red-400' : 'text-zinc-500'}`}>
+                                            {p.pago ? `Paga em ${formatDate(p.data_pagamento ?? p.data_vencimento)}` : p.data_vencimento < today ? `Atrasada · venceu ${formatDate(p.data_vencimento)}` : `Vence ${formatDate(p.data_vencimento)}`}
+                                          </p>
+                                        </div>
+                                        {!p.pago && (
+                                          <button
+                                            onClick={() => handleMarcarParcelaPaga(cr.id, p.id)}
+                                            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
+                                          >
+                                            <IconCheck size={12} /> Recebido
+                                          </button>
+                                        )}
+                                        {p.pago && <span className="text-xs text-emerald-500 flex items-center gap-1"><IconCheck size={12} /> Pago</span>}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                                <p className="text-sm font-bold text-emerald-400 shrink-0">{formatBRL(Number(v.valor))}</p>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                          </div>
                         </div>
                       )}
-                    </div>
-                  </>
-                )}
+
+                      {/* Lista de compras com produtos expandíveis */}
+                      <div>
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras</p>
+                        {compras.length === 0 ? (
+                          <p className="text-sm text-zinc-500 text-center py-6">Nenhuma compra com produtos registrada.</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {compras.map(v => {
+                              const prods = (Array.isArray(v.produtos) ? v.produtos : []) as Prod[]
+                              const isOpen = expandedVenda === v.id
+                              return (
+                                <div key={v.id} className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl overflow-hidden">
+                                  {/* Cabeçalho — clicável */}
+                                  <button
+                                    onClick={() => setExpandedVenda(isOpen ? null : v.id)}
+                                    className="w-full flex items-center justify-between px-4 py-3 gap-3 hover:bg-zinc-700/30 transition cursor-pointer text-left"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-semibold">{formatDate(v.data_venda)}</p>
+                                        <span className="text-xs text-zinc-500 bg-zinc-700/60 px-2 py-0.5 rounded-md">{labelPagamento(v.forma_pagamento)}</span>
+                                      </div>
+                                      <p className="text-xs text-zinc-400 mt-0.5">
+                                        {prods.length} {prods.length === 1 ? 'produto' : 'produtos'} · {prods.map(p => p.nome).join(', ').slice(0, 50)}{prods.map(p => p.nome).join(', ').length > 50 ? '…' : ''}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <p className="text-sm font-bold text-emerald-400">{formatBRL(Number(v.valor))}</p>
+                                      <span className={`text-zinc-500 text-xs transition-transform duration-200 inline-block ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+                                    </div>
+                                  </button>
+
+                                  {/* Detalhes dos produtos */}
+                                  {isOpen && (
+                                    <div className="border-t border-zinc-700/60 divide-y divide-zinc-700/40">
+                                      {prods.map((p, i) => {
+                                        const linha = p.preco_unitario
+                                          ? p.preco_unitario * p.qtd * (1 - (p.desconto ?? 0) / 100)
+                                          : null
+                                        return (
+                                          <div key={i} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-sm font-medium truncate">{p.nome}</p>
+                                              <p className="text-xs text-zinc-500 mt-0.5">
+                                                Qtd: {p.qtd}
+                                                {p.tamanho && ` · Tam: ${p.tamanho}`}
+                                                {p.preco_unitario && ` · ${formatBRL(p.preco_unitario)} un.`}
+                                                {p.desconto && p.desconto > 0 ? ` · ${p.desconto}% desc.` : ''}
+                                              </p>
+                                            </div>
+                                            {linha != null && (
+                                              <p className="text-sm font-semibold text-zinc-200 shrink-0">{formatBRL(linha)}</p>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             )}
 
