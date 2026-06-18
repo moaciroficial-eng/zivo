@@ -22,8 +22,10 @@ export async function POST(request: NextRequest) {
     return new NextResponse('phone e message são obrigatórios', { status: 400 })
   }
 
+  let messageId: string | undefined
   try {
-    await sendWhatsAppMessage({ phone, message })
+    const result = await sendWhatsAppMessage({ phone, message })
+    messageId = result.messageId
   } catch (err) {
     console.error('Erro ao enviar mensagem WhatsApp:', err)
     return new NextResponse(String(err), { status: 500 })
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest) {
       await admin.from('whatsapp_mensagens').insert({
         user_id:    user.id,
         contato_id: cId,
+        message_id: messageId ?? null,
         direcao:    'enviada',
         tipo:       'texto',
         conteudo:   message,
