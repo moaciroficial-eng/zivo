@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${BASE}/profile-picture?phone=${number}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ photo: null })
     const data = await res.json()
-    const photo: string | null = data?.photo ?? data?.url ?? null
+    const photo: string | null = data?.link ?? data?.photo ?? data?.url ?? null
 
     // Salva no banco se tiver contatoId e foto
     if (photo && contatoId && process.env.SUPABASE_SERVICE_ROLE_KEY) {

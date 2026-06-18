@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
         )
         if (fotoRes.ok) {
           const fotoData = await fotoRes.json()
-          const fotoUrl = fotoData?.photo ?? fotoData?.url ?? null
+          const fotoUrl = fotoData?.link ?? fotoData?.photo ?? fotoData?.url ?? null
           if (fotoUrl) {
             await supabase.from('whatsapp_contatos').update({ foto_url: fotoUrl }).eq('id', contato.id)
           }
