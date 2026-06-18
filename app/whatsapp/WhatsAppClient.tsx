@@ -146,7 +146,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setLoadingMsgs(true)
     supabase
       .from('whatsapp_mensagens')
-      .select('id, contato_id, direcao, tipo, conteudo, status, timestamp')
+      .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, raw')
       .eq('contato_id', selectedId)
       .order('timestamp', { ascending: true })
       .limit(200)
@@ -222,33 +222,40 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     const isLid = selectedContato.jid?.endsWith('@lid')
     const override = isLid ? lidPhone[selectedContato.id]?.replace(/\D/g, '') : undefined
 
+    /* Adiciona mensagem otimisticamente na UI */
+    const msgOtimista: Mensagem = {
+      id: `tmp-${Date.now()}`,
+      contato_id: selectedContato.id,
+      direcao: 'enviada',
+      tipo: 'texto',
+      conteudo: text,
+      status: 'enviada',
+      timestamp: new Date().toISOString(),
+    }
+    setMensagens(prev => [...prev, msgOtimista])
+    setContatos(cs => cs.map(c => c.id === selectedContato.id
+      ? { ...c, ultima_mensagem: text, ultima_mensagem_at: msgOtimista.timestamp }
+      : c
+    ))
+
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: override ?? selectedContato.phone,
-          jid:   override ? undefined : selectedContato.jid,
           message: text,
         }),
       })
       if (!res.ok) {
         const errText = await res.text()
-        const isLidError = errText.includes('"exists":false') || errText.includes("exists\":false")
-        setSendError(
-          isLidError
-            ? 'Contato usa ID privado (LID) — a Evolution API 0.4.x não suporta envio para este tipo de conta. Atualize para a Evolution API v2.x.'
-            : errText || `Erro ${res.status}`
-        )
-        setTimeout(() => setSendError(null), 10000)
-      } else if (override) {
-        // Salva o número real no Supabase para próximas mensagens
-        const newJid = `${override}@s.whatsapp.net`
-        await supabase.from('whatsapp_contatos').update({ jid: newJid }).eq('id', selectedContato.id)
-        setContatos(cs => cs.map(c => c.id === selectedContato.id ? { ...c, jid: newJid } : c))
+        setSendError(errText || `Erro ${res.status}`)
+        setMensagens(prev => prev.filter(m => m.id !== msgOtimista.id))
+        setTimeout(() => setSendError(null), 8000)
       }
     } catch (e) {
       setSendError('Falha de conexão')
+      setMensagens(prev => prev.filter(m => m.id !== msgOtimista.id))
       setTimeout(() => setSendError(null), 6000)
     } finally {
       setSending(false)
@@ -431,29 +438,48 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 {!loadingMsgs && mensagens.length === 0 && (
                   <p className="text-center text-zinc-700 text-sm py-12">Nenhuma mensagem ainda.</p>
                 )}
-                {mensagens.map(m => (
-                  <div key={m.id} className={`flex ${m.direcao === 'enviada' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${
-                      m.direcao === 'enviada'
-                        ? 'bg-violet-600 text-white rounded-br-sm'
-                        : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
-                    }`}>
-                      <p className="whitespace-pre-wrap break-words leading-snug">
-                        {m.conteudo ?? `[${m.tipo}]`}
-                      </p>
-                      <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${
-                        m.direcao === 'enviada' ? 'text-violet-300' : 'text-zinc-500'
+                {mensagens.map(m => {
+                  const enviada = m.direcao === 'enviada'
+                  const raw = (m as unknown as Record<string, unknown>).raw as Record<string, unknown> | null | undefined
+                  const imageUrl = (raw?.image as Record<string, unknown> | undefined)?.imageUrl as string | undefined
+                  const audioUrl = (raw?.audio as Record<string, unknown> | undefined)?.audioUrl as string | undefined
+                  return (
+                    <div key={m.id} className={`flex ${enviada ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
+                        enviada ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                       }`}>
-                        {fmtTime(m.timestamp)}
-                        {m.direcao === 'enviada' && (
-                          <span className={m.status === 'lida' ? 'text-blue-300' : ''}>
-                            {m.status === 'lida' ? '✓✓' : m.status === 'entregue' ? '✓✓' : '✓'}
-                          </span>
+                        {/* Imagem */}
+                        {m.tipo === 'imagem' && imageUrl && (
+                          <a href={imageUrl} target="_blank" rel="noopener noreferrer">
+                            <img src={imageUrl} alt="imagem" className="max-w-full max-h-64 object-cover" />
+                          </a>
                         )}
+                        {/* Áudio */}
+                        {m.tipo === 'audio' && audioUrl && (
+                          <div className="px-3 pt-2">
+                            <audio controls src={audioUrl} className="w-full h-8" />
+                          </div>
+                        )}
+                        {/* Texto / legenda / fallback */}
+                        <div className="px-3 py-2">
+                          {m.conteudo && m.conteudo !== '📷 Imagem' && m.conteudo !== '🎵 Áudio' ? (
+                            <p className="whitespace-pre-wrap break-words leading-snug">{m.conteudo}</p>
+                          ) : m.tipo !== 'imagem' && m.tipo !== 'audio' ? (
+                            <p className="whitespace-pre-wrap break-words leading-snug text-zinc-400 italic">{m.conteudo ?? `[${m.tipo}]`}</p>
+                          ) : null}
+                          <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${enviada ? 'text-violet-300' : 'text-zinc-500'}`}>
+                            {fmtTime(m.timestamp)}
+                            {enviada && (
+                              <span className={m.status === 'lida' ? 'text-blue-300' : ''}>
+                                {m.status === 'lida' ? '✓✓' : m.status === 'entregue' ? '✓✓' : '✓'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
                 <div ref={bottomRef} />
               </div>
 
