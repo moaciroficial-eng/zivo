@@ -180,14 +180,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    /* Dispara Agente de Dados em background (não bloqueia o webhook) */
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+
     if (direcao === 'recebida') {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
-      fetch(`${baseUrl}/api/agentes/dados`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contatoId: contato.id, userId }),
-      }).catch(() => { /* silencioso */ })
+      /* Verifica se há conversa automatizada ativa para este contato */
+      const { data: estadoAtivo } = await supabase
+        .from('agente_conversa_estado')
+        .select('id, tarefa_id')
+        .eq('contato_id', contato.id)
+        .eq('status', 'aguardando')
+        .maybeSingle()
+
+      if (estadoAtivo) {
+        /* Continua a conversa automatizada */
+        fetch(`${baseUrl}/api/gerente/executar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            tarefaId:       estadoAtivo.tarefa_id,
+            contatoId:      contato.id,
+            respostaContato: conteudo,
+          }),
+        }).catch(() => null)
+      } else {
+        /* Dispara Agente de Dados normalmente */
+        fetch(`${baseUrl}/api/agentes/dados`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contatoId: contato.id, userId }),
+        }).catch(() => null)
+      }
     }
 
     return NextResponse.json({ ok: true })

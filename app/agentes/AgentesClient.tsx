@@ -84,12 +84,55 @@ export default function AgentesClient({
 }: {
   agentes: Agente[]; logs: Log[]; insights: Insight[]
 }) {
-  const [tab, setTab] = useState<'agentes' | 'alertas' | 'perfis'>('agentes')
+  const [tab, setTab] = useState<'gerente' | 'agentes' | 'alertas' | 'perfis'>('gerente')
   const [enviando, setEnviando] = useState<string | null>(null)
+  const [gerenteMsgs, setGerenteMsgs] = useState<Array<{ papel: string; conteudo: string; tarefa?: Record<string, unknown> | null }>>([])
+  const [gerenteInput, setGerenteInput] = useState('')
+  const [gerentePensando, setGerentePensando] = useState(false)
+  const [tarefaPendente, setTarefaPendente] = useState<Record<string, unknown> | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
   const router = useRouter()
 
   const agenteMap = Object.fromEntries(agentes.map(a => [a.tipo, a]))
   const alertas = logs.filter(l => l.acao.startsWith('['))
+
+  async function enviarParaGerente() {
+    if (!gerenteInput.trim() || gerentePensando) return
+    const texto = gerenteInput.trim()
+    setGerenteInput('')
+    setGerenteMsgs(prev => [...prev, { papel: 'supervisor', conteudo: texto }])
+    setGerentePensando(true)
+    try {
+      const res = await fetch('/api/gerente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: texto, historico: gerenteMsgs }),
+      })
+      const data = await res.json()
+      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: data.resposta, tarefa: data.tarefa }])
+      if (data.tarefa) setTarefaPendente(data.tarefa)
+    } finally {
+      setGerentePensando(false)
+    }
+  }
+
+  async function confirmarTarefa() {
+    if (!tarefaPendente) return
+    setConfirmando(true)
+    try {
+      const res = await fetch('/api/gerente', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tarefa: tarefaPendente }),
+      })
+      const data = await res.json()
+      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: `✅ Tarefa iniciada! Enviando mensagens para ${data.total} contatos.` }])
+      setTarefaPendente(null)
+      router.refresh()
+    } finally {
+      setConfirmando(false)
+    }
+  }
 
   async function enviarSugestao(log: Log) {
     const r = log.resultado
@@ -119,7 +162,7 @@ export default function AgentesClient({
 
       {/* Tabs */}
       <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit">
-        {(['agentes', 'alertas', 'perfis'] as const).map(t => (
+        {(['gerente', 'agentes', 'alertas', 'perfis'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -127,10 +170,91 @@ export default function AgentesClient({
               tab === t ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            {t === 'agentes' ? 'Agentes' : t === 'alertas' ? `Alertas${alertas.length > 0 ? ` (${alertas.length})` : ''}` : 'Perfis'}
+            {t === 'gerente' ? '🧑‍💼 Gerente' : t === 'agentes' ? 'Agentes' : t === 'alertas' ? `Alertas${alertas.length > 0 ? ` (${alertas.length})` : ''}` : 'Perfis'}
           </button>
         ))}
       </div>
+
+      {/* Tab: Gerente IA */}
+      {tab === 'gerente' && (
+        <div className="flex flex-col gap-3 h-[calc(100vh-260px)]">
+          {/* Mensagens */}
+          <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
+            {gerenteMsgs.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-3xl mb-3">🧑‍💼</p>
+                <p className="text-zinc-300 font-medium">Olá! Sou o Gerente IA do Zivo.</p>
+                <p className="text-zinc-500 text-sm mt-1 max-w-sm mx-auto">Me diga o que precisa e coordeno os agentes para executar. Exemplos:</p>
+                <div className="flex flex-col gap-2 mt-4 max-w-sm mx-auto">
+                  {[
+                    'Quero atualizar o cadastro dos clientes — perguntar nome, data de nascimento e tamanho',
+                    'Manda mensagem pra todos os contatos sem cadastro completo',
+                    'Quero uma campanha pra clientes que compraram Aramis',
+                  ].map(ex => (
+                    <button key={ex} onClick={() => setGerenteInput(ex)}
+                      className="text-left text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 px-3 py-2 rounded-lg transition cursor-pointer">
+                      "{ex}"
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {gerenteMsgs.map((m, i) => (
+              <div key={i} className={`flex ${m.papel === 'supervisor' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+                  m.papel === 'supervisor'
+                    ? 'bg-violet-600 text-white rounded-br-sm'
+                    : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
+                }`}>
+                  <p className="whitespace-pre-wrap leading-relaxed">{m.conteudo}</p>
+                  {m.tarefa && tarefaPendente && (
+                    <div className="mt-3 pt-3 border-t border-white/10 flex gap-2">
+                      <button
+                        onClick={confirmarTarefa}
+                        disabled={confirmando}
+                        className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                      >
+                        {confirmando ? 'Iniciando...' : '✓ Confirmar e executar'}
+                      </button>
+                      <button
+                        onClick={() => setTarefaPendente(null)}
+                        className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-xs rounded-lg transition cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {gerentePensando && (
+              <div className="flex justify-start">
+                <div className="bg-zinc-800 rounded-2xl rounded-bl-sm px-4 py-3 text-zinc-400 text-sm">
+                  <span className="animate-pulse">Gerente pensando...</span>
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Input */}
+          <div className="flex gap-2 pt-2 border-t border-zinc-800">
+            <input
+              value={gerenteInput}
+              onChange={e => setGerenteInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarParaGerente() }}}
+              placeholder="Ex: quero atualizar o cadastro dos clientes..."
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 transition [color-scheme:dark]"
+              disabled={gerentePensando}
+            />
+            <button
+              onClick={enviarParaGerente}
+              disabled={!gerenteInput.trim() || gerentePensando}
+              className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer"
+            >
+              Enviar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tab: Agentes */}
       {tab === 'agentes' && (
