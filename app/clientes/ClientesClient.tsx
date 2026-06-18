@@ -176,6 +176,7 @@ export default function ClientesClient({
   const [historicoCrediarios, setHistoricoCrediarios] = useState<HistoricoCrediario[]>([])
   const [loadingHistorico, setLoadingHistorico] = useState(false)
   const [expandedVenda, setExpandedVenda] = useState<string | null>(null)
+  const [pagandoParcelaCliente, setPagandoParcelaCliente] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
 
   function field(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -231,10 +232,11 @@ export default function ClientesClient({
     setLoadingHistorico(false)
   }
 
-  async function handleMarcarParcelaPaga(crediarioId: string, parcelaId: string) {
+  async function handleMarcarParcelaPaga(crediarioId: string, parcelaId: string, formaPagamento: string) {
     const cr = historicoCrediarios.find(c => c.id === crediarioId)
     const parcela = cr?.parcelas_crediario.find(p => p.id === parcelaId)
     if (!cr || !parcela || !editing) return
+    setPagandoParcelaCliente(null)
     const today = new Date().toISOString().split('T')[0]
     const { error } = await supabase
       .from('parcelas_crediario')
@@ -249,7 +251,7 @@ export default function ClientesClient({
       cliente_nome: editing.nome,
       valor: parcela.valor,
       data_venda: today,
-      forma_pagamento: 'crediario',
+      forma_pagamento: formaPagamento,
       caixa_id: caixaAberto?.id ?? null,
       produtos: [],
     })
@@ -636,25 +638,59 @@ export default function ClientesClient({
                                     <p className="text-sm font-bold text-amber-400">{formatBRL(restante)} restante</p>
                                   </div>
                                   <div className="divide-y divide-amber-500/10">
-                                    {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
-                                      <div key={p.id} className={`flex items-center justify-between px-4 py-2.5 ${p.pago ? 'opacity-40' : ''}`}>
-                                        <div>
-                                          <p className="text-sm font-medium">Parcela {p.numero} · {formatBRL(p.valor)}</p>
-                                          <p className={`text-xs mt-0.5 ${p.pago ? 'text-emerald-400' : p.data_vencimento < today ? 'text-red-400' : 'text-zinc-500'}`}>
-                                            {p.pago ? `Paga em ${formatDate(p.data_pagamento ?? p.data_vencimento)}` : p.data_vencimento < today ? `Atrasada · venceu ${formatDate(p.data_vencimento)}` : `Vence ${formatDate(p.data_vencimento)}`}
-                                          </p>
+                                    {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => {
+                                      const abrindo = pagandoParcelaCliente?.parcelaId === p.id
+                                      return (
+                                        <div key={p.id} className={p.pago ? 'opacity-40' : ''}>
+                                          <div className="flex items-center justify-between px-4 py-2.5">
+                                            <div>
+                                              <p className="text-sm font-medium">Parcela {p.numero} · {formatBRL(p.valor)}</p>
+                                              <p className={`text-xs mt-0.5 ${p.pago ? 'text-emerald-400' : p.data_vencimento < today ? 'text-red-400' : 'text-zinc-500'}`}>
+                                                {p.pago ? `Paga em ${formatDate(p.data_pagamento ?? p.data_vencimento)}` : p.data_vencimento < today ? `Atrasada · venceu ${formatDate(p.data_vencimento)}` : `Vence ${formatDate(p.data_vencimento)}`}
+                                              </p>
+                                            </div>
+                                            {!p.pago && !abrindo && (
+                                              <button
+                                                onClick={() => setPagandoParcelaCliente({ crediarioId: cr.id, parcelaId: p.id })}
+                                                className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
+                                              >
+                                                Pagar
+                                              </button>
+                                            )}
+                                            {!p.pago && abrindo && (
+                                              <button
+                                                onClick={() => setPagandoParcelaCliente(null)}
+                                                className="text-xs text-zinc-500 hover:text-zinc-300 transition cursor-pointer shrink-0"
+                                              >
+                                                Cancelar
+                                              </button>
+                                            )}
+                                            {p.pago && <span className="text-xs text-emerald-500 flex items-center gap-1"><IconCheck size={12} /> Pago</span>}
+                                          </div>
+                                          {abrindo && (
+                                            <div className="px-4 pb-3">
+                                              <p className="text-xs text-zinc-500 mb-2">Como o cliente vai pagar?</p>
+                                              <div className="grid grid-cols-4 gap-2">
+                                                {[
+                                                  { id: 'pix', label: 'Pix' },
+                                                  { id: 'dinheiro', label: 'Dinheiro' },
+                                                  { id: 'debito', label: 'Débito' },
+                                                  { id: 'credito', label: 'Crédito' },
+                                                ].map(m => (
+                                                  <button
+                                                    key={m.id}
+                                                    onClick={() => handleMarcarParcelaPaga(cr.id, p.id, m.id)}
+                                                    className="py-2 rounded-lg border border-zinc-700 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition cursor-pointer text-xs font-medium"
+                                                  >
+                                                    {m.label}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
-                                        {!p.pago && (
-                                          <button
-                                            onClick={() => handleMarcarParcelaPaga(cr.id, p.id)}
-                                            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
-                                          >
-                                            <IconCheck size={12} /> Recebido
-                                          </button>
-                                        )}
-                                        {p.pago && <span className="text-xs text-emerald-500 flex items-center gap-1"><IconCheck size={12} /> Pago</span>}
-                                      </div>
-                                    ))}
+                                      )
+                                    })}
                                   </div>
                                 </div>
                               )
