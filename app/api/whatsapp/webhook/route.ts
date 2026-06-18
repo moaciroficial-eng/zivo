@@ -81,6 +81,20 @@ export async function POST(request: NextRequest) {
           const { conteudo, tipo } = message ? extractConteudo(message) : { conteudo: null, tipo: 'desconhecido' }
           const direcao = fromMe ? 'enviada' : 'recebida'
 
+          /* Tenta vincular ao cliente pelo telefone */
+          let clienteId: string | null = null
+          const phoneLast = phone.slice(-8)
+          const { data: clienteMatch } = await supabase
+            .from('clientes')
+            .select('id')
+            .eq('user_id', userId)
+            .filter('telefone', 'ilike', `%${phoneLast}`)
+            .maybeSingle()
+          if (clienteMatch) clienteId = clienteMatch.id
+
+          /* Funil: cliente existente = fundo/meio, desconhecido = topo */
+          const funilEtapa = clienteId ? 'fundo' : 'topo'
+
           /* Upsert contato */
           const { data: contato, error: contatoErr } = await supabase
             .from('whatsapp_contatos')
@@ -88,10 +102,12 @@ export async function POST(request: NextRequest) {
               {
                 user_id: userId,
                 phone,
-                jid: remoteJid,           // JID completo para envio (ex: 556299...@s.whatsapp.net ou @lid)
+                jid: remoteJid,
                 nome: pushName ?? phone,
                 ultima_mensagem: conteudo ?? tipo,
                 ultima_mensagem_at: timestamp,
+                cliente_id: clienteId,
+                funil_etapa: funilEtapa,
               },
               { onConflict: 'user_id,phone', ignoreDuplicates: false },
             )
