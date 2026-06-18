@@ -253,9 +253,23 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         event: 'INSERT', schema: 'public', table: 'whatsapp_mensagens',
         filter: `contato_id=eq.${selectedId}`,
       }, ({ new: novo }) => {
-        setMensagens(prev => [...prev, novo as Mensagem])
-        supabase.from('whatsapp_contatos').update({ nao_lidas: 0 }).eq('id', selectedId)
-        setContatos(cs => cs.map(c => c.id === selectedId ? { ...c, nao_lidas: 0 } : c))
+        const msg = novo as Mensagem
+        setMensagens(prev => {
+          /* Substitui mensagem otimista com mesmo conteúdo se existir */
+          const tmpIdx = msg.direcao === 'enviada'
+            ? prev.findIndex(m => m.id.startsWith('tmp-') && m.conteudo === msg.conteudo)
+            : -1
+          if (tmpIdx >= 0) {
+            const next = [...prev]
+            next[tmpIdx] = msg
+            return next
+          }
+          return [...prev, msg]
+        })
+        if (msg.direcao === 'recebida') {
+          supabase.from('whatsapp_contatos').update({ nao_lidas: 0 }).eq('id', selectedId)
+          setContatos(cs => cs.map(c => c.id === selectedId ? { ...c, nao_lidas: 0 } : c))
+        }
       })
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'whatsapp_mensagens',
@@ -301,6 +315,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         body: JSON.stringify({
           phone: override ?? selectedContato.phone,
           message: text,
+          contatoId: selectedContato.id,
         }),
       })
       if (!res.ok) {
