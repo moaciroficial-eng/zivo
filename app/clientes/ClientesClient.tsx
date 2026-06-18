@@ -162,6 +162,7 @@ export default function ClientesClient({
   const supabase = createClient()
   const [clientes, setClientes] = useState(initialClientes)
   const [drawer, setDrawer] = useState(false)
+  const [drawerTab, setDrawerTab] = useState<'dados' | 'historico'>('dados')
   const [editing, setEditing] = useState<Cliente | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -171,8 +172,6 @@ export default function ClientesClient({
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
-  const [historicoModal, setHistoricoModal] = useState(false)
-  const [historicoCliente, setHistoricoCliente] = useState<Cliente | null>(null)
   const [historicoVendas, setHistoricoVendas] = useState<HistoricoVenda[]>([])
   const [historicoCrediarios, setHistoricoCrediarios] = useState<HistoricoCrediario[]>([])
   const [loadingHistorico, setLoadingHistorico] = useState(false)
@@ -204,18 +203,21 @@ export default function ClientesClient({
       dia_pagamento: c.dia_pagamento?.toString() ?? '',
       observacoes: c.observacoes ?? '',
     })
-    setFormError(''); setDrawer(true)
+    setFormError(''); setDrawerTab('dados'); setDrawer(true)
+    loadHistorico(c)
+  }
+
+  function openPerfil(c: Cliente) {
+    openEdit(c)
+    setDrawerTab('historico')
   }
 
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
+    setHistoricoVendas([]); setHistoricoCrediarios([])
   }
 
-  async function openHistorico(c: Cliente) {
-    setHistoricoCliente(c)
-    setHistoricoVendas([])
-    setHistoricoCrediarios([])
-    setHistoricoModal(true)
+  async function loadHistorico(c: Cliente) {
     setLoadingHistorico(true)
     const [{ data: vendas }, { data: crediarios }] = await Promise.all([
       supabase.from('vendas').select('id, valor, data_venda, forma_pagamento, produtos')
@@ -226,6 +228,41 @@ export default function ClientesClient({
     setHistoricoVendas((vendas ?? []) as HistoricoVenda[])
     setHistoricoCrediarios((crediarios ?? []) as HistoricoCrediario[])
     setLoadingHistorico(false)
+  }
+
+  async function handleMarcarParcelaPaga(crediarioId: string, parcelaId: string) {
+    const cr = historicoCrediarios.find(c => c.id === crediarioId)
+    const parcela = cr?.parcelas_crediario.find(p => p.id === parcelaId)
+    if (!cr || !parcela || !editing) return
+    const today = new Date().toISOString().split('T')[0]
+    const { error } = await supabase
+      .from('parcelas_crediario')
+      .update({ pago: true, data_pagamento: today })
+      .eq('id', parcelaId)
+    if (error) { showToast(error.message, 'error'); return }
+    const { data: caixaAberto } = await supabase
+      .from('caixas').select('id').eq('user_id', user.id).eq('status', 'aberto').maybeSingle()
+    await supabase.from('vendas').insert({
+      user_id: user.id,
+      cliente_id: editing.id,
+      cliente_nome: editing.nome,
+      valor: parcela.valor,
+      data_venda: today,
+      forma_pagamento: 'crediario',
+      caixa_id: caixaAberto?.id ?? null,
+      produtos: [],
+    })
+    const updatedCrediarios = historicoCrediarios.map(c => {
+      if (c.id !== crediarioId) return c
+      const updatedParcelas = c.parcelas_crediario.map(p =>
+        p.id === parcelaId ? { ...p, pago: true, data_pagamento: today } : p
+      )
+      return { ...c, parcelas_crediario: updatedParcelas }
+    })
+    setHistoricoCrediarios(updatedCrediarios)
+    const allPaid = updatedCrediarios.find(c => c.id === crediarioId)?.parcelas_crediario.every(p => p.pago)
+    if (allPaid) await supabase.from('crediario').update({ status: 'quitado' }).eq('id', crediarioId)
+    showToast('Parcela recebida e lançada no faturamento.')
   }
 
   async function handleSave() {
@@ -431,7 +468,11 @@ export default function ClientesClient({
                 <tbody className="divide-y divide-zinc-800/60">
                   {filtered.map(c => (
                     <tr key={c.id} className="hover:bg-white/[0.025] transition group">
-                      <td className="px-4 py-3 font-medium whitespace-nowrap">{c.nome}</td>
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        <button onClick={() => openPerfil(c)} className="hover:text-violet-400 transition cursor-pointer text-left">
+                          {c.nome}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{c.telefone ?? <span className="text-zinc-700">—</span>}</td>
                       <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{c.email ?? <span className="text-zinc-700">—</span>}</td>
                       <td className="px-4 py-3">
@@ -482,13 +523,6 @@ export default function ClientesClient({
                           ) : (
                             <>
                               <button
-                                onClick={() => openHistorico(c)}
-                                className="p-1.5 text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"
-                                title="Histórico"
-                              >
-                                <IconHistory />
-                              </button>
-                              <button
                                 onClick={() => openEdit(c)}
                                 className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"
                                 title="Editar"
@@ -519,108 +553,6 @@ export default function ClientesClient({
         </p>
       </main>
 
-      {/* Modal Histórico */}
-      {historicoModal && historicoCliente && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setHistoricoModal(false)} />
-          <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col max-h-[88vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
-              <div>
-                <h2 className="font-semibold text-lg">Histórico</h2>
-                <p className="text-sm text-zinc-400">{historicoCliente.nome}</p>
-              </div>
-              <button onClick={() => setHistoricoModal(false)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer">
-                <IconX />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
-              {loadingHistorico ? (
-                <p className="text-sm text-zinc-500 text-center py-8">Carregando...</p>
-              ) : (
-                <>
-                  {/* Resumo */}
-                  {historicoVendas.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
-                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Compras</p>
-                        <p className="text-xl font-bold mt-0.5">{historicoVendas.length}</p>
-                      </div>
-                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
-                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total gasto</p>
-                        <p className="text-xl font-bold text-emerald-400 mt-0.5">
-                          {formatBRL(historicoVendas.reduce((s, v) => s + Number(v.valor), 0))}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Crediários abertos */}
-                  {historicoCrediarios.filter(c => c.status === 'aberto').length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Crediário em Aberto</p>
-                      <div className="flex flex-col gap-2">
-                        {historicoCrediarios.filter(c => c.status === 'aberto').map(cr => {
-                          const pendentes = cr.parcelas_crediario.filter(p => !p.pago)
-                          const restante = pendentes.reduce((s, p) => s + Number(p.valor), 0)
-                          return (
-                            <div key={cr.id} className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm font-medium">
-                                  {cr.num_parcelas}x de {formatBRL((Number(cr.valor_total) - Number(cr.valor_entrada)) / cr.num_parcelas)}
-                                  {cr.valor_entrada > 0 && <span className="text-zinc-500"> · entrada {formatBRL(cr.valor_entrada)}</span>}
-                                </p>
-                                <p className="text-sm font-bold text-amber-400">{formatBRL(restante)} restante</p>
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
-                                  <div key={p.id} className={`flex items-center justify-between text-xs ${p.pago ? 'text-zinc-600' : ''}`}>
-                                    <span>Parcela {p.numero} · {formatDate(p.data_vencimento)}</span>
-                                    <span className={p.pago ? 'text-emerald-600' : p.data_vencimento < new Date().toISOString().split('T')[0] ? 'text-red-400' : 'text-zinc-400'}>
-                                      {p.pago ? 'Paga' : formatBRL(p.valor)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Lista de compras */}
-                  {historicoVendas.length === 0 ? (
-                    <p className="text-sm text-zinc-500 text-center py-6">Nenhuma compra registrada para este cliente.</p>
-                  ) : (
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras</p>
-                      <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl overflow-hidden divide-y divide-zinc-800/60">
-                        {historicoVendas.map(v => {
-                          const prods = Array.isArray(v.produtos) ? v.produtos : []
-                          return (
-                            <div key={v.id} className="flex items-start justify-between px-4 py-3 gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">{formatDate(v.data_venda)}</p>
-                                <p className="text-xs text-zinc-500 mt-0.5">
-                                  {labelPagamento(v.forma_pagamento)}
-                                  {prods.length > 0 && ` · ${prods[0].nome}${prods.length > 1 ? ` +${prods.length - 1}` : ''}`}
-                                </p>
-                              </div>
-                              <p className="text-sm font-bold text-emerald-400 shrink-0">{formatBRL(Number(v.valor))}</p>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Drawer */}
       {drawer && (
         <div className="fixed inset-0 z-[200] flex items-end sm:items-stretch sm:justify-end">
@@ -632,13 +564,132 @@ export default function ClientesClient({
 
             {/* Drawer header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
-              <h2 className="font-semibold text-lg">{editing ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+              <div>
+                <h2 className="font-semibold text-lg">{editing ? editing.nome : 'Novo Cliente'}</h2>
+                {editing && <p className="text-xs text-zinc-500 mt-0.5">{editing.telefone ?? editing.email ?? 'Sem contato'}</p>}
+              </div>
               <button onClick={closeDrawer} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer">
                 <IconX />
               </button>
             </div>
 
-            {/* Drawer body */}
+            {/* Tabs — só para clientes existentes */}
+            {editing && (
+              <div className="flex border-b border-zinc-800 shrink-0">
+                <button
+                  onClick={() => setDrawerTab('dados')}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'dados' ? 'text-white border-b-2 border-violet-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Cadastro
+                </button>
+                <button
+                  onClick={() => setDrawerTab('historico')}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'historico' ? 'text-white border-b-2 border-violet-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Histórico
+                </button>
+              </div>
+            )}
+
+            {/* Drawer body — aba Histórico */}
+            {editing && drawerTab === 'historico' && (
+              <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5 flex flex-col gap-5">
+                {loadingHistorico ? (
+                  <p className="text-sm text-zinc-500 text-center py-10">Carregando...</p>
+                ) : (
+                  <>
+                    {/* Resumo */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Compras</p>
+                        <p className="text-xl font-bold mt-0.5">{historicoVendas.filter(v => v.forma_pagamento !== 'crediario' || !v.produtos || (v.produtos as {nome:string}[]).length === 0).length > 0 ? historicoVendas.filter(v => !(v.forma_pagamento === 'crediario' && Array.isArray(v.produtos) && v.produtos.length === 0)).length : historicoVendas.length}</p>
+                      </div>
+                      <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total gasto</p>
+                        <p className="text-xl font-bold text-emerald-400 mt-0.5">
+                          {formatBRL(historicoVendas.reduce((s, v) => s + Number(v.valor), 0))}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Crediários */}
+                    {historicoCrediarios.filter(c => c.status === 'aberto').length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Crediário em Aberto</p>
+                        <div className="flex flex-col gap-3">
+                          {historicoCrediarios.filter(c => c.status === 'aberto').map(cr => {
+                            const restante = cr.parcelas_crediario.filter(p => !p.pago).reduce((s, p) => s + Number(p.valor), 0)
+                            const today = new Date().toISOString().split('T')[0]
+                            return (
+                              <div key={cr.id} className="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-amber-500/10">
+                                  <p className="text-sm font-medium">
+                                    {cr.num_parcelas}x de {formatBRL((Number(cr.valor_total) - Number(cr.valor_entrada)) / cr.num_parcelas)}
+                                    {cr.valor_entrada > 0 && <span className="text-zinc-500 text-xs"> · entrada {formatBRL(cr.valor_entrada)}</span>}
+                                  </p>
+                                  <p className="text-sm font-bold text-amber-400">{formatBRL(restante)} restante</p>
+                                </div>
+                                <div className="divide-y divide-amber-500/10">
+                                  {cr.parcelas_crediario.sort((a, b) => a.numero - b.numero).map(p => (
+                                    <div key={p.id} className={`flex items-center justify-between px-4 py-2.5 ${p.pago ? 'opacity-40' : ''}`}>
+                                      <div>
+                                        <p className="text-sm font-medium">Parcela {p.numero} · {formatBRL(p.valor)}</p>
+                                        <p className={`text-xs mt-0.5 ${p.pago ? 'text-emerald-400' : p.data_vencimento < today ? 'text-red-400' : 'text-zinc-500'}`}>
+                                          {p.pago ? `Paga em ${formatDate(p.data_pagamento ?? p.data_vencimento)}` : p.data_vencimento < today ? `Atrasada · venceu ${formatDate(p.data_vencimento)}` : `Vence ${formatDate(p.data_vencimento)}`}
+                                        </p>
+                                      </div>
+                                      {!p.pago && (
+                                        <button
+                                          onClick={() => handleMarcarParcelaPaga(cr.id, p.id)}
+                                          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
+                                        >
+                                          <IconCheck size={12} /> Recebido
+                                        </button>
+                                      )}
+                                      {p.pago && <span className="text-xs text-emerald-500 flex items-center gap-1"><IconCheck size={12} /> Pago</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Histórico de compras */}
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras</p>
+                      {historicoVendas.length === 0 ? (
+                        <p className="text-sm text-zinc-500 text-center py-6">Nenhuma compra registrada.</p>
+                      ) : (
+                        <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl overflow-hidden divide-y divide-zinc-800/60">
+                          {historicoVendas.map(v => {
+                            const prods = Array.isArray(v.produtos) ? v.produtos as {nome:string;qtd:number}[] : []
+                            const isParcelaCr = v.forma_pagamento === 'crediario' && prods.length === 0
+                            return (
+                              <div key={v.id} className="flex items-start justify-between px-4 py-3 gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium">{formatDate(v.data_venda)}</p>
+                                  <p className="text-xs text-zinc-500 mt-0.5">
+                                    {isParcelaCr ? 'Crediário · parcela recebida' : labelPagamento(v.forma_pagamento)}
+                                    {!isParcelaCr && prods.length > 0 && ` · ${prods[0].nome}${prods.length > 1 ? ` +${prods.length - 1}` : ''}`}
+                                  </p>
+                                </div>
+                                <p className="text-sm font-bold text-emerald-400 shrink-0">{formatBRL(Number(v.valor))}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Drawer body — aba Cadastro */}
+            {(!editing || drawerTab === 'dados') && (
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6 flex flex-col gap-5">
 
               <Field label="Nome *">
@@ -734,8 +785,10 @@ export default function ClientesClient({
                 </p>
               )}
             </div>
+            )}
 
-            {/* Drawer footer */}
+            {/* Drawer footer — só na aba Cadastro */}
+            {(!editing || drawerTab === 'dados') && (
             <div className="px-6 py-4 border-t border-zinc-800 flex gap-3 shrink-0">
               <button
                 onClick={closeDrawer}
@@ -751,6 +804,7 @@ export default function ClientesClient({
                 {saving ? 'Salvando...' : editing ? 'Salvar Alterações' : 'Adicionar Cliente'}
               </button>
             </div>
+            )}
           </div>
         </div>
       )}
