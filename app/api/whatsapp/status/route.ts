@@ -2,19 +2,9 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import type { NextRequest } from 'next/server'
 
-const BASE_URL  = process.env.EVOLUTION_API_URL?.replace(/\/$/, '')
-const API_KEY   = process.env.EVOLUTION_API_KEY
-const INSTANCE  = process.env.EVOLUTION_INSTANCE
-
-async function evo(path: string) {
-  if (!BASE_URL || !API_KEY || !INSTANCE) throw new Error('Evolution API não configurada')
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { apikey: API_KEY },
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error(`Evolution ${res.status}`)
-  return res.json()
-}
+const INSTANCE = process.env.ZAPI_INSTANCE_ID
+const TOKEN    = process.env.ZAPI_TOKEN
+const BASE     = `https://api.z-api.io/instances/${INSTANCE}/token/${TOKEN}`
 
 export async function GET(request: NextRequest) {
   const supabase = createServerClient(
@@ -25,24 +15,16 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
+  if (!INSTANCE || !TOKEN) {
+    return NextResponse.json({ connected: false, error: 'Z-API não configurada' })
+  }
+
   try {
-    // Tenta pegar estado da conexão
-    const state = await evo(`/instance/connectionState/${INSTANCE}`)
-    const connected = state?.instance?.state === 'open' || state?.state === 'open'
-
-    if (connected) {
-      return NextResponse.json({ connected: true, qrcode: null })
-    }
-
-    // Desconectado — pede QR code
-    const connect = await evo(`/instance/connect/${INSTANCE}`)
-    const qrcode = connect?.base64 ?? connect?.qrcode?.base64 ?? null
-
-    return NextResponse.json({ connected: false, qrcode })
+    const res  = await fetch(`${BASE}/status`, { cache: 'no-store' })
+    const data = await res.json()
+    const connected = data?.connected === true
+    return NextResponse.json({ connected, qrcode: null, phone: data?.phone ?? null })
   } catch (err) {
-    return NextResponse.json(
-      { connected: false, qrcode: null, error: err instanceof Error ? err.message : 'Servidor offline' },
-      { status: 200 },
-    )
+    return NextResponse.json({ connected: false, error: err instanceof Error ? err.message : 'Erro Z-API' })
   }
 }

@@ -2,225 +2,180 @@ import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-function extractConteudo(message: Record<string, unknown>): { conteudo: string | null; tipo: string } {
-  if (message.conversation)        return { conteudo: message.conversation as string, tipo: 'texto' }
-  if (message.extendedTextMessage) return { conteudo: ((message.extendedTextMessage as Record<string, unknown>).text as string) ?? null, tipo: 'texto' }
-  if (message.imageMessage)        return { conteudo: ((message.imageMessage as Record<string, unknown>).caption as string) ?? '📷 Imagem', tipo: 'imagem' }
-  if (message.videoMessage)        return { conteudo: ((message.videoMessage as Record<string, unknown>).caption as string) ?? '🎥 Vídeo', tipo: 'video' }
-  if (message.audioMessage)        return { conteudo: '🎵 Áudio', tipo: 'audio' }
-  if (message.documentMessage)     return { conteudo: ((message.documentMessage as Record<string, unknown>).fileName as string) ?? '📄 Documento', tipo: 'documento' }
-  if (message.stickerMessage)      return { conteudo: '🎯 Sticker', tipo: 'sticker' }
-  if (message.locationMessage)     return { conteudo: '📍 Localização', tipo: 'localizacao' }
-  if (message.contactMessage)      return { conteudo: '👤 Contato', tipo: 'contato' }
+function extractZapi(body: Record<string, unknown>): { conteudo: string | null; tipo: string } {
+  if (body.text)     return { conteudo: (body.text as Record<string,unknown>).message as string ?? null, tipo: 'texto' }
+  if (body.image)    return { conteudo: (body.image as Record<string,unknown>).caption as string ?? '📷 Imagem', tipo: 'imagem' }
+  if (body.video)    return { conteudo: (body.video as Record<string,unknown>).caption as string ?? '🎥 Vídeo', tipo: 'video' }
+  if (body.audio)    return { conteudo: '🎵 Áudio', tipo: 'audio' }
+  if (body.document) return { conteudo: (body.document as Record<string,unknown>).fileName as string ?? '📄 Documento', tipo: 'documento' }
+  if (body.sticker)  return { conteudo: '🎯 Sticker', tipo: 'sticker' }
+  if (body.location) return { conteudo: `📍 ${(body.location as Record<string,unknown>).name ?? 'Localização'}`, tipo: 'localizacao' }
+  if (body.contact)  return { conteudo: '👤 Contato', tipo: 'contato' }
   return { conteudo: null, tipo: 'desconhecido' }
-}
-
-function normalizePhone(jid: unknown): string {
-  if (typeof jid !== 'string') return ''
-  // Remove device suffix (:1, :6…) antes do @, depois remove o domínio e não-dígitos
-  return jid.replace(/:\d+@.*$/, '').replace(/@.*$/, '').replace(/\D/g, '')
 }
 
 export async function POST(request: NextRequest) {
   try {
-    /* Lê como texto primeiro — nunca lança em body vazio */
     let body: unknown
     try {
       const text = await request.text()
       if (text) body = JSON.parse(text)
-    } catch { /* ignora body inválido */ }
+    } catch { return NextResponse.json({ ok: true }) }
 
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ ok: true })
     }
 
     const payload = body as Record<string, unknown>
-    const event   = payload.event as string | undefined
 
-    /* Só processa eventos reais se as env vars estiverem configuradas */
     const userId      = process.env.WHATSAPP_USER_ID
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!userId || !supabaseUrl || !supabaseKey) {
-      console.warn('Webhook recebido mas env vars não configuradas:', { userId: !!userId, supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey })
+      console.warn('Webhook: env vars ausentes')
       return NextResponse.json({ ok: true })
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    /* ── messages.upsert ── */
-    if (event === 'messages.upsert') {
-      const rawData = payload.data
-      if (!rawData) return NextResponse.json({ ok: true })
+    /* Z-API envia cada mensagem como um objeto raiz */
+    const phone    = typeof payload.phone === 'string' ? payload.phone.replace(/\D/g, '') : null
+    const fromMe   = Boolean(payload.fromMe)
+    const isGroup  = Boolean(payload.isGroup)
+    const msgType  = payload.type as string | undefined
 
-      const messages: unknown[] = Array.isArray(rawData) ? rawData : [rawData]
+    /* Ignora grupos, broadcasts e pings sem telefone */
+    if (!phone || isGroup) return NextResponse.json({ ok: true })
 
-      for (const rawMsg of messages) {
-        try {
-          if (!rawMsg || typeof rawMsg !== 'object') continue
-          const msg = rawMsg as Record<string, unknown>
-
-          const key       = msg.key as Record<string, unknown> | undefined
-          const remoteJid = key?.remoteJid
-          const fromMe    = Boolean(key?.fromMe)
-
-          /* Ignora mensagens sem JID, grupos e broadcasts */
-          if (typeof remoteJid !== 'string') continue
-          if (remoteJid.endsWith('@g.us') || remoteJid.endsWith('@broadcast')) continue
-
-          const messageId = key?.id as string | undefined
-          const pushName  = msg.pushName as string | null | undefined
-          const message   = msg.message as Record<string, unknown> | undefined
-          const tsRaw     = msg.messageTimestamp as number | undefined
-          const phone     = normalizePhone(remoteJid)
-
-          if (!phone) continue
-
-          const timestamp = new Date((tsRaw ?? Date.now() / 1000) * 1000).toISOString()
-          const { conteudo, tipo } = message ? extractConteudo(message) : { conteudo: null, tipo: 'desconhecido' }
-          const direcao = fromMe ? 'enviada' : 'recebida'
-
-          /* Tenta vincular ao cliente pelo telefone */
-          let clienteId: string | null = null
-          const phoneLast = phone.slice(-8)
-          const { data: clienteMatch } = await supabase
-            .from('clientes')
-            .select('id')
-            .eq('user_id', userId)
-            .filter('telefone', 'ilike', `%${phoneLast}`)
-            .maybeSingle()
-          if (clienteMatch) clienteId = clienteMatch.id
-
-          /* Funil: cliente existente = fundo/meio, desconhecido = topo */
-          const funilEtapa = clienteId ? 'fundo' : 'topo'
-
-          /* Upsert contato */
-          const { data: contato, error: contatoErr } = await supabase
-            .from('whatsapp_contatos')
-            .upsert(
-              {
-                user_id: userId,
-                phone,
-                jid: remoteJid,
-                nome: pushName ?? phone,
-                ultima_mensagem: conteudo ?? tipo,
-                ultima_mensagem_at: timestamp,
-                cliente_id: clienteId,
-                funil_etapa: funilEtapa,
-              },
-              { onConflict: 'user_id,phone', ignoreDuplicates: false },
-            )
-            .select('id, nao_lidas')
-            .single()
-
-          if (contatoErr || !contato) {
-            console.error('Erro upsert contato:', contatoErr)
-            continue
-          }
-
-          if (direcao === 'recebida') {
-            await supabase
-              .from('whatsapp_contatos')
-              .update({ nao_lidas: ((contato.nao_lidas as number) ?? 0) + 1 })
-              .eq('id', contato.id)
-          }
-
-          await supabase
-            .from('whatsapp_mensagens')
-            .upsert(
-              {
-                user_id:    userId,
-                contato_id: contato.id,
-                message_id: messageId,
-                direcao,
-                tipo,
-                conteudo,
-                status:     fromMe ? 'enviada' : 'recebida',
-                timestamp,
-                raw:        msg,
-              },
-              { onConflict: 'message_id', ignoreDuplicates: true },
-            )
-        } catch (msgErr) {
-          console.error('Erro ao processar msg individual:', msgErr)
-        }
+    /* Status updates (delivery/read) */
+    if (msgType === 'DeliveryCallback' || msgType === 'ReadCallback' || msgType === 'MessageStatusCallback') {
+      const msgId  = payload.messageId as string | undefined
+      const status = msgType === 'ReadCallback' ? 'lida' : 'entregue'
+      if (msgId) {
+        await supabase.from('whatsapp_mensagens').update({ status }).eq('message_id', msgId)
       }
-
       return NextResponse.json({ ok: true })
     }
 
-    /* ── messages.update ── */
-    if (event === 'messages.update') {
-      const rawUpdates = payload.data
-      const updates: unknown[] = Array.isArray(rawUpdates) ? rawUpdates : []
+    /* Mensagens recebidas e enviadas */
+    if (msgType !== 'ReceivedCallback' && msgType !== 'SentCallback') {
+      return NextResponse.json({ ok: true, ignored: msgType })
+    }
 
-      for (const rawUpd of updates) {
-        try {
-          if (!rawUpd || typeof rawUpd !== 'object') continue
-          const upd    = rawUpd as Record<string, unknown>
-          const key    = upd.key as Record<string, unknown> | undefined
-          const status = upd.status as string | undefined
-          const msgId  = key?.id as string | undefined
+    const messageId  = payload.messageId as string | undefined
+    const senderName = payload.senderName as string | null | undefined
+    const momment    = payload.momment as number | undefined
+    const timestamp  = new Date(momment ?? Date.now()).toISOString()
+    const direcao    = fromMe ? 'enviada' : 'recebida'
+    const { conteudo, tipo } = extractZapi(payload)
 
-          if (!msgId || !status) continue
+    /* Matching automático com cliente pelo telefone */
+    let clienteId: string | null = null
+    const phoneLast = phone.slice(-8)
+    const { data: clienteMatch } = await supabase
+      .from('clientes')
+      .select('id, nome')
+      .eq('user_id', userId)
+      .filter('telefone', 'ilike', `%${phoneLast}`)
+      .maybeSingle()
+    if (clienteMatch) clienteId = clienteMatch.id
 
-          const mapped =
-            status === 'READ'          ? 'lida'     :
-            status === 'DELIVERY_ACK'  ? 'entregue' : null
+    const funilEtapa = clienteId ? 'fundo' : 'topo'
+    const nomeContato = senderName ?? clienteMatch?.nome ?? phone
 
-          if (mapped) {
-            await supabase
-              .from('whatsapp_mensagens')
-              .update({ status: mapped })
-              .eq('message_id', msgId)
-          }
-        } catch (updErr) {
-          console.error('Erro ao processar update:', updErr)
-        }
-      }
+    /* Verifica se vem de link de campanha */
+    let campanhaId: string | null = null
+    if (!fromMe && conteudo) {
+      const { data: camp } = await supabase
+        .from('campanhas')
+        .select('id')
+        .eq('user_id', userId)
+        .filter('link_rastreamento', 'ilike', `%${conteudo.slice(0, 30)}%`)
+        .maybeSingle()
+      if (camp) campanhaId = camp.id
+    }
 
+    /* Upsert contato */
+    const upsertData: Record<string, unknown> = {
+      user_id: userId,
+      phone,
+      nome: nomeContato,
+      ultima_mensagem: conteudo ?? tipo,
+      ultima_mensagem_at: timestamp,
+      cliente_id: clienteId,
+      funil_etapa: funilEtapa,
+    }
+    if (campanhaId) upsertData.campanha_id = campanhaId
+
+    const { data: contato, error: contatoErr } = await supabase
+      .from('whatsapp_contatos')
+      .upsert(upsertData, { onConflict: 'user_id,phone', ignoreDuplicates: false })
+      .select('id, nao_lidas')
+      .single()
+
+    if (contatoErr || !contato) {
+      console.error('Erro upsert contato:', contatoErr)
       return NextResponse.json({ ok: true })
     }
 
-    return NextResponse.json({ ok: true, ignored: event })
+    /* Incrementa não lidas */
+    if (direcao === 'recebida') {
+      await supabase
+        .from('whatsapp_contatos')
+        .update({ nao_lidas: ((contato.nao_lidas as number) ?? 0) + 1 })
+        .eq('id', contato.id)
+    }
+
+    /* Insere mensagem */
+    await supabase.from('whatsapp_mensagens').upsert(
+      {
+        user_id:    userId,
+        contato_id: contato.id,
+        message_id: messageId,
+        direcao,
+        tipo,
+        conteudo,
+        status: fromMe ? 'enviada' : 'recebida',
+        timestamp,
+        raw: payload,
+      },
+      { onConflict: 'message_id', ignoreDuplicates: true },
+    )
+
+    /* Se for lead de campanha, registra em campanha_leads */
+    if (campanhaId && !fromMe) {
+      await supabase.from('campanha_leads').upsert(
+        {
+          user_id: userId,
+          campanha_id: campanhaId,
+          contato_id: contato.id,
+          cliente_id: clienteId,
+          phone,
+          nome: nomeContato,
+          status: 'novo',
+        },
+        { onConflict: 'campanha_id,phone' as never, ignoreDuplicates: true },
+      )
+    }
+
+    return NextResponse.json({ ok: true })
 
   } catch (err) {
-    console.error('Erro fatal no webhook:', err)
+    console.error('Webhook erro:', err)
     return NextResponse.json({ ok: true })
   }
 }
 
-export async function GET(_request: NextRequest) {
-  const userId      = process.env.WHATSAPP_USER_ID
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  let contatosInfo: unknown = 'env vars ausentes'
-  if (userId && supabaseUrl && supabaseKey) {
-    const supabase = createClient(supabaseUrl, supabaseKey)
-    const { data, error } = await supabase
-      .from('whatsapp_contatos')
-      .select('id, phone, nome, user_id')
-      .eq('user_id', userId)
-      .limit(5)
-    contatosInfo = error ? error.message : (data ?? []).map(c => ({
-      nome: c.nome,
-      phone: c.phone,
-      user_id_prefix: (c.user_id as string)?.slice(0, 8),
-    }))
-  }
-
+export async function GET() {
   return NextResponse.json({
     status: 'ok',
-    webhook: 'zivo-whatsapp',
+    webhook: 'zivo-zapi',
     env: {
-      WHATSAPP_USER_ID:          !!userId,
-      SUPABASE_SERVICE_ROLE_KEY: !!supabaseKey,
-      WHATSAPP_WEBHOOK_SECRET:   !!process.env.WHATSAPP_WEBHOOK_SECRET,
-      NEXT_PUBLIC_SUPABASE_URL:  !!supabaseUrl,
+      WHATSAPP_USER_ID:          !!process.env.WHATSAPP_USER_ID,
+      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      ZAPI_INSTANCE_ID:          !!process.env.ZAPI_INSTANCE_ID,
+      ZAPI_TOKEN:                !!process.env.ZAPI_TOKEN,
     },
-    whatsapp_user_id_prefix: userId?.slice(0, 8) ?? null,
-    contatos_encontrados: contatosInfo,
   })
 }
