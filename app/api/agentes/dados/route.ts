@@ -188,17 +188,34 @@ Regras:
     const estoque = await estoqueRes.json().catch(() => ({ encontrou: false }))
 
     /* Gera sugestão de resposta com IA */
-    const nomeCliente = contato?.nome?.split(' ')[0] ?? 'Olá'
+    const nomeCliente = contato?.nome?.split(' ')[0] ?? ''
     const promptResposta = estoque.encontrou
-      ? `Você é atendente de loja de roupas. Cliente chamado ${nomeCliente} perguntou sobre: ${consulta.produto} ${consulta.marca ?? ''} ${consulta.cor ?? ''} tamanho ${consulta.tamanho ?? ''}.
+      ? `Você é o Agente Vendedor de uma loja de roupas masculinas. Seu objetivo é vender de forma natural e humana via WhatsApp.
 
-Produtos disponíveis no estoque:
+CONTEXTO DA CONVERSA:
+${conversa}
+
+PRODUTOS DISPONÍVEIS NO ESTOQUE:
 ${estoque.resumo}
 
-Escreva UMA resposta curta, amigável e direta para WhatsApp (máx 2 linhas). Confirme que tem o produto, informe opções disponíveis e pergunte se quer reservar. Use o nome do cliente.`
-      : `Você é atendente de loja de roupas. Cliente chamado ${nomeCliente} perguntou sobre: ${consulta.produto} ${consulta.marca ?? ''} ${consulta.cor ?? ''} tamanho ${consulta.tamanho ?? ''}.
+REGRAS:
+- Responda em continuidade natural à última mensagem do cliente, não como script
+- Use o nome "${nomeCliente}" se ajudar a soar pessoal
+- Confirme que tem o produto de forma animada mas não exagerada
+- O próximo passo SEMPRE é oferecer mandar foto ("posso te mandar uma foto?") — cliente de loja de roupa não compra sem ver
+- Seja breve: máx 2-3 linhas
+- Tom: amigo que entende de moda, não vendedor chato
+- NÃO mencione "reservar" ainda — o objetivo agora é despertar o desejo com a foto
 
-Não temos esse produto no estoque. Escreva UMA resposta curta e amigável para WhatsApp (máx 2 linhas) informando que não temos no momento e se quiser pode perguntar sobre outras opções similares.`
+Escreva APENAS a mensagem a enviar, sem explicação:`
+      : `Você é o Agente Vendedor de uma loja de roupas masculinas.
+
+CONTEXTO DA CONVERSA:
+${conversa}
+
+Não temos exatamente o que o cliente pediu. Escreva uma resposta curta e honesta para WhatsApp informando que não temos no momento, mas deixando a porta aberta (ex: "mas tenho outras opções bem parecidas, quer que eu te mande foto de algumas?").
+
+Seja breve e natural. Escreva APENAS a mensagem:`
 
     const respostaIA = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
