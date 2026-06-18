@@ -630,7 +630,9 @@ export default function VendasClient({
   async function handleSaveWithPayment() {
     setSaving(true)
     const fp = buildFP()
-    const valor = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
+    const totalVenda = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
+    // crediário: só a entrada entra no caixa agora; o restante é recebido nas parcelas
+    const valor = fp === 'crediario' ? (parseFloat(crEntrada) || 0) : totalVenda
     const payload = {
       user_id: user.id,
       cliente_id: form.clienteId || null,
@@ -654,7 +656,7 @@ export default function VendasClient({
 
     if (fp === 'crediario' && data) {
       const entrada = parseFloat(crEntrada) || 0
-      const restante = Math.max(0, valor - entrada)
+      const restante = Math.max(0, totalVenda - entrada)
       const numParcelas = crParcelas ?? 1
       const valorParcela = numParcelas > 0 ? restante / numParcelas : restante
       const { data: crData, error: crError } = await supabase.from('crediario').insert({
@@ -662,7 +664,7 @@ export default function VendasClient({
         venda_id: data.id,
         cliente_id: payload.cliente_id,
         cliente_nome: payload.cliente_nome,
-        valor_total: valor,
+        valor_total: totalVenda,
         valor_entrada: entrada,
         num_parcelas: numParcelas,
         status: 'aberto',
@@ -699,14 +701,29 @@ export default function VendasClient({
 
   async function handleMarcarPago(crediarioId: string, parcelaId: string) {
     const today = new Date().toISOString().split('T')[0]
+    const cr = crediarios.find(c => c.id === crediarioId)
+    const parcela = cr?.parcelas_crediario.find(p => p.id === parcelaId)
+    if (!cr || !parcela) return
+
     const { error } = await supabase
       .from('parcelas_crediario')
       .update({ pago: true, data_pagamento: today })
       .eq('id', parcelaId)
     if (error) { showToast(error.message, 'error'); return }
 
-    const cr = crediarios.find(c => c.id === crediarioId)
-    if (!cr) return
+    // Registra o recebimento como entrada no faturamento
+    const { data: novaVenda } = await supabase.from('vendas').insert({
+      user_id: user.id,
+      cliente_id: cr.cliente_id,
+      cliente_nome: cr.cliente_nome,
+      valor: parcela.valor,
+      data_venda: today,
+      forma_pagamento: 'crediario',
+      caixa_id: caixa?.id ?? null,
+      produtos: [],
+    }).select().single()
+    if (novaVenda) setVendas(vs => [novaVenda, ...vs])
+
     const updatedParcelas = cr.parcelas_crediario.map(p =>
       p.id === parcelaId ? { ...p, pago: true, data_pagamento: today } : p
     )
@@ -719,7 +736,7 @@ export default function VendasClient({
         c.id === crediarioId ? { ...c, parcelas_crediario: updatedParcelas } : c
       ))
     }
-    showToast('Parcela marcada como paga.')
+    showToast('Parcela recebida e lançada no faturamento.')
   }
 
   /* ── Save edit ── */
