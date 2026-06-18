@@ -75,10 +75,46 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [statusError, setStatusError] = useState<string | null>(null)
   const [checkingStatus, setCheckingStatus] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
+  const [novaConversa, setNovaConversa] = useState(false)
+  const [novaSearch, setNovaSearch] = useState('')
+  const [novaNumero, setNovaNumero] = useState('')
+  const [clientes, setClientes] = useState<{id:string;nome:string;telefone:string|null}[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
+
+  /* ── Nova conversa ── */
+  async function abrirNovaConversa() {
+    setNovaConversa(true)
+    setNovaSearch('')
+    setNovaNumero('')
+    if (clientes.length === 0) {
+      const { data } = await supabase.from('clientes').select('id, nome, telefone').order('nome')
+      setClientes((data ?? []) as {id:string;nome:string;telefone:string|null}[])
+    }
+  }
+
+  async function iniciarConversa(phone: string, nome: string) {
+    const normalized = phone.replace(/\D/g, '')
+    const number = normalized.startsWith('55') ? normalized : `55${normalized}`
+    if (!number || number.length < 10) return
+    setNovaConversa(false)
+
+    // Verifica se já existe contato
+    const existing = contatos.find(c => c.phone === number)
+    if (existing) { openContato(existing.id); return }
+
+    // Cria contato no banco e abre a conversa
+    const { data: novo } = await supabase.from('whatsapp_contatos').upsert(
+      { user_id: user.id, phone: number, nome, funil_etapa: 'desconhecido', nao_lidas: 0 },
+      { onConflict: 'user_id,phone' }
+    ).select().single()
+    if (novo) {
+      setContatos(cs => [novo as Contato, ...cs])
+      openContato((novo as Contato).id)
+    }
+  }
 
   /* ── Status da conexão WhatsApp ── */
   async function checkStatus() {
@@ -329,17 +365,94 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
         {/* ── Lista de contatos ── */}
         <aside className={`
-          ${view === 'chat' ? 'hidden' : 'flex'} md:flex
+          ${view === 'chat' ? 'hidden' : 'flex'} md:flex relative
           flex-col w-full md:w-72 lg:w-80 border-r border-zinc-800 shrink-0 bg-zinc-950
         `}>
-          <div className="p-3 border-b border-zinc-800">
+          <div className="p-3 border-b border-zinc-800 flex gap-2">
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar..."
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 transition-colors [color-scheme:dark]"
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 transition-colors [color-scheme:dark]"
             />
+            <button
+              onClick={abrirNovaConversa}
+              title="Nova conversa"
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-violet-600 hover:bg-violet-500 transition shrink-0 cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
           </div>
+
+          {/* Modal nova conversa */}
+          {novaConversa && (
+            <div className="absolute inset-0 z-50 bg-zinc-950/95 flex flex-col" style={{width: 'inherit', maxWidth: 'inherit'}}>
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
+                <button onClick={() => setNovaConversa(false)} className="text-zinc-400 hover:text-white transition cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                </button>
+                <h2 className="text-sm font-semibold">Nova conversa</h2>
+              </div>
+
+              {/* Digitar número avulso */}
+              <div className="px-4 py-3 border-b border-zinc-800">
+                <p className="text-xs text-zinc-500 mb-2">Número avulso</p>
+                <div className="flex gap-2">
+                  <input
+                    value={novaNumero}
+                    onChange={e => setNovaNumero(e.target.value)}
+                    placeholder="(62) 99999-9999"
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 [color-scheme:dark]"
+                    onKeyDown={e => e.key === 'Enter' && novaNumero.trim() && iniciarConversa(novaNumero, novaNumero)}
+                  />
+                  <button
+                    onClick={() => novaNumero.trim() && iniciarConversa(novaNumero, novaNumero)}
+                    className="px-3 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium transition cursor-pointer"
+                  >
+                    Ir
+                  </button>
+                </div>
+              </div>
+
+              {/* Clientes cadastrados */}
+              <div className="px-4 pt-3 pb-1">
+                <p className="text-xs text-zinc-500 mb-2">Clientes cadastrados</p>
+                <input
+                  value={novaSearch}
+                  onChange={e => setNovaSearch(e.target.value)}
+                  placeholder="Buscar cliente..."
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 [color-scheme:dark]"
+                  autoFocus
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {clientes
+                  .filter(c => c.telefone && (
+                    c.nome.toLowerCase().includes(novaSearch.toLowerCase()) ||
+                    (c.telefone ?? '').includes(novaSearch)
+                  ))
+                  .map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => iniciarConversa(c.telefone!, c.nome)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/60 transition cursor-pointer text-left border-b border-zinc-800/30"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-violet-600/20 text-violet-300 flex items-center justify-center text-sm font-semibold shrink-0 uppercase">
+                        {c.nome[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{c.nome}</p>
+                        <p className="text-xs text-zinc-500">{c.telefone}</p>
+                      </div>
+                    </button>
+                  ))
+                }
+                {clientes.filter(c => c.telefone).length === 0 && (
+                  <p className="text-xs text-zinc-600 text-center py-6">Nenhum cliente com telefone cadastrado.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto">
             {filtered.length === 0 && (
