@@ -189,33 +189,32 @@ Regras:
 
     /* Gera sugestão de resposta com IA */
     const nomeCliente = contato?.nome?.split(' ')[0] ?? ''
-    const promptResposta = estoque.encontrou
-      ? `Você é o Agente Vendedor de uma loja de roupas masculinas. Seu objetivo é vender de forma natural e humana via WhatsApp.
+    const clientePediu = `${consulta.produto ?? ''} ${consulta.cor ?? ''} ${consulta.marca ?? ''} tamanho ${consulta.tamanho ?? ''}`.trim()
 
-CONTEXTO DA CONVERSA:
+    const promptResposta = `Você é o Agente Vendedor de uma loja de roupas masculinas. Pensa como um vendedor experiente — resolve o problema do cliente, não desiste na primeira falta.
+
+CONVERSA ATÉ AGORA:
 ${conversa}
 
-PRODUTOS DISPONÍVEIS NO ESTOQUE:
-${estoque.resumo}
+O CLIENTE PEDIU: ${clientePediu}
+
+CATÁLOGO DISPONÍVEL NO ESTOQUE (${estoque.total ?? 0} itens):
+${estoque.catalogo ?? 'Nenhum produto encontrado.'}
+
+SUA TAREFA:
+1. Analise o catálogo e veja se tem exatamente o que o cliente pediu
+2. Se TEM: confirme de forma animada e SEMPRE pergunte "posso te mandar uma foto?" — ninguém compra roupa sem ver
+3. Se NÃO TEM exatamente: pense como vendedor — o que tem de mais próximo? (mesma peça em outra cor, cor parecida, produto similar?) Seja honesto mas ofereça a alternativa mais próxima com entusiasmo. Ex: "No preto não tenho no P, mas tenho uma polo no azul marinho que fica incrível. Posso te mandar foto?"
+4. Se não tem NADA próximo: seja honesto e curto
 
 REGRAS:
-- Responda em continuidade natural à última mensagem do cliente, não como script
-- Use o nome "${nomeCliente}" se ajudar a soar pessoal
-- Confirme que tem o produto de forma animada mas não exagerada
-- O próximo passo SEMPRE é oferecer mandar foto ("posso te mandar uma foto?") — cliente de loja de roupa não compra sem ver
-- Seja breve: máx 2-3 linhas
-- Tom: amigo que entende de moda, não vendedor chato
-- NÃO mencione "reservar" ainda — o objetivo agora é despertar o desejo com a foto
+- Responda em continuidade natural da conversa, não como script
+- Use "${nomeCliente}" no máximo uma vez se ajudar a soar pessoal
+- Máx 2-3 linhas — WhatsApp é conversa, não catálogo
+- Tom: amigo que entende de moda e quer ajudar, não vendedor robô
+- NÃO mencione "reservar" ainda — o próximo passo é a foto
 
 Escreva APENAS a mensagem a enviar, sem explicação:`
-      : `Você é o Agente Vendedor de uma loja de roupas masculinas.
-
-CONTEXTO DA CONVERSA:
-${conversa}
-
-Não temos exatamente o que o cliente pediu. Escreva uma resposta curta e honesta para WhatsApp informando que não temos no momento, mas deixando a porta aberta (ex: "mas tenho outras opções bem parecidas, quer que eu te mande foto de algumas?").
-
-Seja breve e natural. Escreva APENAS a mensagem:`
 
     const respostaIA = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -231,13 +230,12 @@ Seja breve e natural. Escreva APENAS a mensagem:`
       contato_id: contatoId,
       acao:       `[SUGESTÃO] ${sugestao}`,
       resultado: {
-        tipo:           'sugestao_resposta',
-        urgencia:       'alta',
+        tipo:       'sugestao_resposta',
+        urgencia:   'alta',
         sugestao,
-        contato:        contato?.nome,
-        contato_id:     contatoId,
-        encontrou:      estoque.encontrou,
-        produtos:       estoque.itens ?? [],
+        contato:    contato?.nome,
+        contato_id: contatoId,
+        total:      estoque.total ?? 0,
         consulta,
       },
     })

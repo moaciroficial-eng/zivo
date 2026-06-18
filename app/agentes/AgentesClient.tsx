@@ -195,7 +195,7 @@ export default function AgentesClient({
                     <>
                       <p className="text-[11px] text-violet-400 font-semibold mb-1">
                         SUGESTÃO DE RESPOSTA — {r.contato as string}
-                        {r.encontrou ? ' ✓ tem no estoque' : ' ✗ não tem no estoque'}
+                        {(r.total as number) > 0 ? ` · ${r.total} itens analisados` : ' · sem estoque da marca'}
                       </p>
                       <p className="text-sm text-zinc-100 leading-snug bg-zinc-900/60 rounded-lg px-3 py-2 border border-zinc-700">
                         {r.sugestao as string}
