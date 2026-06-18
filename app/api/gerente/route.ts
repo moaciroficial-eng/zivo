@@ -58,7 +58,7 @@ Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON
   "tarefa": {
     "titulo": "título curto da tarefa",
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
-    "instrucao": "instrução detalhada para o agente executar a conversa — inclua: o objetivo, as perguntas a fazer em ordem, como guardar as respostas e como encerrar a conversa com agradecimento",
+    "instrucao": "instrução detalhada para o agente executar a conversa. PARA ATUALIZAR CADASTRO: perguntar APENAS (1) nome completo se o contato tiver só o primeiro nome, (2) data de nascimento, (3) tamanho de camiseta, (4) numeração de calça. Nada mais — sem CPF, endereço, email. Ser leve e rápido. Encerrar agradecendo.",
     "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo",
     "contatos_especificos": ["id-uuid-aqui"] // use quando o supervisor mencionar pessoa(s) específica(s) pelo nome — preencha com os IDs da lista acima
   }
