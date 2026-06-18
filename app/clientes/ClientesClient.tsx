@@ -31,12 +31,21 @@ type FormState = {
   observacoes: string
 }
 
+type ProdutoHistorico = {
+  nome: string
+  qtd: number
+  tamanho?: string
+  preco_unitario?: number
+  desconto?: number
+  estoque_id?: string
+}
+
 type HistoricoVenda = {
   id: string
   valor: number
   data_venda: string
   forma_pagamento: string | null
-  produtos: { nome: string; qtd: number }[]
+  produtos: ProdutoHistorico[]
 }
 
 type HistoricoCrediario = {
@@ -175,7 +184,7 @@ export default function ClientesClient({
   const [historicoVendas, setHistoricoVendas] = useState<HistoricoVenda[]>([])
   const [historicoCrediarios, setHistoricoCrediarios] = useState<HistoricoCrediario[]>([])
   const [loadingHistorico, setLoadingHistorico] = useState(false)
-  const [expandedVenda, setExpandedVenda] = useState<string | null>(null)
+
   const [pagandoParcelaCliente, setPagandoParcelaCliente] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
 
   function field(key: keyof FormState) {
@@ -600,7 +609,7 @@ export default function ClientesClient({
                 {loadingHistorico ? (
                   <p className="text-sm text-zinc-500 text-center py-10">Carregando...</p>
                 ) : (() => {
-                  type Prod = { nome: string; qtd: number; tamanho?: string; preco_unitario?: number; desconto?: number }
+                  type Prod = ProdutoHistorico
                   const compras = historicoVendas.filter(v => {
                     const prods = Array.isArray(v.produtos) ? v.produtos as Prod[] : []
                     return prods.length > 0
@@ -699,64 +708,80 @@ export default function ClientesClient({
                         </div>
                       )}
 
-                      {/* Lista de compras com produtos expandíveis */}
+                      {/* Lista de compras detalhada */}
                       <div>
                         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras</p>
                         {compras.length === 0 ? (
                           <p className="text-sm text-zinc-500 text-center py-6">Nenhuma compra com produtos registrada.</p>
                         ) : (
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-3">
                             {compras.map(v => {
                               const prods = (Array.isArray(v.produtos) ? v.produtos : []) as Prod[]
-                              const isOpen = expandedVenda === v.id
+                              const fpParts = v.forma_pagamento?.includes('+')
+                                ? v.forma_pagamento.split('+').map(s => {
+                                    const [m] = s.split(':')
+                                    return labelMetodo(m ?? '')
+                                  }).join(' + ')
+                                : labelPagamento(v.forma_pagamento)
                               return (
                                 <div key={v.id} className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl overflow-hidden">
-                                  {/* Cabeçalho — clicável */}
-                                  <button
-                                    onClick={() => setExpandedVenda(isOpen ? null : v.id)}
-                                    className="w-full flex items-center justify-between px-4 py-3 gap-3 hover:bg-zinc-700/30 transition cursor-pointer text-left"
-                                  >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <p className="text-sm font-semibold">{formatDate(v.data_venda)}</p>
-                                        <span className="text-xs text-zinc-500 bg-zinc-700/60 px-2 py-0.5 rounded-md">{labelPagamento(v.forma_pagamento)}</span>
-                                      </div>
-                                      <p className="text-xs text-zinc-400 mt-0.5">
-                                        {prods.length} {prods.length === 1 ? 'produto' : 'produtos'} · {prods.map(p => p.nome).join(', ').slice(0, 50)}{prods.map(p => p.nome).join(', ').length > 50 ? '…' : ''}
-                                      </p>
+                                  {/* Cabeçalho da venda */}
+                                  <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700/50">
+                                    <div>
+                                      <p className="text-sm font-semibold">{formatDate(v.data_venda)}</p>
+                                      <p className="text-xs text-zinc-500 mt-0.5">{fpParts}</p>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <p className="text-sm font-bold text-emerald-400">{formatBRL(Number(v.valor))}</p>
-                                      <span className={`text-zinc-500 text-xs transition-transform duration-200 inline-block ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-                                    </div>
-                                  </button>
+                                    <p className="text-base font-bold text-emerald-400">{formatBRL(Number(v.valor))}</p>
+                                  </div>
 
-                                  {/* Detalhes dos produtos */}
-                                  {isOpen && (
-                                    <div className="border-t border-zinc-700/60 divide-y divide-zinc-700/40">
-                                      {prods.map((p, i) => {
-                                        const linha = p.preco_unitario
-                                          ? p.preco_unitario * p.qtd * (1 - (p.desconto ?? 0) / 100)
-                                          : null
-                                        return (
-                                          <div key={i} className="flex items-center justify-between px-4 py-2.5 gap-3">
-                                            <div className="min-w-0 flex-1">
-                                              <p className="text-sm font-medium truncate">{p.nome}</p>
-                                              <p className="text-xs text-zinc-500 mt-0.5">
-                                                Qtd: {p.qtd}
-                                                {p.tamanho && ` · Tam: ${p.tamanho}`}
-                                                {p.preco_unitario && ` · ${formatBRL(p.preco_unitario)} un.`}
-                                                {p.desconto && p.desconto > 0 ? ` · ${p.desconto}% desc.` : ''}
-                                              </p>
+                                  {/* Produtos */}
+                                  <div className="divide-y divide-zinc-800/60">
+                                    {prods.map((p, i) => {
+                                      const linha = p.preco_unitario
+                                        ? p.preco_unitario * p.qtd * (1 - (p.desconto ?? 0) / 100)
+                                        : null
+                                      const inner = (
+                                        <div className="flex items-start justify-between gap-3 px-4 py-3">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <p className="text-sm font-semibold text-white">{p.nome}</p>
+                                              {p.tamanho && (
+                                                <span className="text-xs bg-zinc-700/70 text-zinc-300 px-1.5 py-0.5 rounded">
+                                                  {p.tamanho}
+                                                </span>
+                                              )}
+                                              {p.estoque_id && (
+                                                <span className="text-xs text-violet-400">Ver no estoque ↗</span>
+                                              )}
                                             </div>
-                                            {linha != null && (
-                                              <p className="text-sm font-semibold text-zinc-200 shrink-0">{formatBRL(linha)}</p>
-                                            )}
+                                            <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                              <span className="text-xs text-zinc-500">Qtd: {p.qtd}</span>
+                                              {p.preco_unitario && (
+                                                <span className="text-xs text-zinc-500">{formatBRL(p.preco_unitario)} un.</span>
+                                              )}
+                                              {p.desconto && p.desconto > 0 ? (
+                                                <span className="text-xs text-amber-400">-{p.desconto}% desc.</span>
+                                              ) : null}
+                                            </div>
                                           </div>
-                                        )
-                                      })}
-                                    </div>
-                                  )}
+                                          {linha != null && (
+                                            <p className="text-sm font-bold text-zinc-200 shrink-0">{formatBRL(linha)}</p>
+                                          )}
+                                        </div>
+                                      )
+                                      return p.estoque_id ? (
+                                        <Link
+                                          key={i}
+                                          href={`/estoque/${p.estoque_id}/editar`}
+                                          className="block hover:bg-zinc-700/30 transition"
+                                        >
+                                          {inner}
+                                        </Link>
+                                      ) : (
+                                        <div key={i}>{inner}</div>
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                               )
                             })}

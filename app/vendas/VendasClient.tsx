@@ -7,7 +7,7 @@ import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeSc
 
 /* ── Types ─────────────────────────────────────────────────── */
 
-type Produto = { nome: string; qtd: number; tamanho?: string; preco_unitario?: number; desconto?: number; preco_custo?: number }
+type Produto = { nome: string; qtd: number; tamanho?: string; preco_unitario?: number; desconto?: number; preco_custo?: number; estoque_id?: string }
 
 type Venda = {
   id: string
@@ -649,6 +649,7 @@ export default function VendasClient({
         preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
         desconto: p.desconto ? Number(p.desconto) : null,
         preco_custo: p.precoCusto ? Number(p.precoCusto) : null,
+        estoque_id: p.estoqueId || undefined,
       })),
     }
     const { data, error } = await supabase.from('vendas').insert(payload).select().single()
@@ -761,6 +762,7 @@ export default function VendasClient({
         preco_unitario: p.precoUnitario ? Number(p.precoUnitario) : null,
         desconto: p.desconto ? Number(p.desconto) : null,
         preco_custo: p.precoCusto ? Number(p.precoCusto) : null,
+        estoque_id: p.estoqueId || undefined,
       })),
     }
     const { data, error } = await supabase.from('vendas').update(payload).eq('id', editing!.id).select()
