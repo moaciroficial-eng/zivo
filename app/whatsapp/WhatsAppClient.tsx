@@ -176,6 +176,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
   useEffect(() => { checkStatus() }, [])
 
+  /* Pede permissão de notificação na primeira visita */
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
   /* Busca fotos dos contatos que ainda não têm */
   useEffect(() => {
     const semFoto = contatos.filter(c => !c.foto_url && c.phone)
@@ -269,6 +276,24 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         if (msg.direcao === 'recebida') {
           supabase.from('whatsapp_contatos').update({ nao_lidas: 0 }).eq('id', selectedId)
           setContatos(cs => cs.map(c => c.id === selectedId ? { ...c, nao_lidas: 0 } : c))
+          /* Notificação do navegador se não estiver com o foco */
+          if (document.hidden || document.visibilityState !== 'visible') {
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              const nome = contatos.find(c => c.id === selectedId)?.nome ?? 'WhatsApp'
+              new Notification(nome, { body: msg.conteudo ?? '📷 Mídia', icon: '/icon.png', tag: 'wa-msg' })
+            }
+          }
+          /* Som suave */
+          try {
+            const ctx = new AudioContext()
+            const osc = ctx.createOscillator()
+            const g = ctx.createGain()
+            osc.connect(g); g.connect(ctx.destination)
+            osc.frequency.value = 840
+            g.gain.setValueAtTime(0.15, ctx.currentTime)
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25)
+            osc.start(); osc.stop(ctx.currentTime + 0.25)
+          } catch { /* silencioso se bloqueado */ }
         }
       })
       .on('postgres_changes', {

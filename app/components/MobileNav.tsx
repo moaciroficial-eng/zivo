@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 const TABS = [
   {
@@ -65,6 +67,22 @@ const TABS = [
 
 export default function MobileNav() {
   const pathname = usePathname()
+  const [waNaoLidas, setWaNaoLidas] = useState(0)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return
+      const { data: rows } = await supabase.from('whatsapp_contatos').select('nao_lidas').eq('user_id', data.user.id)
+      setWaNaoLidas((rows ?? []).reduce((s, r) => s + ((r.nao_lidas as number) ?? 0), 0))
+      supabase.channel('mobile-wa')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_contatos' }, async () => {
+          const { data: fresh } = await supabase.from('whatsapp_contatos').select('nao_lidas').eq('user_id', data.user!.id)
+          setWaNaoLidas((fresh ?? []).reduce((s, r) => s + ((r.nao_lidas as number) ?? 0), 0))
+        })
+        .subscribe()
+    })
+  }, [])
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/95 border-t border-zinc-800 flex items-stretch" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -78,7 +96,14 @@ export default function MobileNav() {
               active ? 'text-violet-400' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <span className={`transition-transform ${active ? 'scale-110' : ''}`}>{tab.icon}</span>
+            <span className={`relative transition-transform ${active ? 'scale-110' : ''}`}>
+              {tab.icon}
+              {tab.href === '/whatsapp' && waNaoLidas > 0 && (
+                <span className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] bg-green-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+                  {waNaoLidas > 99 ? '99+' : waNaoLidas}
+                </span>
+              )}
+            </span>
             <span className={`text-[10px] font-medium leading-none ${active ? 'text-violet-400' : 'text-zinc-600'}`}>
               {tab.label}
             </span>

@@ -109,10 +109,11 @@ const NAV = [
   },
 ]
 
-function NavItem({ href, label, icon, onClick }: {
+function NavItem({ href, label, icon, badge, onClick }: {
   href: string
   label: string
   icon: React.ReactNode
+  badge?: number
   onClick?: () => void
 }) {
   const pathname = usePathname()
@@ -133,20 +134,37 @@ function NavItem({ href, label, icon, onClick }: {
         {icon}
       </span>
       {label}
-      {active && (
-        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
-      )}
+      {badge && badge > 0
+        ? <span className="ml-auto min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shrink-0">{badge > 99 ? '99+' : badge}</span>
+        : active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+      }
     </Link>
   )
 }
 
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [email, setEmail] = useState('')
+  const [waNaoLidas, setWaNaoLidas] = useState(0)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       setEmail(data.user?.email ?? '')
+      if (!data.user) return
+      /* Total de mensagens não lidas */
+      const { data: rows } = await supabase
+        .from('whatsapp_contatos')
+        .select('nao_lidas')
+        .eq('user_id', data.user.id)
+      const total = (rows ?? []).reduce((s, r) => s + ((r.nao_lidas as number) ?? 0), 0)
+      setWaNaoLidas(total)
+      /* Realtime para atualizar badge */
+      supabase.channel('sidebar-wa')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_contatos' }, async () => {
+          const { data: fresh } = await supabase.from('whatsapp_contatos').select('nao_lidas').eq('user_id', data.user!.id)
+          setWaNaoLidas((fresh ?? []).reduce((s, r) => s + ((r.nao_lidas as number) ?? 0), 0))
+        })
+        .subscribe()
     })
   }, [])
 
@@ -184,7 +202,12 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
             </p>
             <div className="space-y-0.5">
               {items.map(item => (
-                <NavItem key={item.href} {...item} onClick={onClose} />
+                <NavItem
+                  key={item.href}
+                  {...item}
+                  onClick={onClose}
+                  badge={item.href === '/whatsapp' ? waNaoLidas : undefined}
+                />
               ))}
             </div>
           </div>
