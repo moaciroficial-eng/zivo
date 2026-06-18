@@ -176,6 +176,26 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
   useEffect(() => { checkStatus() }, [])
 
+  /* Busca fotos dos contatos que ainda não têm */
+  useEffect(() => {
+    const semFoto = contatos.filter(c => !c.foto_url && c.phone)
+    if (semFoto.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      for (const c of semFoto) {
+        if (cancelled) break
+        try {
+          const res = await fetch(`/api/whatsapp/foto?phone=${c.phone}&contatoId=${c.id}`)
+          const data = await res.json()
+          if (data.photo) {
+            setContatos(prev => prev.map(x => x.id === c.id ? { ...x, foto_url: data.photo } : x))
+          }
+        } catch { /* silencioso */ }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [contatos.length])
+
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
     if (!selectedId) { setMensagens([]); return }
@@ -470,8 +490,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   selectedId === c.id ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
                 }`}
               >
-                <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm font-semibold text-zinc-200 uppercase select-none">
-                  {(c.nome ?? c.phone)[0]}
+                <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm font-semibold text-zinc-200 uppercase select-none overflow-hidden">
+                  {c.foto_url
+                    ? <img src={c.foto_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    : (c.nome ?? c.phone)[0]
+                  }
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-1">
@@ -517,8 +540,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     <path d="M19 12H5M12 5l-7 7 7 7"/>
                   </svg>
                 </button>
-                <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-semibold uppercase text-zinc-200 select-none">
-                  {(selectedContato.nome ?? selectedContato.phone)[0]}
+                <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-semibold uppercase text-zinc-200 select-none overflow-hidden">
+                  {selectedContato.foto_url
+                    ? <img src={selectedContato.foto_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    : (selectedContato.nome ?? selectedContato.phone)[0]
+                  }
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold leading-tight">

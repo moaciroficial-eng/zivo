@@ -111,12 +111,33 @@ export async function POST(request: NextRequest) {
     const { data: contato, error: contatoErr } = await supabase
       .from('whatsapp_contatos')
       .upsert(upsertData, { onConflict: 'user_id,phone', ignoreDuplicates: false })
-      .select('id, nao_lidas')
+      .select('id, nao_lidas, foto_url')
       .single()
 
     if (contatoErr || !contato) {
       console.error('Erro upsert contato:', contatoErr)
       return NextResponse.json({ ok: true })
+    }
+
+    /* Busca foto de perfil se o contato for novo (sem foto) */
+    const zapiInstance = process.env.ZAPI_INSTANCE_ID
+    const zapiToken    = process.env.ZAPI_TOKEN
+    const contatoAtual = contato as { id: string; nao_lidas: number; foto_url?: string | null }
+    if (!contatoAtual.foto_url && !fromMe && zapiInstance && zapiToken) {
+      try {
+        const number = phone.startsWith('55') ? phone : `55${phone}`
+        const fotoRes = await fetch(
+          `https://api.z-api.io/instances/${zapiInstance}/token/${zapiToken}/profile-picture?phone=${number}`,
+          { cache: 'no-store' }
+        )
+        if (fotoRes.ok) {
+          const fotoData = await fotoRes.json()
+          const fotoUrl = fotoData?.photo ?? fotoData?.url ?? null
+          if (fotoUrl) {
+            await supabase.from('whatsapp_contatos').update({ foto_url: fotoUrl }).eq('id', contato.id)
+          }
+        }
+      } catch { /* silencioso */ }
     }
 
     /* Incrementa não lidas */
