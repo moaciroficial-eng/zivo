@@ -71,6 +71,13 @@ Responda APENAS com JSON válido neste formato exato:
   "perfil_compra": "impulsivo | planejado | promocao | presente",
   "temperatura": "frio | morno | quente",
   "resumo": "1-2 frases descrevendo o perfil e momento de compra deste cliente",
+  "consulta_produto": {
+    "ativo": true,
+    "produto": "ex: polo, camisa, calça",
+    "marca": "ex: Aramis",
+    "cor": "ex: preta",
+    "tamanho": "ex: P"
+  },
   "alertas": [
     {
       "tipo": "oportunidade | cobranca | relacionamento | campanha",
@@ -84,8 +91,9 @@ Regras:
 - temperatura "quente" = demonstrou interesse real em comprar agora
 - temperatura "morno" = curioso mas sem urgência
 - temperatura "frio" = só respondeu ou sem interesse claro
-- alertas: gere APENAS se houver algo realmente relevante (cliente querendo comprar, dívida, muito tempo sem comprar, etc)
-- Se não tiver dados suficientes para inferir um campo, use null ou []`
+- consulta_produto.ativo = true APENAS se o cliente perguntou explicitamente se tem algum produto (ex: "tem polo da Aramis?", "procuro camisa M")
+- alertas: gere APENAS se houver algo realmente relevante
+- Se não tiver dados suficientes para um campo, use null ou []`
 
   let parsed: Record<string, unknown>
   try {
@@ -159,6 +167,63 @@ Regras:
         resultado:  { urgencia: alerta.urgencia, contato: contato?.nome, tipo: alerta.tipo, mensagem: alerta.mensagem },
       })
     }
+  }
+
+  /* Pipeline: se cliente perguntou sobre produto, consulta Agente de Estoque */
+  const consulta = parsed.consulta_produto as Record<string, unknown> | null | undefined
+  if (consulta?.ativo && agente?.id) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+
+    const estoqueRes = await fetch(`${baseUrl}/api/agentes/estoque`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        produto: consulta.produto ?? null,
+        marca:   consulta.marca ?? null,
+        cor:     consulta.cor ?? null,
+        tamanho: consulta.tamanho ?? null,
+      }),
+    })
+    const estoque = await estoqueRes.json().catch(() => ({ encontrou: false }))
+
+    /* Gera sugestão de resposta com IA */
+    const nomeCliente = contato?.nome?.split(' ')[0] ?? 'Olá'
+    const promptResposta = estoque.encontrou
+      ? `Você é atendente de loja de roupas. Cliente chamado ${nomeCliente} perguntou sobre: ${consulta.produto} ${consulta.marca ?? ''} ${consulta.cor ?? ''} tamanho ${consulta.tamanho ?? ''}.
+
+Produtos disponíveis no estoque:
+${estoque.resumo}
+
+Escreva UMA resposta curta, amigável e direta para WhatsApp (máx 2 linhas). Confirme que tem o produto, informe opções disponíveis e pergunte se quer reservar. Use o nome do cliente.`
+      : `Você é atendente de loja de roupas. Cliente chamado ${nomeCliente} perguntou sobre: ${consulta.produto} ${consulta.marca ?? ''} ${consulta.cor ?? ''} tamanho ${consulta.tamanho ?? ''}.
+
+Não temos esse produto no estoque. Escreva UMA resposta curta e amigável para WhatsApp (máx 2 linhas) informando que não temos no momento e se quiser pode perguntar sobre outras opções similares.`
+
+    const respostaIA = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: promptResposta }],
+    })
+    const sugestao = (respostaIA.content[0] as { text: string }).text.trim()
+
+    /* Salva como alerta especial de sugestão de resposta */
+    await supabase.from('agente_logs').insert({
+      user_id:    userId,
+      agente_id:  agente.id,
+      contato_id: contatoId,
+      acao:       `[SUGESTÃO] ${sugestao}`,
+      resultado: {
+        tipo:           'sugestao_resposta',
+        urgencia:       'alta',
+        sugestao,
+        contato:        contato?.nome,
+        contato_id:     contatoId,
+        encontrou:      estoque.encontrou,
+        produtos:       estoque.itens ?? [],
+        consulta,
+      },
+    })
   }
 
   return NextResponse.json({

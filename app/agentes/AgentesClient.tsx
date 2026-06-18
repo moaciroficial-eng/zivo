@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 const AGENTES_SISTEMA = [
   {
@@ -84,9 +85,28 @@ export default function AgentesClient({
   agentes: Agente[]; logs: Log[]; insights: Insight[]
 }) {
   const [tab, setTab] = useState<'agentes' | 'alertas' | 'perfis'>('agentes')
+  const [enviando, setEnviando] = useState<string | null>(null)
+  const router = useRouter()
 
   const agenteMap = Object.fromEntries(agentes.map(a => [a.tipo, a]))
   const alertas = logs.filter(l => l.acao.startsWith('['))
+
+  async function enviarSugestao(log: Log) {
+    const r = log.resultado
+    if (!r?.contato_id || !r?.sugestao) return
+    setEnviando(log.id)
+    try {
+      /* Busca telefone do contato */
+      const res = await fetch('/api/agentes/enviar-sugestao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoId: r.contato_id, mensagem: r.sugestao, logId: log.id }),
+      })
+      if (res.ok) router.refresh()
+    } finally {
+      setEnviando(null)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col p-4 md:p-6 max-w-5xl mx-auto w-full gap-6">
@@ -155,22 +175,54 @@ export default function AgentesClient({
             </div>
           )}
           {alertas.map(log => {
-            const urgencia = (log.resultado?.urgencia as string) ?? 'baixa'
-            const corUrg = urgencia === 'alta' ? 'border-red-500/40 bg-red-500/5' : urgencia === 'media' ? 'border-orange-500/40 bg-orange-500/5' : 'border-zinc-700 bg-zinc-900'
+            const r = log.resultado ?? {}
+            const tipo = (r.tipo as string) ?? ''
+            const urgencia = (r.urgencia as string) ?? 'baixa'
+            const isSugestao = tipo === 'sugestao_resposta'
+            const corUrg = isSugestao
+              ? 'border-violet-500/40 bg-violet-500/5'
+              : urgencia === 'alta' ? 'border-red-500/40 bg-red-500/5'
+              : urgencia === 'media' ? 'border-orange-500/40 bg-orange-500/5'
+              : 'border-zinc-700 bg-zinc-900'
+
             return (
               <div key={log.id} className={`rounded-xl border p-4 flex gap-3 ${corUrg}`}>
                 <span className="text-lg shrink-0">
-                  {urgencia === 'alta' ? '🚨' : urgencia === 'media' ? '⚠️' : 'ℹ️'}
+                  {isSugestao ? '💬' : urgencia === 'alta' ? '🚨' : urgencia === 'media' ? '⚠️' : 'ℹ️'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-100 leading-snug">{log.acao}</p>
-                  <div className="flex gap-3 mt-1.5 text-[11px] text-zinc-500">
-                    <span>{log.agentes?.nome ?? 'Agente'}</span>
-                    <span>{fmtDate(log.created_at)}</span>
-                    <span className={`font-semibold ${urgencia === 'alta' ? 'text-red-400' : urgencia === 'media' ? 'text-orange-400' : 'text-zinc-500'}`}>
-                      {urgencia.toUpperCase()}
-                    </span>
-                  </div>
+                  {isSugestao ? (
+                    <>
+                      <p className="text-[11px] text-violet-400 font-semibold mb-1">
+                        SUGESTÃO DE RESPOSTA — {r.contato as string}
+                        {r.encontrou ? ' ✓ tem no estoque' : ' ✗ não tem no estoque'}
+                      </p>
+                      <p className="text-sm text-zinc-100 leading-snug bg-zinc-900/60 rounded-lg px-3 py-2 border border-zinc-700">
+                        {r.sugestao as string}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <button
+                          onClick={() => enviarSugestao(log)}
+                          disabled={enviando === log.id}
+                          className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
+                        >
+                          {enviando === log.id ? 'Enviando...' : '▶ Enviar pelo WhatsApp'}
+                        </button>
+                        <span className="text-[11px] text-zinc-500">{fmtDate(log.created_at)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-zinc-100 leading-snug">{log.acao}</p>
+                      <div className="flex gap-3 mt-1.5 text-[11px] text-zinc-500">
+                        <span>{log.agentes?.nome ?? 'Agente'}</span>
+                        <span>{fmtDate(log.created_at)}</span>
+                        <span className={`font-semibold ${urgencia === 'alta' ? 'text-red-400' : urgencia === 'media' ? 'text-orange-400' : 'text-zinc-500'}`}>
+                          {urgencia.toUpperCase()}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )
