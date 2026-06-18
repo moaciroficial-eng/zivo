@@ -180,6 +180,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    /* Dispara Agente de Dados em background (não bloqueia o webhook) */
+    if (direcao === 'recebida') {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+      fetch(`${baseUrl}/api/agentes/dados`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoId: contato.id, userId }),
+      }).catch(() => { /* silencioso */ })
+    }
+
     return NextResponse.json({ ok: true })
 
   } catch (err) {
