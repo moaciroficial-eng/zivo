@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res  = await fetch(`${BASE}/status`, { cache: 'no-store', headers: { 'Client-Token': TOKEN! } })
+    const res  = await fetch(`${BASE}/status`, { cache: 'no-store', headers: { 'Client-Token': process.env.ZAPI_CLIENT_TOKEN ?? TOKEN! } })
     const data = await res.json()
     const connected = data?.connected === true
     return NextResponse.json({ connected, qrcode: null, phone: data?.phone ?? null })
