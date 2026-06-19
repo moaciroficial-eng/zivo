@@ -27,13 +27,13 @@ export async function POST(request: NextRequest) {
     .from('whatsapp_contatos')
     .select('id, nome, phone, funil_etapa, cliente_id')
     .eq('user_id', user.id)
-    .limit(200)
+    .limit(1000)
 
   const { data: clientes } = await admin
     .from('clientes')
     .select('id, nome, telefone, data_nascimento')
     .eq('user_id', user.id)
-    .limit(200)
+    .limit(1000)
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
 
