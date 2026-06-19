@@ -180,9 +180,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+    const baseUrl    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+    const ownerPhone = (process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+    const isOwner    = ownerPhone.length > 0 && phone.slice(-10) === ownerPhone.slice(-10)
 
     if (direcao === 'recebida') {
+
+      /* Dono respondeu via WhatsApp pessoal → encaminha para escalação pendente */
+      if (isOwner && conteudo) {
+        const { data: escalacoes } = await supabase
+          .from('atendimento_escalacoes')
+          .select('id, contato_id, whatsapp_contatos(phone)')
+          .eq('user_id', userId)
+          .eq('status', 'pendente')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        const escal = escalacoes?.[0] ?? null
+        if (escal) {
+          const clientePhone = (escal.whatsapp_contatos as { phone: string } | null)?.phone
+          if (clientePhone) {
+            /* Envia resposta do dono ao cliente */
+            fetch(`${baseUrl}/api/whatsapp/send`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ phone: clientePhone, message: conteudo, contatoId: escal.contato_id }),
+            }).catch(() => null)
+          }
+          await supabase.from('atendimento_escalacoes').update({
+            status:         'respondida',
+            resposta_owner: conteudo,
+            updated_at:     new Date().toISOString(),
+          }).eq('id', escal.id)
+          return NextResponse.json({ ok: true })
+        }
+      }
+
       /* Verifica se há conversa automatizada ativa para este contato */
       const { data: estadosAtivos } = await supabase
         .from('agente_conversa_estado')
@@ -194,23 +226,29 @@ export async function POST(request: NextRequest) {
       const estadoAtivo = estadosAtivos?.[0] ?? null
 
       if (estadoAtivo) {
-        /* Continua a conversa automatizada */
+        /* Continua a conversa automatizada do Gerente */
         fetch(`${baseUrl}/api/gerente/executar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId,
-            tarefaId:       estadoAtivo.tarefa_id,
-            contatoId:      contato.id,
+            tarefaId:        estadoAtivo.tarefa_id,
+            contatoId:       contato.id,
             respostaContato: conteudo,
           }),
         }).catch(() => null)
       } else {
-        /* Dispara Agente de Dados normalmente */
+        /* Agente de Dados (análise) + Agente de Atendimento (resposta automática) */
         fetch(`${baseUrl}/api/agentes/dados`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contatoId: contato.id, userId }),
+        }).catch(() => null)
+
+        fetch(`${baseUrl}/api/agentes/atendimento`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contatoId: contato.id, userId, mensagem: conteudo }),
         }).catch(() => null)
       }
     }
