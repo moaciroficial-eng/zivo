@@ -35,22 +35,27 @@ export async function POST(request: NextRequest) {
     .eq('user_id', user.id)
     .limit(200)
 
-  const totalContatos = contatos?.length ?? 0
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
 
-  /* Lista de contatos para o Gerente referenciar por nome */
+  /* Lista de contatos WhatsApp (já conversaram) */
   const listaContatos = (contatos ?? [])
-    .map((c: { id: string; nome: string; phone: string }) => `- ${c.nome ?? c.phone} (id: ${c.id})`)
+    .map((c: { id: string; nome: string; phone: string }) => `- ${c.nome ?? c.phone} (whatsapp_id: ${c.id})`)
+    .join('\n')
+
+  /* Lista de clientes do cadastro (têm telefone mas podem não ter conversado ainda) */
+  const listaClientes = (clientes ?? [])
+    .map((c: { id: string; nome: string; telefone: string; data_nascimento: string | null }) =>
+      `- ${c.nome} | tel: ${c.telefone ?? 'sem telefone'} | nasc: ${c.data_nascimento ?? 'não informado'} (cliente_id: ${c.id})`)
     .join('\n')
 
   const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
 Você recebe comandos do dono da loja e coordena os agentes para executar.
 
-CONTATOS DISPONÍVEIS NO WHATSAPP:
-${listaContatos}
+CONTATOS QUE JÁ CONVERSARAM NO WHATSAPP:
+${listaContatos || '(nenhum ainda)'}
 
-DADOS DA LOJA:
-- Clientes sem data de nascimento: ${semCadastroCompleto}
+CLIENTES NO CADASTRO (com telefone para iniciar conversa):
+${listaClientes || '(nenhum ainda)'}
 
 Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON:
 {
@@ -60,11 +65,16 @@ Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
     "instrucao": "instrução detalhada para o agente executar a conversa. PARA ATUALIZAR CADASTRO: perguntar APENAS (1) nome completo se o contato tiver só o primeiro nome, (2) data de nascimento, (3) tamanho de camiseta, (4) numeração de calça. Nada mais — sem CPF, endereço, email. Ser leve e rápido. Encerrar agradecendo.",
     "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo",
-    "contatos_especificos": ["id-uuid-aqui"] // use quando o supervisor mencionar pessoa(s) específica(s) pelo nome — preencha com os IDs da lista acima
+    "contatos_especificos": [],
+    "clientes_especificos": []
   }
 }
 
-REGRA IMPORTANTE: Se o supervisor mencionar um nome específico (ex: "só a Maria", "manda pra Maria Eduarda"), use "contatos_especificos" com o ID correto da lista. Só use "filtro_contatos" quando for um grupo genérico.
+REGRAS IMPORTANTES:
+- Se o supervisor mencionar alguém pelo nome que está na lista WHATSAPP: use "contatos_especificos" com o whatsapp_id
+- Se o supervisor mencionar alguém que está apenas no CADASTRO (não no WhatsApp): use "clientes_especificos" com o cliente_id — o sistema vai criar o contato e mandar a mensagem pelo telefone do cadastro
+- Só use "filtro_contatos" quando for um grupo genérico (todos, sem nascimento, etc.)
+- Nunca misture: use contatos_especificos OU clientes_especificos, não os dois
 
 Se for apenas uma pergunta ou conversa (sem tarefa), responda em JSON:
 {
@@ -107,6 +117,12 @@ IMPORTANTE: Responda SEMPRE em JSON válido.`
         .eq('user_id', user.id)
         .in('id', parsed.tarefa.contatos_especificos)
       previewContatos = (preview ?? []) as { id: string; nome: string }[]
+    } else if (parsed.tarefa.clientes_especificos?.length > 0) {
+      const { data: preview } = await admin
+        .from('clientes').select('id, nome')
+        .eq('user_id', user.id)
+        .in('id', parsed.tarefa.clientes_especificos)
+      previewContatos = (preview ?? []) as { id: string; nome: string }[]
     } else {
       let q = admin.from('whatsapp_contatos').select('id, nome').eq('user_id', user.id)
       if (parsed.tarefa.filtro_contatos === 'funil_topo') q = q.eq('funil_etapa', 'topo')
@@ -147,8 +163,38 @@ export async function PUT(request: NextRequest) {
   /* Seleciona contatos com base no filtro ou lista específica */
   let contatosList: { id: string; nome: string; phone: string }[] = []
 
-  if (tarefa.contatos_especificos?.length > 0) {
-    /* Contatos nomeados explicitamente pelo supervisor */
+  if (tarefa.clientes_especificos?.length > 0) {
+    /* Clientes do cadastro — cria contato no WhatsApp se ainda não existir */
+    const { data: clientesDados } = await admin
+      .from('clientes')
+      .select('id, nome, telefone')
+      .eq('user_id', user.id)
+      .in('id', tarefa.clientes_especificos)
+
+    for (const cli of (clientesDados ?? [])) {
+      if (!cli.telefone) continue
+      const phone = cli.telefone.replace(/\D/g, '')
+      const { data: contatoExistente } = await admin
+        .from('whatsapp_contatos')
+        .select('id, nome, phone')
+        .eq('user_id', user.id)
+        .eq('phone', phone)
+        .maybeSingle()
+
+      if (contatoExistente) {
+        contatosList.push(contatoExistente as { id: string; nome: string; phone: string })
+      } else {
+        /* Cria contato novo */
+        const { data: novoContato } = await admin
+          .from('whatsapp_contatos')
+          .insert({ user_id: user.id, phone, nome: cli.nome, cliente_id: cli.id, funil_etapa: 'fundo' })
+          .select('id, nome, phone')
+          .single()
+        if (novoContato) contatosList.push(novoContato as { id: string; nome: string; phone: string })
+      }
+    }
+  } else if (tarefa.contatos_especificos?.length > 0) {
+    /* Contatos nomeados explicitamente pelo supervisor (já no WhatsApp) */
     const { data } = await admin
       .from('whatsapp_contatos')
       .select('id, nome, phone')
