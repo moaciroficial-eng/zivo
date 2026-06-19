@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const normalized = phone.replace(/\D/g, '')
     const number = normalized.startsWith('55') ? normalized : `55${normalized}`
-    const res = await fetch(`${BASE}/profile-picture?phone=${number}`, { cache: 'no-store' })
+    const res = await fetch(`${BASE}/profile-picture?phone=${number}`, { cache: 'no-store', headers: { 'Client-Token': TOKEN! } })
     if (!res.ok) return NextResponse.json({ photo: null })
     const data = await res.json()
     const photo: string | null = data?.link ?? data?.photo ?? data?.url ?? null

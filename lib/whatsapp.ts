@@ -14,7 +14,10 @@ export async function sendWhatsAppMessage({ phone, message }: SendOptions): Prom
 
   const res = await fetch(`${BASE}/send-text`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Client-Token': TOKEN,
+    },
     body: JSON.stringify({ phone: number, message }),
   })
 

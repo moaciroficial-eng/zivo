@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         const number = phone.startsWith('55') ? phone : `55${phone}`
         const fotoRes = await fetch(
           `https://api.z-api.io/instances/${zapiInstance}/token/${zapiToken}/profile-picture?phone=${number}`,
-          { cache: 'no-store' }
+          { cache: 'no-store', headers: { 'Client-Token': zapiToken } }
         )
         if (fotoRes.ok) {
           const fotoData = await fotoRes.json()
