@@ -246,11 +246,13 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ contatoId: contato.id, userId }),
         }).catch(() => null)
 
-        fetch(`${baseUrl}/api/agentes/atendimento`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contatoId: contato.id, userId, mensagem: conteudo }),
-        }).catch(() => null)
+        if (tipo === 'texto' && conteudo) {
+          fetch(`${baseUrl}/api/agentes/atendimento`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contatoId: contato.id, userId, mensagem: conteudo }),
+          }).catch(() => null)
+        }
       }
     }
 

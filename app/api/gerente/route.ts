@@ -175,7 +175,8 @@ export async function PUT(request: NextRequest) {
 
     for (const cli of (clientesDados ?? [])) {
       if (!cli.telefone) continue
-      const phone = cli.telefone.replace(/\D/g, '')
+      const raw   = cli.telefone.replace(/\D/g, '')
+      const phone = raw.startsWith('55') ? raw : `55${raw}`
       const { data: contatoExistente } = await admin
         .from('whatsapp_contatos')
         .select('id, nome, phone')
@@ -186,7 +187,6 @@ export async function PUT(request: NextRequest) {
       if (contatoExistente) {
         contatosList.push(contatoExistente as { id: string; nome: string; phone: string })
       } else {
-        /* Cria contato novo */
         const { data: novoContato } = await admin
           .from('whatsapp_contatos')
           .insert({ user_id: user.id, phone, nome: cli.nome, cliente_id: cli.id, funil_etapa: 'fundo' })
