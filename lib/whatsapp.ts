@@ -1,6 +1,6 @@
 const INSTANCE     = process.env.ZAPI_INSTANCE_ID
 const TOKEN        = process.env.ZAPI_TOKEN
-const CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN
+const CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN?.replace(/^﻿/, '').trim()
 const BASE         = `https://api.z-api.io/instances/${INSTANCE}/token/${TOKEN}`
 
 type SendOptions = { phone: string; message: string }
