@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   try {
     const normalized = phone.replace(/\D/g, '')
     const number = normalized.startsWith('55') ? normalized : `55${normalized}`
-    const res = await fetch(`${BASE}/profile-picture?phone=${number}`, { cache: 'no-store', headers: { 'Client-Token': process.env.ZAPI_CLIENT_TOKEN ?? TOKEN! } })
+    const clientToken = (process.env.ZAPI_CLIENT_TOKEN ?? TOKEN!).replace(/^﻿/, '').trim()
+    const res = await fetch(`${BASE}/profile-picture?phone=${number}`, { cache: 'no-store', headers: { 'Client-Token': clientToken } })
     if (!res.ok) return NextResponse.json({ photo: null })
     const data = await res.json()
     const photo: string | null = data?.link ?? data?.photo ?? data?.url ?? null
