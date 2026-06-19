@@ -197,7 +197,8 @@ export async function POST(request: NextRequest) {
           .limit(1)
         const escal = escalacoes?.[0] ?? null
         if (escal) {
-          const clientePhone = (escal.whatsapp_contatos as { phone: string } | null)?.phone
+          const wc = escal.whatsapp_contatos as unknown as { phone: string } | null
+          const clientePhone = wc?.phone
           if (clientePhone) {
             /* Envia resposta do dono ao cliente */
             fetch(`${baseUrl}/api/whatsapp/send`, {
