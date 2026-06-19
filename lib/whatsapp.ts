@@ -1,12 +1,16 @@
-const INSTANCE = process.env.ZAPI_INSTANCE_ID
-const TOKEN    = process.env.ZAPI_TOKEN
-const BASE     = `https://api.z-api.io/instances/${INSTANCE}/token/${TOKEN}`
+const INSTANCE     = process.env.ZAPI_INSTANCE_ID
+const TOKEN        = process.env.ZAPI_TOKEN
+const CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN
+const BASE         = `https://api.z-api.io/instances/${INSTANCE}/token/${TOKEN}`
 
 type SendOptions = { phone: string; message: string }
 
 export async function sendWhatsAppMessage({ phone, message }: SendOptions): Promise<{ messageId?: string }> {
   if (!INSTANCE || !TOKEN) {
     throw new Error('Z-API não configurada. Verifique ZAPI_INSTANCE_ID e ZAPI_TOKEN.')
+  }
+  if (!CLIENT_TOKEN) {
+    throw new Error('Z-API não configurada. Verifique ZAPI_CLIENT_TOKEN.')
   }
 
   const normalized = phone.replace(/\D/g, '')
@@ -16,7 +20,7 @@ export async function sendWhatsAppMessage({ phone, message }: SendOptions): Prom
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Client-Token': TOKEN,
+      'Client-Token': CLIENT_TOKEN,
     },
     body: JSON.stringify({ phone: number, message }),
   })
