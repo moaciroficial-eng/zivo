@@ -37,25 +37,27 @@ export async function POST(request: NextRequest) {
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
 
-  /* Lista de contatos WhatsApp (já conversaram) */
-  const listaContatos = (contatos ?? [])
-    .map((c: { id: string; nome: string; phone: string }) => `- ${c.nome ?? c.phone} (whatsapp_id: ${c.id})`)
-    .join('\n')
+  /* Lista unificada: WhatsApp contacts + clientes do cadastro sem WhatsApp ainda */
+  const contatosIds = new Set((contatos ?? []).map((c: { cliente_id: string | null }) => c.cliente_id).filter(Boolean))
 
-  /* Lista de clientes do cadastro (têm telefone mas podem não ter conversado ainda) */
-  const listaClientes = (clientes ?? [])
-    .map((c: { id: string; nome: string; telefone: string; data_nascimento: string | null }) =>
-      `- ${c.nome} | tel: ${c.telefone ?? 'sem telefone'} | nasc: ${c.data_nascimento ?? 'não informado'} (cliente_id: ${c.id})`)
-    .join('\n')
+  const linhasWhats = (contatos ?? []).map((c: { id: string; nome: string; phone: string }) =>
+    `[WA] ${c.nome ?? c.phone} → whatsapp_id: ${c.id}`)
+
+  const linhasCadastro = (clientes ?? [])
+    .filter((c: { id: string; telefone: string | null }) => !contatosIds.has(c.id) && c.telefone)
+    .map((c: { id: string; nome: string; telefone: string }) =>
+      `[CAD] ${c.nome} | tel: ${c.telefone} → cliente_id: ${c.id}`)
+
+  const listaTodos = [...linhasWhats, ...linhasCadastro].join('\n')
 
   const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
 Você recebe comandos do dono da loja e coordena os agentes para executar.
 
-CONTATOS QUE JÁ CONVERSARAM NO WHATSAPP:
-${listaContatos || '(nenhum ainda)'}
+PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
+${listaTodos || '(nenhum cadastrado ainda)'}
 
-CLIENTES NO CADASTRO (com telefone para iniciar conversa):
-${listaClientes || '(nenhum ainda)'}
+DADOS DA LOJA:
+- Clientes sem data de nascimento: ${semCadastroCompleto}
 
 Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON:
 {
@@ -70,11 +72,11 @@ Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON
   }
 }
 
-REGRAS IMPORTANTES:
-- Se o supervisor mencionar alguém pelo nome que está na lista WHATSAPP: use "contatos_especificos" com o whatsapp_id
-- Se o supervisor mencionar alguém que está apenas no CADASTRO (não no WhatsApp): use "clientes_especificos" com o cliente_id — o sistema vai criar o contato e mandar a mensagem pelo telefone do cadastro
-- Só use "filtro_contatos" quando for um grupo genérico (todos, sem nascimento, etc.)
-- Nunca misture: use contatos_especificos OU clientes_especificos, não os dois
+REGRAS:
+- Pessoa com [WA]: coloque o whatsapp_id em "contatos_especificos"
+- Pessoa com [CAD]: coloque o cliente_id em "clientes_especificos" (o sistema cria o contato e envia pelo telefone do cadastro)
+- Para grupos genéricos use "filtro_contatos"
+- Se o nome não estiver em nenhuma das listas, diga claramente qual é o problema
 
 Se for apenas uma pergunta ou conversa (sem tarefa), responda em JSON:
 {
