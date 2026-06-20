@@ -186,32 +186,34 @@ export async function POST(request: NextRequest) {
 
     if (direcao === 'recebida') {
 
-      /* Dono respondeu via WhatsApp pessoal → encaminha para escalação pendente */
+      /* Dono respondeu via WhatsApp pessoal → processa instrução e encaminha ao cliente */
       if (isOwner && conteudo) {
         const { data: escalacoes } = await supabase
           .from('atendimento_escalacoes')
-          .select('id, contato_id, whatsapp_contatos(phone)')
+          .select('id, contato_id')
           .eq('user_id', userId)
           .eq('status', 'pendente')
           .order('created_at', { ascending: false })
           .limit(1)
         const escal = escalacoes?.[0] ?? null
         if (escal) {
-          const wc = escal.whatsapp_contatos as unknown as { phone: string } | null
-          const clientePhone = wc?.phone
-          if (clientePhone) {
-            /* Envia resposta do dono ao cliente */
-            fetch(`${baseUrl}/api/whatsapp/send`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ phone: clientePhone, message: conteudo, contatoId: escal.contato_id }),
-            }).catch(() => null)
-          }
+          /* Marca como respondida */
           await supabase.from('atendimento_escalacoes').update({
             status:         'respondida',
             resposta_owner: conteudo,
             updated_at:     new Date().toISOString(),
           }).eq('id', escal.id)
+          /* Chama atendimento com instrução do dono para processar e responder ao cliente */
+          fetch(`${baseUrl}/api/agentes/atendimento`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contatoId:      escal.contato_id,
+              userId,
+              mensagem:       conteudo,
+              instrucaoOwner: conteudo,
+            }),
+          }).catch(() => null)
           return NextResponse.json({ ok: true })
         }
       }

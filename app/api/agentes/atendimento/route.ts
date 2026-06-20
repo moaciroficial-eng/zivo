@@ -10,8 +10,8 @@ const ENDERECO_PADRAO = 'Roda Velha, Bahia — Av. Paraná, ao lado do Iphome Bu
 const OWNER_PHONE_PADRAO = process.env.OWNER_PHONE ?? '62999057784'
 
 export async function POST(request: NextRequest) {
-  const { contatoId, userId, mensagem } = await request.json()
-  console.log('[atendimento] recebido:', { contatoId, userId, mensagem })
+  const { contatoId, userId, mensagem, instrucaoOwner } = await request.json()
+  console.log('[atendimento] recebido:', { contatoId, userId, mensagem, instrucaoOwner })
   if (!contatoId || !userId) return NextResponse.json({ ok: false })
 
   const admin = createAdmin(
@@ -44,19 +44,25 @@ export async function POST(request: NextRequest) {
 
   const nomeCliente = contato.nome?.split(' ')[0] ?? 'Cliente'
 
+  const instrucaoExtra = instrucaoOwner
+    ? `\nINSTRUÇÃO DO DONO DA LOJA: "${instrucaoOwner}" — execute essa instrução para responder ao cliente.`
+    : ''
+
   const systemPrompt = `Você é o assistente automático de uma loja de roupas no Brasil.
 
 INFORMAÇÕES DA LOJA:
 - Horário de funcionamento: ${horario}
 - Endereço: ${endereco}${infoExtra}
-- Marcas: consulte o estoque quando o cliente perguntar sobre produtos/marcas específicas
+- Marcas e preços: consulte o estoque quando o cliente perguntar sobre produtos, marcas, disponibilidade ou PREÇOS/VALORES
+${instrucaoExtra}
 
 INSTRUÇÕES:
 Analise o histórico e a última mensagem do cliente. Decida o que fazer:
 
 1. Se souber responder (saudação, horário, endereço, agradecimento, despedida) → responda diretamente
-2. Se for sobre produtos/marcas/estoque → indique para buscar no estoque
+2. Se for sobre produtos/marcas/disponibilidade/preços/valores/média de preço → busque no estoque (buscar_estoque: true)
 3. Se NÃO souber → escale para o dono (não invente informações)
+4. Se tiver instrução do dono: execute-a (ex: "busca no estoque e responde" → buscar_estoque: true)
 
 Responda APENAS em JSON válido:
 {
@@ -65,7 +71,7 @@ Responda APENAS em JSON válido:
   "escalar": false,
   "motivo_escalar": "resumo breve do que o cliente quer (só se escalar=true)",
   "buscar_estoque": false,
-  "marca": "nome da marca (só se buscar_estoque=true)",
+  "marca": "nome da marca ou 'camiseta' se for genérico (só se buscar_estoque=true)",
   "produto": "descrição do produto (só se buscar_estoque=true)"
 }`
 
