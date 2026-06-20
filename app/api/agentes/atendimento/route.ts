@@ -11,6 +11,7 @@ const OWNER_PHONE_PADRAO = process.env.OWNER_PHONE ?? '62999057784'
 
 export async function POST(request: NextRequest) {
   const { contatoId, userId, mensagem } = await request.json()
+  console.log('[atendimento] recebido:', { contatoId, userId, mensagem })
   if (!contatoId || !userId) return NextResponse.json({ ok: false })
 
   const admin = createAdmin(
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
       .limit(12),
   ])
 
+  console.log('[atendimento] contato:', contato, '| config:', config)
   if (!contato) return NextResponse.json({ ok: false })
   if (config?.ativo === false) return NextResponse.json({ ok: true, skipped: 'inativo' })
 
@@ -80,6 +82,7 @@ Responda APENAS em JSON válido:
   const text = (res.content[0] as { text: string }).text.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   const acao = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+  console.log('[atendimento] acao IA:', acao)
   if (!acao) return NextResponse.json({ ok: false, error: 'IA sem JSON' })
 
   let respostaFinal: string | null = null
@@ -139,9 +142,11 @@ Responda como um vendedor experiente:
 
   /* Envia resposta ao cliente */
   if (respostaFinal) {
+    console.log('[atendimento] enviando para', contato.phone, ':', respostaFinal)
     try {
       await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal })
-    } catch {
+    } catch (err) {
+      console.error('[atendimento] erro ao enviar:', err)
       return NextResponse.json({ ok: false, error: 'falha ao enviar' })
     }
     const timestamp = new Date().toISOString()
