@@ -84,7 +84,7 @@ export default function AgentesClient({
 }: {
   agentes: Agente[]; logs: Log[]; insights: Insight[]
 }) {
-  const [tab, setTab] = useState<'gerente' | 'agentes' | 'alertas' | 'perfis'>('gerente')
+  const [tab, setTab] = useState<'gerente' | 'agentes' | 'alertas' | 'perfis' | 'aprendizado'>('gerente')
   const [enviando, setEnviando] = useState<string | null>(null)
   const [gerenteMsgs, setGerenteMsgs] = useState<Array<{ papel: string; conteudo: string; tarefa?: Record<string, unknown> | null }>>([])
   const [gerenteInput, setGerenteInput] = useState('')
@@ -92,6 +92,12 @@ export default function AgentesClient({
   const [tarefaPendente, setTarefaPendente] = useState<Record<string, unknown> | null>(null)
   const [previewContatos, setPreviewContatos] = useState<{id:string;nome:string}[]>([])
   const [confirmando, setConfirmando] = useState(false)
+  /* Aprendizado */
+  const [aprendMsgs, setAprendMsgs] = useState<Array<{ papel: string; conteudo: string }>>([])
+  const [aprendInput, setAprendInput] = useState('')
+  const [aprendPensando, setAprendPensando] = useState(false)
+  const [aprendSalvando, setAprendSalvando] = useState(false)
+  const [aprendResumo, setAprendResumo] = useState<string | null>(null)
   const router = useRouter()
 
   const agenteMap = Object.fromEntries(agentes.map(a => [a.tipo, a]))
@@ -138,6 +144,28 @@ export default function AgentesClient({
     }
   }
 
+  async function enviarAprendizado() {
+    if (!aprendInput.trim() || aprendPensando) return
+    const texto = aprendInput.trim()
+    setAprendInput('')
+    const novoHistorico = [...aprendMsgs, { papel: 'dono', conteudo: texto }]
+    setAprendMsgs(novoHistorico)
+    setAprendPensando(true)
+    try {
+      const res = await fetch('/api/aprendizado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: texto, historico: aprendMsgs }),
+      })
+      const data = await res.json()
+      if (data.resposta) {
+        setAprendMsgs([...novoHistorico, { papel: 'zivo', conteudo: data.resposta }])
+      }
+    } finally {
+      setAprendPensando(false)
+    }
+  }
+
   async function enviarSugestao(log: Log) {
     const r = log.resultado
     if (!r?.contato_id || !r?.sugestao) return
@@ -165,8 +193,8 @@ export default function AgentesClient({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit">
-        {(['gerente', 'agentes', 'alertas', 'perfis'] as const).map(t => (
+      <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit flex-wrap">
+        {(['gerente', 'agentes', 'alertas', 'perfis', 'aprendizado'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -174,7 +202,7 @@ export default function AgentesClient({
               tab === t ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            {t === 'gerente' ? '🧑‍💼 Gerente' : t === 'agentes' ? 'Agentes' : t === 'alertas' ? `Alertas${alertas.length > 0 ? ` (${alertas.length})` : ''}` : 'Perfis'}
+            {t === 'gerente' ? '🧑‍💼 Gerente' : t === 'agentes' ? 'Agentes' : t === 'alertas' ? `Alertas${alertas.length > 0 ? ` (${alertas.length})` : ''}` : t === 'perfis' ? 'Perfis' : '🧠 Aprendizado'}
           </button>
         ))}
       </div>
@@ -417,6 +445,124 @@ export default function AgentesClient({
           })}
         </div>
       )}
+
+      {/* Tab: Aprendizado */}
+      {tab === 'aprendizado' && (
+        <div className="flex flex-col gap-4 h-[calc(100vh-260px)]">
+
+          {/* Intro */}
+          {aprendMsgs.length === 0 && !aprendResumo && (
+            <div className="text-center py-8 px-4">
+              <p className="text-4xl mb-3">🧠</p>
+              <p className="text-zinc-200 font-semibold text-base">Sessão de Aprendizado</p>
+              <p className="text-zinc-500 text-sm mt-2 max-w-md mx-auto leading-relaxed">
+                Conta pro Zivo o que você sabe sobre seus clientes, o que funcionou, estratégias que deram certo.
+                Ele vai fazer perguntas pra entender melhor e absorver como inteligência permanente.
+              </p>
+              <div className="flex flex-col gap-2 mt-5 max-w-sm mx-auto">
+                {[
+                  'Fiz uma campanha da Aramis que funcionou muito bem...',
+                  'Percebi que cliente que pede polo geralmente quer premium...',
+                  'Sexta à tarde é quando mais vendo, entendi o porquê...',
+                ].map(ex => (
+                  <button key={ex} onClick={() => setAprendInput(ex)}
+                    className="text-left text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-400 px-3 py-2 rounded-lg transition cursor-pointer">
+                    "{ex}"
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Resumo após salvar */}
+          {aprendResumo && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p className="text-emerald-400 font-semibold text-sm mb-1">✅ Aprendizado salvo!</p>
+              <p className="text-zinc-300 text-sm leading-relaxed">{aprendResumo}</p>
+              <button
+                onClick={() => { setAprendMsgs([]); setAprendResumo(null); setAprendInput('') }}
+                className="mt-3 text-xs text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+              >
+                Iniciar nova sessão
+              </button>
+            </div>
+          )}
+
+          {/* Conversa */}
+          <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
+            {aprendMsgs.map((m, i) => (
+              <div key={i} className={`flex ${m.papel === 'dono' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
+                  m.papel === 'dono'
+                    ? 'bg-violet-600 text-white rounded-br-sm'
+                    : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
+                }`}>
+                  {m.conteudo}
+                </div>
+              </div>
+            ))}
+            {aprendPensando && (
+              <div className="flex justify-start">
+                <div className="bg-zinc-800 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-zinc-500">
+                  Processando...
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Ações */}
+          {aprendMsgs.length > 0 && !aprendResumo && (
+            <button
+              onClick={async () => {
+                setAprendSalvando(true)
+                try {
+                  const res = await fetch('/api/aprendizado', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ historico: aprendMsgs }),
+                  })
+                  const data = await res.json()
+                  setAprendResumo(
+                    data.resumo
+                      ? `${data.resumo}\n\n${data.salvos} insight(s) salvos na base de conhecimento do Zivo.`
+                      : `${data.salvos} insight(s) salvos.`
+                  )
+                } finally {
+                  setAprendSalvando(false)
+                }
+              }}
+              disabled={aprendSalvando}
+              className="text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-xl transition cursor-pointer"
+            >
+              {aprendSalvando ? 'Salvando...' : '✅ Salvar aprendizados desta sessão'}
+            </button>
+          )}
+
+          {/* Input */}
+          {!aprendResumo && (
+            <div className="flex gap-2">
+              <textarea
+                value={aprendInput}
+                onChange={e => setAprendInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarAprendizado() } }}
+                placeholder="Conta o que você sabe, uma estratégia que funcionou, um padrão que percebeu..."
+                rows={2}
+                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500"
+              />
+              <button
+                onClick={enviarAprendizado}
+                disabled={!aprendInput.trim() || aprendPensando}
+                className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-medium transition cursor-pointer"
+              >
+                Enviar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
+
+// Função adicionada ao componente via closure — declarada fora para manter legibilidade
+// A função real está inline no componente pelo uso de closures dos estados
