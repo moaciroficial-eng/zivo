@@ -78,14 +78,34 @@ Exemplos:
     }
 
   } else if (cmd.tipo === 'estoque') {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
-    const res = await fetch(`${baseUrl}/api/agentes/estoque`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, produto: cmd.produto }),
-    })
-    const data = await res.json()
-    resposta = `📦 *Estoque: ${cmd.produto ?? 'consulta geral'}*\n\n${data.catalogo ?? 'Nada encontrado.'}`
+    type TamanhoItem = { tamanho: string; qtd: number }
+    type EstoqueItem = { id: string; nome: string; cor: string | null; tamanhos: TamanhoItem[]; preco_venda: number }
+
+    const buscas = await Promise.all([
+      admin.from('estoque').select('id,nome,cor,tamanhos,preco_venda')
+        .eq('user_id', userId).eq('status', 'disponivel')
+        .ilike('nome', `%${cmd.produto ?? ''}%`).limit(100),
+      admin.from('estoque').select('id,nome,cor,tamanhos,preco_venda')
+        .eq('user_id', userId).eq('status', 'disponivel')
+        .ilike('marca', `%${cmd.produto ?? ''}%`).limit(100),
+    ])
+
+    const visto = new Set<string>()
+    const itens: EstoqueItem[] = []
+    for (const { data } of buscas) {
+      for (const item of (data ?? []) as EstoqueItem[]) {
+        if (!visto.has(item.id)) { visto.add(item.id); itens.push(item) }
+      }
+    }
+
+    const comEstoque = itens.filter(i => (i.tamanhos as TamanhoItem[]).some(t => t.qtd > 0))
+    const catalogo = comEstoque.map(i => {
+      const tam = (i.tamanhos as TamanhoItem[]).filter(t => t.qtd > 0).map(t => `${t.tamanho}(${t.qtd})`).join(' ')
+      const cor = i.cor ? ` | Cor: ${i.cor}` : ''
+      return `• ${i.nome}${cor} — ${tam} — R$${Number(i.preco_venda).toFixed(2)}`
+    }).join('\n')
+
+    resposta = `📦 *${cmd.produto ?? 'Estoque'}*\n\n${catalogo || 'Nenhum produto encontrado.'}`
 
   } else if (cmd.tipo === 'clientes') {
     const { data: clientes } = await admin
