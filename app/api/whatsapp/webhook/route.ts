@@ -72,18 +72,20 @@ export async function POST(request: NextRequest) {
 
     /* Detecção do dono ANTES de qualquer processamento
        Fontes: env var + loja_config (DB) para garantir que funciona */
-    const baseUrl        = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
-    const envOwnerPhone  = (process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
-    const { data: cfg }  = await supabase.from('loja_config').select('owner_phone').eq('user_id', userId).maybeSingle()
-    const dbOwnerPhone   = (cfg?.owner_phone ?? '').replace(/\D/g, '')
-    const ownerPhone     = dbOwnerPhone || envOwnerPhone
+    const baseUrl       = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+    const cleanUserId   = (userId ?? '').replace(/^﻿/, '').trim()
+    const envOwnerPhone = (process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+    const { data: cfg } = await supabase.from('loja_config').select('owner_phone').eq('user_id', cleanUserId).maybeSingle()
+    const dbOwnerPhone  = (cfg?.owner_phone ?? '').replace(/\D/g, '')
+    const ownerPhone    = dbOwnerPhone || envOwnerPhone
 
-    function matchPhone(a: string, b: string) {
-      if (!a || !b) return false
-      const da = a.replace(/\D/g, ''), db = b.replace(/\D/g, '')
-      return da.slice(-11) === db.slice(-11) || da.slice(-10) === db.slice(-10)
-    }
-    const isOwner = matchPhone(phone, ownerPhone)
+    const phoneLimpo    = phone.replace(/\D/g, '')
+    const isOwner       = !!ownerPhone && (
+      phoneLimpo.slice(-11) === ownerPhone.slice(-11) ||
+      phoneLimpo.slice(-10) === ownerPhone.slice(-10)
+    )
+
+    console.log(`[webhook] phone=${phoneLimpo} ownerPhone=${ownerPhone} dbOwner=${dbOwnerPhone} envOwner=${envOwnerPhone} isOwner=${isOwner}`)
 
     /* Se for o dono mensangendo a loja: rota para comandos ou escalação, nunca atendimento */
     if (direcao === 'recebida' && isOwner && conteudo) {
