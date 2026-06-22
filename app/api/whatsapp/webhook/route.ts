@@ -250,6 +250,25 @@ export async function POST(request: NextRequest) {
 
     if (direcao === 'recebida') {
 
+      /* Dispara agente proativo uma vez por dia (primeira mensagem do dia) */
+      const { data: cfgProativo } = await supabase
+        .from('loja_config').select('proativo_ultimo_run').eq('user_id', cleanUserId).maybeSingle()
+      if (cfgProativo) {
+        const ultimoRun = cfgProativo.proativo_ultimo_run ? new Date(cfgProativo.proativo_ultimo_run) : null
+        const hoje = new Date()
+        const jaRodouHoje = ultimoRun &&
+          ultimoRun.getFullYear() === hoje.getFullYear() &&
+          ultimoRun.getMonth()    === hoje.getMonth()    &&
+          ultimoRun.getDate()     === hoje.getDate()
+        if (!jaRodouHoje) {
+          fetch(`${baseUrl}/api/agentes/proativo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: cleanUserId, ownerPhone }),
+          }).catch(() => null)
+        }
+      }
+
       /* Verifica se há conversa automatizada ativa e recente (menos de 4h) para este contato */
       const limiteEstado = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
       const { data: estadosAtivos } = await supabase
