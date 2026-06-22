@@ -82,7 +82,8 @@ export async function POST(request: NextRequest) {
     const phoneLimpo    = phone.replace(/\D/g, '')
     const isOwner       = !!ownerPhone && (
       phoneLimpo.slice(-11) === ownerPhone.slice(-11) ||
-      phoneLimpo.slice(-10) === ownerPhone.slice(-10)
+      phoneLimpo.slice(-10) === ownerPhone.slice(-10) ||
+      phoneLimpo.slice(-8)  === ownerPhone.slice(-8)
     )
 
     console.log(`[webhook] phone=${phoneLimpo} ownerPhone=${ownerPhone} dbOwner=${dbOwnerPhone} envOwner=${envOwnerPhone} isOwner=${isOwner}`)
