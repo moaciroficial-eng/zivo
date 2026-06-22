@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [{ data: config }, { data: contato }, { data: mensagens }] = await Promise.all([
+  const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }] = await Promise.all([
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
     admin.from('whatsapp_contatos').select('nome, phone').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
@@ -84,6 +84,10 @@ export async function POST(request: NextRequest) {
       .eq('contato_id', contatoId)
       .order('timestamp', { ascending: false })
       .limit(20),
+    admin.from('contato_insights')
+      .select('marca_principal, marcas_favoritas, fidelidade_marca, tamanhos, resumo')
+      .eq('contato_id', contatoId)
+      .maybeSingle(),
   ])
 
   if (!contato) return NextResponse.json({ ok: false })
@@ -110,13 +114,31 @@ export async function POST(request: NextRequest) {
   const respostasLoja = mensagensOrdenadas.filter(m => m.direcao === 'enviada').length
   const nomeCliente = contato.nome?.split(' ')[0] ?? 'cliente'
 
+  /* Perfil do cliente baseado em histórico de compras */
+  const perfilCliente = (() => {
+    if (!insights) return ''
+    const partes: string[] = []
+    if (insights.marca_principal) {
+      const nivel = insights.fidelidade_marca
+      const label = nivel === 'fa_absoluto' ? 'fã absoluto' : nivel === 'fiel' ? 'cliente fiel' : 'prefere'
+      partes.push(`${label} de ${insights.marca_principal}`)
+    }
+    if (Array.isArray(insights.marcas_favoritas) && insights.marcas_favoritas.length > 1) {
+      partes.push(`marcas favoritas: ${(insights.marcas_favoritas as string[]).join(', ')}`)
+    }
+    if (Array.isArray(insights.tamanhos) && insights.tamanhos.length > 0) {
+      partes.push(`tamanho(s): ${(insights.tamanhos as string[]).join(', ')}`)
+    }
+    return partes.length > 0 ? `\nPERFIL DO CLIENTE: ${partes.join(' | ')}` : ''
+  })()
+
   const instrucaoExtra = instrucaoOwner
     ? `\nINSTRUÇÃO DO DONO: "${instrucaoOwner}" — execute isso para o cliente.`
     : ''
 
   const systemPrompt = `Você é a atendente virtual da MADS, loja de roupas em Roda Velha/BA.
 
-PERSONALIDADE: Natural, simpática, vendedora brasileira de verdade. NUNCA robótica.${instrucaoExtra}
+PERSONALIDADE: Natural, simpática, vendedora brasileira de verdade. NUNCA robótica.${instrucaoExtra}${perfilCliente}
 
 HORÁRIO: ${horario}
 ENDEREÇO: ${endereco}${infoExtra}
@@ -163,19 +185,29 @@ JSON APENAS:
   let respostaFinal: string | null = null
 
   if (acao.buscar_estoque) {
+    /* Se cliente tem marca favorita e não especificou marca, busca também pela favorita */
+    const marcaBusca = acao.marca || (insights?.marca_principal as string | null) || ''
     const { catalogo, itens } = await buscarEstoque(
-      admin, userId, acao.produto ?? '', acao.marca ?? ''
+      admin, userId, acao.produto ?? '', marcaBusca
     )
 
     if (itens.length > 0) {
+      const temMarcaFavorita = insights?.marca_principal &&
+        itens.some(i => i.marca?.toLowerCase().includes((insights.marca_principal as string).toLowerCase()))
+
+      const contextoMarca = temMarcaFavorita
+        ? ` (incluindo opções da ${insights!.marca_principal as string}, que é a preferida dele)`
+        : ''
+
       /* Resposta curta pro cliente: confirma que tem + avisa que vai enviar foto */
       const resVendedor = await anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 100,
         messages: [{
           role: 'user',
-          content: `Atendente da MADS loja de roupas. Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque.
+          content: `Atendente da MADS loja de roupas. Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque${contextoMarca}.
 Responda em 1-2 frases curtas confirmando que temos e que vai chamar o vendedor pra enviar as fotos.
+${temMarcaFavorita ? `Mencione que tem a marca favorita dele (${insights!.marca_principal as string}) de forma natural.` : ''}
 Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto.`,
         }],
       })

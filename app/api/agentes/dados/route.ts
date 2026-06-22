@@ -38,17 +38,43 @@ export async function POST(request: NextRequest) {
     .single()
 
   let historicoCompras = ''
+  let marcasCompradas: Record<string, number> = {}
+  let totalCompras = 0
+
   if (contato?.cliente_id) {
     const { data: compras } = await supabase
       .from('vendas')
-      .select('created_at, total, forma_pagamento, produtos')
+      .select('created_at, total, forma_pagamento, items, status')
       .eq('cliente_id', contato.cliente_id)
+      .neq('status', 'cancelada')
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(50)
+
     if (compras && compras.length > 0) {
-      historicoCompras = '\n\nHistórico de compras:\n' + compras.map(c =>
-        `- ${new Date(c.created_at).toLocaleDateString('pt-BR')}: R$${c.total} (${c.forma_pagamento})`
-      ).join('\n')
+      totalCompras = compras.length
+
+      /* Extrai marcas de cada venda */
+      for (const venda of compras) {
+        const items = Array.isArray(venda.items) ? venda.items : []
+        for (const item of items) {
+          const marca = item?.marca ?? item?.brand ?? null
+          if (marca && typeof marca === 'string' && marca.trim()) {
+            const m = marca.trim()
+            marcasCompradas[m] = (marcasCompradas[m] ?? 0) + (item?.quantidade ?? 1)
+          }
+        }
+      }
+
+      const resumoMarcas = Object.entries(marcasCompradas)
+        .sort((a, b) => b[1] - a[1])
+        .map(([m, qtd]) => `${m}(${qtd}x)`)
+        .join(', ')
+
+      historicoCompras = `\n\nHistórico de compras (${totalCompras} pedidos):\n` +
+        compras.slice(0, 5).map(c =>
+          `- ${new Date(c.created_at).toLocaleDateString('pt-BR')}: R$${c.total} (${c.forma_pagamento})`
+        ).join('\n') +
+        (resumoMarcas ? `\nMarcas compradas: ${resumoMarcas}` : '')
     }
   }
 
@@ -56,21 +82,38 @@ export async function POST(request: NextRequest) {
     `[${m.direcao === 'enviada' ? 'LOJA' : 'CLIENTE'}] ${m.conteudo ?? `[${m.tipo}]`}`
   ).join('\n')
 
+  /* Classifica o nível de fidelidade por marca */
+  const marcasFavoritas = Object.entries(marcasCompradas)
+    .sort((a, b) => b[1] - a[1])
+    .map(([marca, qtd]) => ({
+      marca,
+      qtd,
+      nivel: qtd >= 10 ? 'fa_absoluto' : qtd >= 5 ? 'fiel' : qtd >= 3 ? 'preferencia' : 'interesse',
+    }))
+
+  const contextoMarcas = marcasFavoritas.length > 0
+    ? `\nPERFIL DE MARCA (baseado em ${totalCompras} compras reais):\n` +
+      marcasFavoritas.map(m => `- ${m.marca}: ${m.qtd}x comprado → ${m.nivel}`).join('\n')
+    : ''
+
   const prompt = `Você é o Agente de Dados do Zivo, sistema de gestão de loja de roupas.
 
-Analise a conversa abaixo com o contato "${contato?.nome ?? 'Desconhecido'}" e extraia um perfil estruturado.${historicoCompras}
+Analise o contato "${contato?.nome ?? 'Desconhecido'}" com base na conversa e no histórico de compras.${historicoCompras}${contextoMarcas}
 
-CONVERSA:
+CONVERSA ATUAL:
 ${conversa}
 
 Responda APENAS com JSON válido neste formato exato:
 {
-  "marcas_interesse": ["lista de marcas mencionadas ou inferidas"],
+  "marcas_interesse": ["marcas mencionadas na conversa atual"],
+  "marcas_favoritas": ["marcas mais compradas em ordem, ex: Aramis, Tommy"],
+  "fidelidade_marca": "fa_absoluto | fiel | preferencia | variado | sem_historico",
+  "marca_principal": "marca mais comprada ou null",
   "tamanhos": ["tamanhos mencionados"],
   "ocasioes": ["trabalho", "casual", "social", "presente", etc],
   "perfil_compra": "impulsivo | planejado | promocao | presente",
   "temperatura": "frio | morno | quente",
-  "resumo": "1-2 frases descrevendo o perfil e momento de compra deste cliente",
+  "resumo": "1-2 frases descrevendo o perfil, marca favorita e momento de compra",
   "consulta_produto": {
     "ativo": true,
     "produto": "ex: polo, camisa, calça",
@@ -116,6 +159,9 @@ Regras:
     contato_id:           contatoId,
     cliente_id:           contato?.cliente_id ?? null,
     marcas_interesse:     parsed.marcas_interesse ?? [],
+    marcas_favoritas:     parsed.marcas_favoritas ?? [],
+    marca_principal:      parsed.marca_principal ?? null,
+    fidelidade_marca:     parsed.fidelidade_marca ?? 'sem_historico',
     tamanhos:             parsed.tamanhos ?? [],
     ocasioes:             parsed.ocasioes ?? [],
     perfil_compra:        parsed.perfil_compra ?? null,
