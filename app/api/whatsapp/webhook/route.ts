@@ -224,12 +224,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
 
-      /* Verifica se há conversa automatizada ativa para este contato */
+      /* Verifica se há conversa automatizada ativa e recente (menos de 4h) para este contato */
+      const limiteEstado = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
       const { data: estadosAtivos } = await supabase
         .from('agente_conversa_estado')
-        .select('id, tarefa_id')
+        .select('id, tarefa_id, updated_at')
         .eq('contato_id', contato.id)
         .eq('status', 'aguardando')
+        .gte('updated_at', limiteEstado)
         .order('updated_at', { ascending: false })
         .limit(1)
       const estadoAtivo = estadosAtivos?.[0] ?? null
