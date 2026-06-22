@@ -186,8 +186,9 @@ export async function POST(request: NextRequest) {
 
     if (direcao === 'recebida') {
 
-      /* Dono respondeu via WhatsApp pessoal → processa instrução e encaminha ao cliente */
+      /* Mensagem do dono (número pessoal) → trata como comando, não como cliente */
       if (isOwner && conteudo) {
+        /* Verifica se há escalação pendente — se sim, responde ao cliente */
         const { data: escalacoes } = await supabase
           .from('atendimento_escalacoes')
           .select('id, contato_id')
@@ -197,13 +198,11 @@ export async function POST(request: NextRequest) {
           .limit(1)
         const escal = escalacoes?.[0] ?? null
         if (escal) {
-          /* Marca como respondida */
           await supabase.from('atendimento_escalacoes').update({
             status:         'respondida',
             resposta_owner: conteudo,
             updated_at:     new Date().toISOString(),
           }).eq('id', escal.id)
-          /* Chama atendimento com instrução do dono para processar e responder ao cliente */
           fetch(`${baseUrl}/api/agentes/atendimento`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -214,8 +213,15 @@ export async function POST(request: NextRequest) {
               instrucaoOwner: conteudo,
             }),
           }).catch(() => null)
-          return NextResponse.json({ ok: true })
+        } else {
+          /* Sem escalação pendente → é um comando do dono para o Zivo */
+          fetch(`${baseUrl}/api/owner/comando`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, mensagem: conteudo, ownerPhone }),
+          }).catch(() => null)
         }
+        return NextResponse.json({ ok: true })
       }
 
       /* Verifica se há conversa automatizada ativa para este contato */

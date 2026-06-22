@@ -7,12 +7,10 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const HORARIO_PADRAO  = 'Manhã: 9h às 12h | Tarde: 14h às 19h'
 const ENDERECO_PADRAO = 'Roda Velha, Bahia — Av. Paraná, ao lado do Iphome Burguer'
-const OWNER_PHONE_PADRAO = process.env.OWNER_PHONE ?? '62999057784'
 
 export async function POST(request: NextRequest) {
   const { contatoId, userId, mensagem, instrucaoOwner } = await request.json()
-  console.log('[atendimento] recebido:', { contatoId, userId, mensagem, instrucaoOwner })
-  if (!contatoId || !userId) return NextResponse.json({ ok: false })
+  if (!contatoId || !userId || !mensagem) return NextResponse.json({ ok: false })
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,75 +24,88 @@ export async function POST(request: NextRequest) {
       .select('direcao, conteudo, timestamp')
       .eq('contato_id', contatoId)
       .order('timestamp', { ascending: false })
-      .limit(12),
+      .limit(15),
   ])
 
-  console.log('[atendimento] contato:', contato, '| config:', config)
   if (!contato) return NextResponse.json({ ok: false })
   if (config?.ativo === false) return NextResponse.json({ ok: true, skipped: 'inativo' })
 
-  const horario    = config?.horario    ?? HORARIO_PADRAO
-  const endereco   = config?.endereco   ?? ENDERECO_PADRAO
-  const ownerPhone = config?.owner_phone ?? OWNER_PHONE_PADRAO
-  const infoExtra  = config?.info_extra ? `\n- Informações extras: ${config.info_extra}` : ''
+  /* Throttle: se já respondemos nos últimos 8 segundos, aguarda (evita dupla resposta) */
+  const mensagensOrdenadas = (mensagens ?? []).reverse()
+  const ultimaEnviada = [...(mensagens ?? [])].find(m => m.direcao === 'enviada')
+  if (!instrucaoOwner && ultimaEnviada) {
+    const delta = Date.now() - new Date(ultimaEnviada.timestamp).getTime()
+    if (delta < 8000) return NextResponse.json({ ok: true, skipped: 'throttled' })
+  }
 
-  const historico = (mensagens ?? []).reverse()
+  const horario  = config?.horario  ?? HORARIO_PADRAO
+  const endereco = config?.endereco ?? ENDERECO_PADRAO
+  const infoExtra = config?.info_extra ? `\n- ${config.info_extra}` : ''
+
+  const historico = mensagensOrdenadas
     .map(m => `[${m.direcao === 'enviada' ? 'LOJA' : 'CLIENTE'}] ${m.conteudo}`)
     .join('\n')
 
-  const nomeCliente = contato.nome?.split(' ')[0] ?? 'Cliente'
+  /* Conta quantas vezes a LOJA já respondeu nesta sessão */
+  const respostasLoja = mensagensOrdenadas.filter(m => m.direcao === 'enviada').length
 
   const instrucaoExtra = instrucaoOwner
-    ? `\nINSTRUÇÃO DO DONO DA LOJA: "${instrucaoOwner}" — execute essa instrução para responder ao cliente.`
+    ? `\nINSTRUÇÃO DO DONO: "${instrucaoOwner}" — execute isso para o cliente.`
     : ''
 
-  const systemPrompt = `Você é o assistente automático de uma loja de roupas no Brasil.
+  const systemPrompt = `Você é a atendente virtual da MADS, loja de roupas em Roda Velha/BA.
 
-INFORMAÇÕES DA LOJA:
-- Horário de funcionamento: ${horario}
-- Endereço: ${endereco}${infoExtra}
-- Marcas e preços: consulte o estoque quando o cliente perguntar sobre produtos, marcas, disponibilidade ou PREÇOS/VALORES
+PERSONALIDADE:
+- Natural, simpática, como uma vendedora brasileira de verdade
+- Não parece robô — nunca usa "Como posso ajudar?" logo de cara
+- Deixa o cliente liderar — ouve primeiro, fala depois
+- Quando o cliente mostra interesse em produto: vira vendedora consultiva e proativa
+- Sempre oferece mandar foto quando fala de produto
 ${instrucaoExtra}
 
-INSTRUÇÕES:
-Analise o histórico e a última mensagem do cliente. Decida o que fazer:
+HORÁRIO: ${horario}
+ENDEREÇO: ${endereco}${infoExtra}
 
-1. Se souber responder (saudação, horário, endereço, agradecimento, despedida) → responda diretamente
-2. Se for sobre produtos/marcas/disponibilidade/preços/valores/média de preço → busque no estoque (buscar_estoque: true)
-3. Se NÃO souber → escale para o dono (não invente informações)
-4. Se tiver instrução do dono: execute-a (ex: "busca no estoque e responde" → buscar_estoque: true)
+REGRAS DE COMPORTAMENTO:
+1. Cliente disse só "oi/olá/bom dia/boa tarde/boa noite": responda o cumprimento e ESPERE. Não pergunte nada. Máx 4 palavras.
+2. A LOJA já cumprimentou antes (histórico mostra ${respostasLoja} resposta(s) da loja): NÃO cumprimente de novo — espere o cliente falar o que quer
+3. Cliente perguntou sobre produto/marca/preço/valor/disponibilidade → buscar_estoque: true
+4. Resposta de 1 palavra ("ok", "sim", "não"), emoji sozinho, figurinha → NÃO responda (pode_responder: false)
+5. Se não souber → escale para o dono, nunca invente
+6. Instrução do dono → execute-a buscando no estoque se necessário
+
+REGRA DE OURO: menos é mais. Se o cliente ainda não disse o que quer, não force. Espere.
 
 Responda APENAS em JSON válido:
 {
   "pode_responder": true,
-  "resposta": "mensagem para o cliente (natural, amigável, como um atendente humano)",
+  "resposta": "mensagem natural e curta para o cliente",
   "escalar": false,
-  "motivo_escalar": "resumo breve do que o cliente quer (só se escalar=true)",
+  "motivo_escalar": "resumo do que o cliente quer (só se escalar=true)",
   "buscar_estoque": false,
-  "marca": "nome da marca ou 'camiseta' se for genérico (só se buscar_estoque=true)",
-  "produto": "descrição do produto (só se buscar_estoque=true)"
+  "marca": "marca ou categoria como 'camiseta' 'bone' etc (só se buscar_estoque=true)",
+  "produto": "descrição do produto buscado (só se buscar_estoque=true)"
 }`
 
   const res = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 400,
+    max_tokens: 500,
     system: systemPrompt,
     messages: [{
       role: 'user',
-      content: `CONTATO: ${contato.nome ?? contato.phone}\n\nHISTÓRICO:\n${historico}\n\nÚLTIMA MENSAGEM DO CLIENTE: "${mensagem}"`,
+      content: `CONTATO: ${contato.nome ?? contato.phone}\n\nHISTÓRICO:\n${historico}\n\nÚLTIMA MENSAGEM: "${mensagem}"`,
     }],
   })
 
   const text = (res.content[0] as { text: string }).text.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   const acao = jsonMatch ? JSON.parse(jsonMatch[0]) : null
-  console.log('[atendimento] acao IA:', acao)
   if (!acao) return NextResponse.json({ ok: false, error: 'IA sem JSON' })
 
   let respostaFinal: string | null = null
 
   /* Busca estoque se necessário */
-  if (acao.buscar_estoque && acao.marca) {
+  if (acao.buscar_estoque) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
     const estoqueRes = await fetch(`${baseUrl}/api/agentes/estoque`, {
       method: 'POST',
@@ -105,69 +116,58 @@ Responda APENAS em JSON válido:
 
     const resVendedor = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 400,
       messages: [{
         role: 'user',
-        content: `Cliente ${nomeCliente} perguntou: "${mensagem}"
+        content: `Você é uma vendedora consultiva da MADS loja de roupas.
 
-ESTOQUE ENCONTRADO:
-${estoqueData.catalogo ?? 'Nenhum item encontrado para essa busca'}
+Cliente ${contato.nome?.split(' ')[0] ?? ''} perguntou: "${instrucaoOwner ? instrucaoOwner : mensagem}"
 
-Responda como um vendedor experiente:
-- Se tiver o produto: informe e ofereça mandar foto
+ESTOQUE DISPONÍVEL:
+${estoqueData.catalogo ?? 'Nenhum produto encontrado'}
+
+Responda como vendedora experiente:
+- Mencione TODOS os itens disponíveis (cores, tamanhos, preços)
+- Se perguntou preço médio: calcule e informe a média
+- Se tiver produto: informe e ofereça mandar foto
 - Se não tiver exatamente: sugira o mais próximo e ofereça foto
-- Se não tiver nada próximo: diga que não trabalhamos com essa marca/produto, de forma gentil
-- Seja breve, natural e com intenção de vender`,
+- Se não tiver nada: diga gentilmente que não trabalhamos com isso
+- Seja natural, breve e com intenção de vender`,
       }],
     })
     respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
-
   } else if (acao.pode_responder && acao.resposta) {
     respostaFinal = acao.resposta
-
   } else if (acao.escalar) {
-    /* Encaminha para o dono via WhatsApp */
+    const ownerPhone = config?.owner_phone ?? process.env.OWNER_PHONE ?? ''
     if (ownerPhone) {
-      const msgOwner = `🔔 *Zivo — Atendimento*\n\nCliente *${contato.nome ?? contato.phone}* está aguardando:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda aqui e eu encaminho pra ele.`
-
+      const nomeCliente = contato.nome?.split(' ')[0] ?? contato.phone
+      const msgOwner = `🔔 *Zivo*\n\nCliente *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda aqui e eu encaminho.`
+      try { await sendWhatsAppMessage({ phone: ownerPhone, message: msgOwner }) } catch { /* silencioso */ }
       try {
-        await sendWhatsAppMessage({ phone: ownerPhone, message: msgOwner })
-      } catch { /* silencioso — não bloqueia */ }
-
-      await admin.from('atendimento_escalacoes').insert({
-        user_id:    userId,
-        contato_id: contatoId,
-        pergunta:   acao.motivo_escalar ?? mensagem,
-        status:     'pendente',
-        agente_msg: msgOwner,
-        updated_at: new Date().toISOString(),
-      })
+        await admin.from('atendimento_escalacoes').insert({
+          user_id: userId, contato_id: contatoId,
+          pergunta: acao.motivo_escalar ?? mensagem,
+          status: 'pendente', agente_msg: msgOwner,
+          updated_at: new Date().toISOString(),
+        })
+      } catch { /* silencioso */ }
     }
     return NextResponse.json({ ok: true, escalado: true })
   }
 
-  /* Envia resposta ao cliente */
   if (respostaFinal) {
-    console.log('[atendimento] enviando para', contato.phone, ':', respostaFinal)
-    try {
-      await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal })
-    } catch (err) {
-      console.error('[atendimento] erro ao enviar:', err)
-      return NextResponse.json({ ok: false, error: 'falha ao enviar' })
-    }
+    try { await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal }) }
+    catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
+
     const timestamp = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({
-      user_id:    userId,
-      contato_id: contatoId,
-      direcao:    'enviada',
-      tipo:       'texto',
-      conteudo:   respostaFinal,
-      status:     'enviada',
-      timestamp,
+      user_id: userId, contato_id: contatoId,
+      direcao: 'enviada', tipo: 'texto',
+      conteudo: respostaFinal, status: 'enviada', timestamp,
     })
     await admin.from('whatsapp_contatos').update({
-      ultima_mensagem:    respostaFinal,
-      ultima_mensagem_at: timestamp,
+      ultima_mensagem: respostaFinal, ultima_mensagem_at: timestamp,
     }).eq('id', contatoId)
   }
 

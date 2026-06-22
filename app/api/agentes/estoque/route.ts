@@ -7,6 +7,18 @@ type EstoqueItem = {
   cor: string | null; tamanhos: TamanhoItem[]; preco_venda: number
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buscar(supabase: any, userId: string, campo: 'marca' | 'nome', valor: string) {
+  const { data } = await supabase
+    .from('estoque')
+    .select('id, nome, marca, cor, tamanhos, preco_venda')
+    .eq('user_id', userId)
+    .eq('status', 'disponivel')
+    .ilike(campo, `%${valor}%`)
+    .limit(100)
+  return (data ?? []) as EstoqueItem[]
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const { userId, marca, produto } = body ?? {}
@@ -18,30 +30,52 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  /* Busca ampla por marca — cor e tamanho ficam no nome, então o Claude vai inferir */
-  let query = supabase
-    .from('estoque')
-    .select('id, nome, marca, cor, tamanhos, preco_venda')
-    .eq('user_id', userId)
-    .eq('status', 'disponivel')
+  /* Busca por marca e nome em paralelo para não perder itens */
+  const resultados: EstoqueItem[][] = []
 
-  if (marca) query = query.ilike('marca', `%${marca}%`)
-  /* Se não achou pela marca, tenta pelo nome do produto */
-  if (produto && !marca) query = query.ilike('nome', `%${produto}%`)
+  if (marca) {
+    const [porMarca, porNome] = await Promise.all([
+      buscar(supabase, userId, 'marca', marca),
+      buscar(supabase, userId, 'nome',  marca),
+    ])
+    resultados.push(porMarca, porNome)
+  }
 
-  const { data: itens } = await query.limit(30)
+  if (produto) {
+    const [porNome, porMarca] = await Promise.all([
+      buscar(supabase, userId, 'nome',  produto),
+      buscar(supabase, userId, 'marca', produto),
+    ])
+    resultados.push(porNome, porMarca)
+  }
 
-  /* Filtra só os que têm estoque disponível */
-  const comEstoque = ((itens ?? []) as EstoqueItem[]).filter(i =>
+  if (!marca && !produto) {
+    const { data } = await supabase
+      .from('estoque')
+      .select('id, nome, marca, cor, tamanhos, preco_venda')
+      .eq('user_id', userId)
+      .eq('status', 'disponivel')
+      .limit(200)
+    resultados.push((data ?? []) as EstoqueItem[])
+  }
+
+  /* Deduplica por id */
+  const visto = new Set<string>()
+  const itens: EstoqueItem[] = []
+  for (const lista of resultados) {
+    for (const item of lista) {
+      if (!visto.has(item.id)) { visto.add(item.id); itens.push(item) }
+    }
+  }
+
+  const comEstoque = itens.filter(i =>
     (i.tamanhos as TamanhoItem[]).some(t => t.qtd > 0)
   )
 
-  /* Formata catálogo completo para o agente raciocinar */
   const catalogo = comEstoque.map(i => {
     const tam = (i.tamanhos as TamanhoItem[])
       .filter(t => t.qtd > 0)
-      .map(t => `${t.tamanho}(${t.qtd})`)
-      .join(' ')
+      .map(t => `${t.tamanho}(${t.qtd})`).join(' ')
     const cor = i.cor ? ` | Cor: ${i.cor}` : ''
     return `• ${i.nome}${cor} — Tamanhos: ${tam} — R$${Number(i.preco_venda).toFixed(2)}`
   }).join('\n')
@@ -49,7 +83,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     total: comEstoque.length,
-    catalogo: catalogo || 'Nenhum produto encontrado para esta marca.',
+    catalogo: catalogo || 'Nenhum produto encontrado para esta busca.',
     itens: comEstoque,
   })
 }
