@@ -31,9 +31,9 @@ async function oportunidadesMarca(admin: SupabaseClient, userId: string): Promis
     .from('whatsapp_contatos')
     .select('id, nome')
     .eq('user_id', userId)
-    .in('id', insights.map(i => i.contato_id))
+    .in('id', insights.map((i: { contato_id: string }) => i.contato_id))
 
-  const nomeMap = new Map((contatos ?? []).map(c => [c.id, c.nome]))
+  const nomeMap = new Map((contatos ?? []).map((c: { id: string; nome: string }) => [c.id, c.nome]))
 
   for (const insight of insights) {
     const marca = insight.marca_principal as string
@@ -41,7 +41,7 @@ async function oportunidadesMarca(admin: SupabaseClient, userId: string): Promis
     const nome  = nomeMap.get(insight.contato_id) ?? 'Cliente'
     const tamanhos = (insight.tamanhos as string[] ?? [])
 
-    const produtosDaMarca = (estoque ?? []).filter(e =>
+    const produtosDaMarca = (estoque ?? []).filter((e: { marca: string; tamanhos: TamanhoItem[] }) =>
       e.marca?.toLowerCase().includes(marca.toLowerCase()) &&
       (e.tamanhos as TamanhoItem[]).some(t => t.qtd > 0)
     )
@@ -50,7 +50,7 @@ async function oportunidadesMarca(admin: SupabaseClient, userId: string): Promis
 
     /* Filtra pelo tamanho preferido se soubermos */
     const produtosParaEle = tamanhos.length > 0
-      ? produtosDaMarca.filter(p =>
+      ? produtosDaMarca.filter((p: { tamanhos: TamanhoItem[] }) =>
           (p.tamanhos as TamanhoItem[]).some(t =>
             t.qtd > 0 && tamanhos.some(tam => t.tamanho.toUpperCase() === tam.toUpperCase())
           )
@@ -111,7 +111,7 @@ async function clientesInativos(admin: SupabaseClient, userId: string): Promise<
   const ids = inativos.map(([id]) => id)
   const { data: clientesDados } = await admin
     .from('clientes').select('id, nome').eq('user_id', userId).in('id', ids)
-  const nomes = new Map((clientesDados ?? []).map(c => [c.id, c.nome]))
+  const nomes = new Map((clientesDados ?? []).map((c: { id: string; nome: string }) => [c.id, c.nome]))
 
   const lista = inativos.map(([id, d]) =>
     `   • ${nomes.get(id) ?? id} — R$${d.total.toFixed(0)} em ${d.qtd} pedido(s), sumiu há ${Math.floor((Date.now() - new Date(d.ultima).getTime()) / 86400000)} dias`
@@ -174,7 +174,7 @@ async function aniversariantesSemana(admin: SupabaseClient, userId: string): Pro
 
   if (!clientes?.length) return null
 
-  const aniversariantes = clientes.filter(c => {
+  const aniversariantes = clientes.filter((c: { nome: string; data_nascimento: string | null; telefone: string | null }) => {
     if (!c.data_nascimento) return false
     const d = new Date(c.data_nascimento)
     return diasSemana.some(s => s.mes === d.getMonth() + 1 && s.dia === d.getDate())
@@ -182,8 +182,8 @@ async function aniversariantesSemana(admin: SupabaseClient, userId: string): Pro
 
   if (!aniversariantes.length) return null
 
-  const lista = aniversariantes.map(c => {
-    const d = new Date(c.data_nascimento)
+  const lista = aniversariantes.map((c: { nome: string; data_nascimento: string | null }) => {
+    const d = new Date(c.data_nascimento!)
     const dia = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
     return `   • ${c.nome} — ${dia}`
   }).join('\n')
