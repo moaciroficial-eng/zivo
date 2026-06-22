@@ -2,6 +2,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { carregarConhecimento } from '@/lib/conhecimento'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }] = await Promise.all([
+  const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }, conhecimento] = await Promise.all([
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
     admin.from('whatsapp_contatos').select('nome, phone').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
@@ -88,6 +89,7 @@ export async function POST(request: NextRequest) {
       .select('marca_principal, marcas_favoritas, fidelidade_marca, tamanhos, resumo')
       .eq('contato_id', contatoId)
       .maybeSingle(),
+    carregarConhecimento(admin, userId),
   ])
 
   if (!contato) return NextResponse.json({ ok: false })
@@ -139,6 +141,8 @@ export async function POST(request: NextRequest) {
   const systemPrompt = `Você é a atendente virtual da MADS, loja de roupas em Roda Velha/BA.
 
 PERSONALIDADE: Natural, simpática, vendedora brasileira de verdade. NUNCA robótica.${instrucaoExtra}${perfilCliente}
+
+${conhecimento || ''}
 
 HORÁRIO: ${horario}
 ENDEREÇO: ${endereco}${infoExtra}

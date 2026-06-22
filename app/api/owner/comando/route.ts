@@ -6,6 +6,7 @@ import { gerarRelatorio, diagnosticoCompleto } from '@/lib/agentes/analitico'
 import { situacaoFinanceira, definirMeta } from '@/lib/agentes/financeiro'
 import { planoSemana, analisarCrescimento } from '@/lib/agentes/estrategista'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
+import { salvarAprendizado, carregarConhecimento } from '@/lib/conhecimento'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -19,6 +20,20 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  /* Detecta comando "aprende:" antes de passar pela IA */
+  const textoLimpo = mensagem.trim()
+  if (/^aprende[:\s]/i.test(textoLimpo)) {
+    const conteudo = textoLimpo.replace(/^aprende[:\s]*/i, '').trim()
+    if (conteudo.length > 3) {
+      const confirmacao = await salvarAprendizado(admin, userId, conteudo)
+      await sendWhatsAppMessage({ phone: ownerPhone, message: confirmacao })
+      return NextResponse.json({ ok: true, acao: 'aprendizado' })
+    }
+  }
+
+  /* Carrega conhecimento da loja para contexto do classificador */
+  const conhecimento = await carregarConhecimento(admin, userId)
+
   /* Zivo como assistente inteligente do dono — decide o que fazer */
   const decisao = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -26,6 +41,7 @@ export async function POST(request: NextRequest) {
     messages: [{
       role: 'user',
       content: `Você é o Zivo, assistente pessoal inteligente do dono de uma loja de roupas.
+${conhecimento ? `\n${conhecimento}\n` : ''}
 Analise a mensagem e decida a ação correta.
 
 Mensagem: "${mensagem}"
@@ -53,7 +69,8 @@ Exemplos:
 - "quanto vendemos" → acao: financeiro
 - "clientes inativos" → acao: clientes
 - "pausa o atendimento" → acao: pausar
-- "ativa o atendimento" → acao: ativar`,
+- "ativa o atendimento" → acao: ativar
+- "aprende algo" ou "salva isso" → acao: conversa (já tratado antes)`,
     }],
   })
 
