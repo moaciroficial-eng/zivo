@@ -55,29 +55,27 @@ export async function POST(request: NextRequest) {
 
   const systemPrompt = `Você é a atendente virtual da MADS, loja de roupas em Roda Velha/BA.
 
-PERSONALIDADE:
-- Natural, simpática, vendedora brasileira de verdade
-- NUNCA usa "Como posso ajudar?" — é chato e robótico
-- Ouve primeiro, fala depois — deixa o cliente liderar
-- Quando cliente quer produto: busca e apresenta com entusiasmo
-- Oferece mandar foto quando menciona produto
+PERSONALIDADE: Natural, simpática, vendedora brasileira de verdade. NUNCA robótica.
 ${instrucaoExtra}
 
 HORÁRIO: ${horario}
 ENDEREÇO: ${endereco}${infoExtra}
 
-REGRAS OBRIGATÓRIAS:
-1. Cumprimento simples ("oi", "olá", "bom dia"): responda só o cumprimento. MAX 3 palavras. NÃO pergunte nada.
-2. Já cumprimentou antes (${respostasLoja} resposta(s) no histórico): NÃO cumprimente de novo. Espere o cliente.
-3. Mencionou qualquer produto/marca/preço/tamanho/cor → buscar_estoque: true
-4. Mensagem vaga de 1 palavra sobre produto (ex: "camiseta", "boné", "calça") → buscar_estoque: true, produto = essa palavra
-5. Emoji, figurinha, "ok", "sim", "não" sozinhos → pode_responder: false
-6. NUNCA diga que a mensagem chegou em branco — se tem conteúdo, é porque tem
-7. NUNCA faça mais de 1 pergunta por vez
-8. NUNCA use # ou ## — use só *negrito* se precisar formatar
-9. Se não souber → escale, nunca invente
+HISTÓRICO DA CONVERSA:
+${historico || 'Sem histórico'}
 
-REGRA DE OURO: menos é mais. Uma coisa de cada vez.
+REGRAS OBRIGATÓRIAS:
+1. Cumprimento simples ("oi", "olá", "bom dia"): MAX 3 palavras. NÃO pergunte nada.
+2. Já cumprimentou (${respostasLoja} resposta(s) da loja no histórico): NÃO repita cumprimento.
+3. Produto/marca/preço/tamanho/cor mencionados → buscar_estoque: true
+4. Palavra solta de produto ("camiseta", "boné", "calça") → buscar_estoque: true
+5. Cliente reagiu a PREÇO ("caro", "salgado", "muito", "barato") → pode_responder: true, responda naturalmente sem buscar estoque (ex: "Temos sim opções mais em conta! Qual faixa de preço tá bom pra você?")
+6. Cliente reagiu negativamente ("não gostei", "não quero") → responda com empatia, ofereça alternativa
+7. Emoji, figurinha, "ok", "sim", "não" sozinhos → pode_responder: false
+8. NUNCA diga que mensagem chegou em branco
+9. NUNCA mais de 1 pergunta por vez
+10. NUNCA use # ou ## no texto
+11. Não sabe responder → escale
 
 Responda APENAS em JSON:
 {
@@ -87,7 +85,7 @@ Responda APENAS em JSON:
   "motivo_escalar": "o que o cliente quer (só se escalar=true)",
   "buscar_estoque": false,
   "marca": "marca ou categoria (só se buscar_estoque=true)",
-  "produto": "produto buscado (só se buscar_estoque=true)"
+  "produto": "produto exato buscado (só se buscar_estoque=true)"
 }`
 
   const res = await anthropic.messages.create({
@@ -117,35 +115,52 @@ Responda APENAS em JSON:
     })
     const estoqueData = await estoqueRes.json()
 
-    const resVendedor = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{
-        role: 'user',
-        content: `Você é uma vendedora da MADS loja de roupas. Responda pelo WhatsApp.
+    const temEstoque = estoqueData.catalogo && estoqueData.catalogo !== 'Nenhum produto encontrado'
+    const nomeProduto = acao.produto ?? acao.marca ?? 'produto'
+    const nomeCliente2 = contato.nome?.split(' ')[0] ?? 'cliente'
 
-Cliente: ${contato.nome?.split(' ')[0] ?? 'cliente'}
-Pergunta: "${instrucaoOwner ? instrucaoOwner : mensagem}"
+    if (temEstoque) {
+      /* Resposta curta: confirma que tem + oferece foto */
+      const resVendedor = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 120,
+        messages: [{
+          role: 'user',
+          content: `Você é atendente da MADS loja de roupas. Responda em 1-2 frases CURTAS, no estilo WhatsApp.
 
-ESTOQUE:
-${estoqueData.catalogo ?? 'Nenhum produto encontrado'}
+Cliente ${nomeCliente2} perguntou por: "${instrucaoOwner ? instrucaoOwner : mensagem}"
+Resultado: TEMOS esse produto em estoque.
 
-REGRAS DE FORMATAÇÃO (WhatsApp — OBRIGATÓRIO):
-- Use *negrito* para nomes de produto e preços
-- NUNCA use # ou ## (aparecem como texto)
-- NUNCA use listas com - ou * no início da linha (use • ou nada)
-- Máximo 15 linhas no total
-- Termine sempre oferecendo mandar foto
+Responda confirmando que temos e dizendo que vai chamar o vendedor pra enviar as fotos das opções.
+Exemplos de tom: "Temos sim! Vou chamar nossa vendedora pra te mostrar as opções com foto 😊"
+Seja natural, curta, animada. Máx 2 frases. SEM listas, SEM preços, SEM nomes de produto.`,
+        }],
+      })
+      respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
 
-REGRAS DE RESPOSTA:
-- Se achou produto: apresente de forma organizada e natural
-- Se perguntou média de preço: calcule e informe
-- Se não achou nada: diga gentilmente que não temos esse produto
-- UMA pergunta no final no máximo (ex: "Qual tamanho você usa?")
-- Seja direta, entusiasmada, brasileira`,
-      }],
-    })
-    respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
+      /* Avisa o dono que tem cliente interessado */
+      const ownerPhone = (config?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+      if (ownerPhone) {
+        const avisoEstoque = `🛍️ *${nomeCliente2}* quer *${nomeProduto}*.\n\nTemos em estoque:\n${estoqueData.catalogo}\n\nEnvie as fotos pra ele!`
+        fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'}/api/whatsapp/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: ownerPhone, message: avisoEstoque, userId }),
+        }).catch(() => null)
+      }
+    } else {
+      /* Não tem no estoque */
+      const resVendedor = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 80,
+        messages: [{
+          role: 'user',
+          content: `Atendente da MADS loja de roupas. Cliente perguntou por "${instrucaoOwner ? instrucaoOwner : mensagem}" mas NÃO temos em estoque.
+Responda em 1 frase gentil dizendo que não temos esse produto no momento. Ofereça verificar outro produto se quiser. Sem listas.`,
+        }],
+      })
+      respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
+    }
   } else if (acao.pode_responder && acao.resposta) {
     respostaFinal = acao.resposta
   } else if (acao.escalar) {
