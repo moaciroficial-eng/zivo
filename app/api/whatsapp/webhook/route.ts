@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { sendWhatsAppMessage } from '@/lib/whatsapp'
 
 function extractZapi(body: Record<string, unknown>): { conteudo: string | null; tipo: string } {
   if (body.text)     return { conteudo: (body.text as Record<string,unknown>).message as string ?? null, tipo: 'texto' }
@@ -109,6 +110,10 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ contatoId: escal.contato_id, userId: cleanUserId, mensagem: conteudo, instrucaoOwner: conteudo }),
         }).catch(() => null)
       } else {
+        /* Ack imediato pra dono saber que o comando chegou */
+        if (conteudo && conteudo.trim().length > 3) {
+          sendWhatsAppMessage({ phone: ownerPhone, message: '⏳' }).catch(() => null)
+        }
         fetch(`${baseUrl}/api/owner/comando`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

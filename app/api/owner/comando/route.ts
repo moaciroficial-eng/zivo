@@ -9,6 +9,9 @@ export async function POST(request: NextRequest) {
   const { userId, mensagem, ownerPhone } = await request.json()
   if (!userId || !mensagem || !ownerPhone) return NextResponse.json({ ok: false })
 
+  /* Ignora mensagens muito curtas (?, ok, thumbs up) — provavelmente checando se funcionou */
+  if (mensagem.trim().length <= 3) return NextResponse.json({ ok: true, skipped: 'short' })
+
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
