@@ -106,13 +106,13 @@ export async function POST(request: NextRequest) {
         fetch(`${baseUrl}/api/agentes/atendimento`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contatoId: escal.contato_id, userId, mensagem: conteudo, instrucaoOwner: conteudo }),
+          body: JSON.stringify({ contatoId: escal.contato_id, userId: cleanUserId, mensagem: conteudo, instrucaoOwner: conteudo }),
         }).catch(() => null)
       } else {
         fetch(`${baseUrl}/api/owner/comando`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, mensagem: conteudo, ownerPhone }),
+          body: JSON.stringify({ userId: cleanUserId, mensagem: conteudo, ownerPhone }),
         }).catch(() => null)
       }
       return NextResponse.json({ ok: true })
