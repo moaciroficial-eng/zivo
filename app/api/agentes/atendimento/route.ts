@@ -16,7 +16,8 @@ type EstoqueItem = {
 }
 
 /* Busca estoque diretamente no banco (sem HTTP interno) */
-async function buscarEstoque(admin: ReturnType<typeof createAdmin>, userId: string, produto: string, marca: string): Promise<{ catalogo: string; itens: EstoqueItem[] }> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buscarEstoque(admin: any, userId: string, produto: string, marca: string): Promise<{ catalogo: string; itens: EstoqueItem[] }> {
   const termos = [produto, marca].filter(Boolean)
 
   const buscas = await Promise.all(
@@ -50,7 +51,8 @@ async function buscarEstoque(admin: ReturnType<typeof createAdmin>, userId: stri
 }
 
 /* Envia mensagem ao dono e salva no banco */
-async function notificarDono(admin: ReturnType<typeof createAdmin>, userId: string, ownerPhone: string, mensagem: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function notificarDono(admin: any, userId: string, ownerPhone: string, mensagem: string) {
   try {
     await sendWhatsAppMessage({ phone: ownerPhone, message: mensagem })
 

@@ -1,6 +1,8 @@
-import { SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = any
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 

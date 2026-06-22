@@ -1,5 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js'
-
 type EntradaConhecimento = {
   categoria: string
   titulo: string
@@ -7,8 +5,9 @@ type EntradaConhecimento = {
 }
 
 /* Carrega todo o conhecimento ativo e monta bloco de contexto para os agentes */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function carregarConhecimento(
-  admin: SupabaseClient,
+  admin: any,
   userId: string
 ): Promise<string> {
   const { data } = await admin
@@ -50,8 +49,9 @@ export async function carregarConhecimento(
 }
 
 /* Salva um novo aprendizado (chamado pelo owner/comando quando diz "aprende:") */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function salvarAprendizado(
-  admin: SupabaseClient,
+  admin: any,
   userId: string,
   texto: string,
   categoria = 'geral'
