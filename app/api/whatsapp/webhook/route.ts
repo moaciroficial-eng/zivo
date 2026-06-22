@@ -70,6 +70,51 @@ export async function POST(request: NextRequest) {
     const direcao    = fromMe ? 'enviada' : 'recebida'
     const { conteudo, tipo } = extractZapi(payload)
 
+    /* Detecção do dono ANTES de qualquer processamento
+       Fontes: env var + loja_config (DB) para garantir que funciona */
+    const baseUrl        = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+    const envOwnerPhone  = (process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+    const { data: cfg }  = await supabase.from('loja_config').select('owner_phone').eq('user_id', userId).maybeSingle()
+    const dbOwnerPhone   = (cfg?.owner_phone ?? '').replace(/\D/g, '')
+    const ownerPhone     = dbOwnerPhone || envOwnerPhone
+
+    function matchPhone(a: string, b: string) {
+      if (!a || !b) return false
+      const da = a.replace(/\D/g, ''), db = b.replace(/\D/g, '')
+      return da.slice(-11) === db.slice(-11) || da.slice(-10) === db.slice(-10)
+    }
+    const isOwner = matchPhone(phone, ownerPhone)
+
+    /* Se for o dono mensangendo a loja: rota para comandos ou escalação, nunca atendimento */
+    if (direcao === 'recebida' && isOwner && conteudo) {
+      console.log(`[webhook] Dono detectado: ${phone}`)
+      const { data: escalacoes } = await supabase
+        .from('atendimento_escalacoes')
+        .select('id, contato_id')
+        .eq('user_id', userId)
+        .eq('status', 'pendente')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      const escal = escalacoes?.[0] ?? null
+      if (escal) {
+        await supabase.from('atendimento_escalacoes').update({
+          status: 'respondida', resposta_owner: conteudo, updated_at: new Date().toISOString(),
+        }).eq('id', escal.id)
+        fetch(`${baseUrl}/api/agentes/atendimento`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contatoId: escal.contato_id, userId, mensagem: conteudo, instrucaoOwner: conteudo }),
+        }).catch(() => null)
+      } else {
+        fetch(`${baseUrl}/api/owner/comando`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, mensagem: conteudo, ownerPhone }),
+        }).catch(() => null)
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     /* Matching automático com cliente pelo telefone */
     let clienteId: string | null = null
     const phoneLast = phone.slice(-8)
@@ -180,49 +225,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const baseUrl    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
-    const ownerPhone = (process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
-    const isOwner    = ownerPhone.length > 0 && phone.slice(-10) === ownerPhone.slice(-10)
-
     if (direcao === 'recebida') {
-
-      /* Mensagem do dono (número pessoal) → trata como comando, não como cliente */
-      if (isOwner && conteudo) {
-        /* Verifica se há escalação pendente — se sim, responde ao cliente */
-        const { data: escalacoes } = await supabase
-          .from('atendimento_escalacoes')
-          .select('id, contato_id')
-          .eq('user_id', userId)
-          .eq('status', 'pendente')
-          .order('created_at', { ascending: false })
-          .limit(1)
-        const escal = escalacoes?.[0] ?? null
-        if (escal) {
-          await supabase.from('atendimento_escalacoes').update({
-            status:         'respondida',
-            resposta_owner: conteudo,
-            updated_at:     new Date().toISOString(),
-          }).eq('id', escal.id)
-          fetch(`${baseUrl}/api/agentes/atendimento`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contatoId:      escal.contato_id,
-              userId,
-              mensagem:       conteudo,
-              instrucaoOwner: conteudo,
-            }),
-          }).catch(() => null)
-        } else {
-          /* Sem escalação pendente → é um comando do dono para o Zivo */
-          fetch(`${baseUrl}/api/owner/comando`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, mensagem: conteudo, ownerPhone }),
-          }).catch(() => null)
-        }
-        return NextResponse.json({ ok: true })
-      }
 
       /* Verifica se há conversa automatizada ativa e recente (menos de 4h) para este contato */
       const limiteEstado = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()

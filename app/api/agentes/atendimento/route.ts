@@ -139,8 +139,11 @@ Responda como vendedora experiente:
   } else if (acao.pode_responder && acao.resposta) {
     respostaFinal = acao.resposta
   } else if (acao.escalar) {
-    const ownerPhone = config?.owner_phone ?? process.env.OWNER_PHONE ?? ''
-    if (ownerPhone) {
+    const ownerPhone = (config?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+    /* Nunca escalar se quem mandou é o próprio dono */
+    const phoneLimpo = contato.phone.replace(/\D/g, '')
+    const contatoEhDono = ownerPhone && (phoneLimpo.slice(-11) === ownerPhone.slice(-11) || phoneLimpo.slice(-10) === ownerPhone.slice(-10))
+    if (ownerPhone && !contatoEhDono) {
       const nomeCliente = contato.nome?.split(' ')[0] ?? contato.phone
       const msgOwner = `🔔 *Zivo*\n\nCliente *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda aqui e eu encaminho.`
       try { await sendWhatsAppMessage({ phone: ownerPhone, message: msgOwner }) } catch { /* silencioso */ }
