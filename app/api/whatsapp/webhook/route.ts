@@ -71,6 +71,19 @@ export async function POST(request: NextRequest) {
     const direcao    = fromMe ? 'enviada' : 'recebida'
     const { conteudo, tipo } = extractZapi(payload)
 
+    /* Deduplicação: ignora se messageId já foi processado */
+    if (messageId) {
+      const { data: jaExiste } = await supabase
+        .from('whatsapp_mensagens')
+        .select('id')
+        .eq('message_id', messageId)
+        .maybeSingle()
+      if (jaExiste) {
+        console.log(`[webhook] Mensagem duplicada ignorada: ${messageId}`)
+        return NextResponse.json({ ok: true, skipped: 'duplicate' })
+      }
+    }
+
     /* Detecção do dono ANTES de qualquer processamento
        Fontes: env var + loja_config (DB) para garantir que funciona */
     const baseUrl       = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'

@@ -8,6 +8,65 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const HORARIO_PADRAO  = 'Manhã: 9h às 12h | Tarde: 14h às 19h'
 const ENDERECO_PADRAO = 'Roda Velha, Bahia — Av. Paraná, ao lado do Iphome Burguer'
 
+type TamanhoItem = { tamanho: string; qtd: number }
+type EstoqueItem = {
+  id: string; nome: string; marca: string
+  cor: string | null; tamanhos: TamanhoItem[]; preco_venda: number
+}
+
+/* Busca estoque diretamente no banco (sem HTTP interno) */
+async function buscarEstoque(admin: ReturnType<typeof createAdmin>, userId: string, produto: string, marca: string): Promise<{ catalogo: string; itens: EstoqueItem[] }> {
+  const termos = [produto, marca].filter(Boolean)
+
+  const buscas = await Promise.all(
+    termos.flatMap(t => [
+      admin.from('estoque').select('id,nome,marca,cor,tamanhos,preco_venda')
+        .eq('user_id', userId).eq('status', 'disponivel').ilike('nome', `%${t}%`).limit(100),
+      admin.from('estoque').select('id,nome,marca,cor,tamanhos,preco_venda')
+        .eq('user_id', userId).eq('status', 'disponivel').ilike('marca', `%${t}%`).limit(100),
+    ])
+  )
+
+  const visto = new Set<string>()
+  const itens: EstoqueItem[] = []
+  for (const { data } of buscas) {
+    for (const item of (data ?? []) as EstoqueItem[]) {
+      if (!visto.has(item.id)) { visto.add(item.id); itens.push(item) }
+    }
+  }
+
+  const comEstoque = itens.filter(i => (i.tamanhos as TamanhoItem[]).some(t => t.qtd > 0))
+
+  const catalogo = comEstoque.map(i => {
+    const tam = (i.tamanhos as TamanhoItem[])
+      .filter(t => t.qtd > 0)
+      .map(t => `${t.tamanho}(${t.qtd})`).join(' ')
+    const cor = i.cor ? ` | ${i.cor}` : ''
+    return `• ${i.nome}${cor} — ${tam} — R$${Number(i.preco_venda).toFixed(2)}`
+  }).join('\n')
+
+  return { catalogo: catalogo || '', itens: comEstoque }
+}
+
+/* Envia mensagem ao dono e salva no banco */
+async function notificarDono(admin: ReturnType<typeof createAdmin>, userId: string, ownerPhone: string, mensagem: string) {
+  try {
+    await sendWhatsAppMessage({ phone: ownerPhone, message: mensagem })
+
+    const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
+    const { data: contato } = await admin
+      .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
+    if (contato?.id) {
+      const timestamp = new Date().toISOString()
+      await admin.from('whatsapp_mensagens').insert({
+        user_id: userId, contato_id: contato.id,
+        direcao: 'enviada', tipo: 'texto',
+        conteudo: mensagem, status: 'enviada', timestamp,
+      })
+    }
+  } catch { /* silencioso — não deixa cair o atendimento */ }
+}
+
 export async function POST(request: NextRequest) {
   const { contatoId, userId, mensagem, instrucaoOwner } = await request.json()
   if (!contatoId || !userId || !mensagem) return NextResponse.json({ ok: false })
@@ -24,30 +83,32 @@ export async function POST(request: NextRequest) {
       .select('direcao, conteudo, timestamp')
       .eq('contato_id', contatoId)
       .order('timestamp', { ascending: false })
-      .limit(15),
+      .limit(20),
   ])
 
   if (!contato) return NextResponse.json({ ok: false })
   if (config?.ativo === false) return NextResponse.json({ ok: true, skipped: 'inativo' })
 
-  /* Throttle: se já respondemos nos últimos 8 segundos, aguarda (evita dupla resposta) */
   const mensagensOrdenadas = (mensagens ?? []).reverse()
+
+  /* Throttle: evita dupla resposta em janela de 15 segundos */
   const ultimaEnviada = [...(mensagens ?? [])].find(m => m.direcao === 'enviada')
   if (!instrucaoOwner && ultimaEnviada) {
     const delta = Date.now() - new Date(ultimaEnviada.timestamp).getTime()
-    if (delta < 8000) return NextResponse.json({ ok: true, skipped: 'throttled' })
+    if (delta < 15000) return NextResponse.json({ ok: true, skipped: 'throttled' })
   }
 
-  const horario  = config?.horario  ?? HORARIO_PADRAO
-  const endereco = config?.endereco ?? ENDERECO_PADRAO
-  const infoExtra = config?.info_extra ? `\n- ${config.info_extra}` : ''
+  const horario   = config?.horario   ?? HORARIO_PADRAO
+  const endereco  = config?.endereco  ?? ENDERECO_PADRAO
+  const infoExtra = config?.info_extra ? `\nInfo extra: ${config.info_extra}` : ''
+  const ownerPhone = (config?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
 
   const historico = mensagensOrdenadas
     .map(m => `[${m.direcao === 'enviada' ? 'LOJA' : 'CLIENTE'}] ${m.conteudo}`)
     .join('\n')
 
-  /* Conta quantas vezes a LOJA já respondeu nesta sessão */
   const respostasLoja = mensagensOrdenadas.filter(m => m.direcao === 'enviada').length
+  const nomeCliente = contato.nome?.split(' ')[0] ?? 'cliente'
 
   const instrucaoExtra = instrucaoOwner
     ? `\nINSTRUÇÃO DO DONO: "${instrucaoOwner}" — execute isso para o cliente.`
@@ -55,47 +116,43 @@ export async function POST(request: NextRequest) {
 
   const systemPrompt = `Você é a atendente virtual da MADS, loja de roupas em Roda Velha/BA.
 
-PERSONALIDADE: Natural, simpática, vendedora brasileira de verdade. NUNCA robótica.
-${instrucaoExtra}
+PERSONALIDADE: Natural, simpática, vendedora brasileira de verdade. NUNCA robótica.${instrucaoExtra}
 
 HORÁRIO: ${horario}
 ENDEREÇO: ${endereco}${infoExtra}
 
-HISTÓRICO DA CONVERSA:
-${historico || 'Sem histórico'}
+HISTÓRICO DA CONVERSA (mais recente embaixo):
+${historico || 'Início da conversa'}
 
-REGRAS OBRIGATÓRIAS:
+REGRAS:
 1. Cumprimento simples ("oi", "olá", "bom dia"): MAX 3 palavras. NÃO pergunte nada.
-2. Já cumprimentou (${respostasLoja} resposta(s) da loja no histórico): NÃO repita cumprimento.
-3. Produto/marca/preço/tamanho/cor mencionados → buscar_estoque: true
-4. Palavra solta de produto ("camiseta", "boné", "calça") → buscar_estoque: true
-5. Cliente reagiu a PREÇO ("caro", "salgado", "muito", "barato") → pode_responder: true, responda naturalmente sem buscar estoque (ex: "Temos sim opções mais em conta! Qual faixa de preço tá bom pra você?")
-6. Cliente reagiu negativamente ("não gostei", "não quero") → responda com empatia, ofereça alternativa
+2. Já respondeu antes (${respostasLoja} respostas da loja no histórico): NÃO repita cumprimento.
+3. Produto/marca/preço/tamanho/cor → buscar_estoque: true
+4. Palavra solta de produto ("camiseta", "boné", "calça", "vestido") → buscar_estoque: true
+5. Cliente reagiu a PREÇO ("caro", "salgado") → pode_responder: true, sem buscar estoque, ofereça alternativa mais barata
+6. Cliente reagiu negativamente ("não gostei", "não quero") → empatia + ofereça alternativa
 7. Emoji, figurinha, "ok", "sim", "não" sozinhos → pode_responder: false
 8. NUNCA diga que mensagem chegou em branco
 9. NUNCA mais de 1 pergunta por vez
 10. NUNCA use # ou ## no texto
-11. Não sabe responder → escale
+11. Não sabe → escale, nunca invente
 
-Responda APENAS em JSON:
+JSON APENAS:
 {
   "pode_responder": true,
   "resposta": "mensagem curta e natural",
   "escalar": false,
   "motivo_escalar": "o que o cliente quer (só se escalar=true)",
   "buscar_estoque": false,
-  "marca": "marca ou categoria (só se buscar_estoque=true)",
-  "produto": "produto exato buscado (só se buscar_estoque=true)"
+  "marca": "marca ou categoria buscada",
+  "produto": "produto exato buscado"
 }`
 
   const res = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 500,
+    max_tokens: 400,
     system: systemPrompt,
-    messages: [{
-      role: 'user',
-      content: `CONTATO: ${contato.nome ?? contato.phone}\n\nHISTÓRICO:\n${historico}\n\nÚLTIMA MENSAGEM: "${mensagem}"`,
-    }],
+    messages: [{ role: 'user', content: `CLIENTE: ${nomeCliente}\nMENSAGEM: "${mensagem}"` }],
   })
 
   const text = (res.content[0] as { text: string }).text.trim()
@@ -105,48 +162,30 @@ Responda APENAS em JSON:
 
   let respostaFinal: string | null = null
 
-  /* Busca estoque se necessário */
   if (acao.buscar_estoque) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
-    const estoqueRes = await fetch(`${baseUrl}/api/agentes/estoque`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, marca: acao.marca, produto: acao.produto }),
-    })
-    const estoqueData = await estoqueRes.json()
+    const { catalogo, itens } = await buscarEstoque(
+      admin, userId, acao.produto ?? '', acao.marca ?? ''
+    )
 
-    const temEstoque = estoqueData.catalogo && estoqueData.catalogo !== 'Nenhum produto encontrado'
-    const nomeProduto = acao.produto ?? acao.marca ?? 'produto'
-    const nomeCliente2 = contato.nome?.split(' ')[0] ?? 'cliente'
-
-    if (temEstoque) {
-      /* Resposta curta: confirma que tem + oferece foto */
+    if (itens.length > 0) {
+      /* Resposta curta pro cliente: confirma que tem + avisa que vai enviar foto */
       const resVendedor = await anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 120,
+        max_tokens: 100,
         messages: [{
           role: 'user',
-          content: `Você é atendente da MADS loja de roupas. Responda em 1-2 frases CURTAS, no estilo WhatsApp.
-
-Cliente ${nomeCliente2} perguntou por: "${instrucaoOwner ? instrucaoOwner : mensagem}"
-Resultado: TEMOS esse produto em estoque.
-
-Responda confirmando que temos e dizendo que vai chamar o vendedor pra enviar as fotos das opções.
-Exemplos de tom: "Temos sim! Vou chamar nossa vendedora pra te mostrar as opções com foto 😊"
-Seja natural, curta, animada. Máx 2 frases. SEM listas, SEM preços, SEM nomes de produto.`,
+          content: `Atendente da MADS loja de roupas. Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque.
+Responda em 1-2 frases curtas confirmando que temos e que vai chamar o vendedor pra enviar as fotos.
+Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto.`,
         }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
 
-      /* Avisa o dono que tem cliente interessado */
-      const ownerPhone = (config?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+      /* Avisa o dono com o catálogo detalhado */
       if (ownerPhone) {
-        const avisoEstoque = `🛍️ *${nomeCliente2}* quer *${nomeProduto}*.\n\nTemos em estoque:\n${estoqueData.catalogo}\n\nEnvie as fotos pra ele!`
-        fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'}/api/whatsapp/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: ownerPhone, message: avisoEstoque, userId }),
-        }).catch(() => null)
+        const nomeProduto = acao.produto ?? acao.marca ?? 'produto'
+        const aviso = `🛍️ *${nomeCliente}* quer *${nomeProduto}*\n\n${catalogo}\n\n📸 Envie as fotos pra ele!`
+        notificarDono(admin, userId, ownerPhone, aviso).catch(() => null)
       }
     } else {
       /* Não tem no estoque */
@@ -155,8 +194,8 @@ Seja natural, curta, animada. Máx 2 frases. SEM listas, SEM preços, SEM nomes 
         max_tokens: 80,
         messages: [{
           role: 'user',
-          content: `Atendente da MADS loja de roupas. Cliente perguntou por "${instrucaoOwner ? instrucaoOwner : mensagem}" mas NÃO temos em estoque.
-Responda em 1 frase gentil dizendo que não temos esse produto no momento. Ofereça verificar outro produto se quiser. Sem listas.`,
+          content: `Atendente da MADS. Cliente perguntou por "${instrucaoOwner ?? mensagem}" mas NÃO temos em estoque.
+1 frase gentil dizendo que não temos no momento. Ofereça verificar outro produto. Sem listas.`,
         }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
@@ -164,14 +203,11 @@ Responda em 1 frase gentil dizendo que não temos esse produto no momento. Ofere
   } else if (acao.pode_responder && acao.resposta) {
     respostaFinal = acao.resposta
   } else if (acao.escalar) {
-    const ownerPhone = (config?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
-    /* Nunca escalar se quem mandou é o próprio dono */
     const phoneLimpo = contato.phone.replace(/\D/g, '')
     const contatoEhDono = ownerPhone && (phoneLimpo.slice(-11) === ownerPhone.slice(-11) || phoneLimpo.slice(-10) === ownerPhone.slice(-10))
     if (ownerPhone && !contatoEhDono) {
-      const nomeCliente = contato.nome?.split(' ')[0] ?? contato.phone
-      const msgOwner = `🔔 *Zivo*\n\nCliente *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda aqui e eu encaminho.`
-      try { await sendWhatsAppMessage({ phone: ownerPhone, message: msgOwner }) } catch { /* silencioso */ }
+      const msgOwner = `🔔 *${nomeCliente}* está esperando:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda aqui que eu encaminho.`
+      notificarDono(admin, userId, ownerPhone, msgOwner).catch(() => null)
       try {
         await admin.from('atendimento_escalacoes').insert({
           user_id: userId, contato_id: contatoId,
