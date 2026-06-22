@@ -14,8 +14,8 @@ export async function planoSemana(admin: SupabaseClient, userId: string): Promis
     { data: meta },
     { data: clientesInativos },
   ] = await Promise.all([
-    admin.from('vendas').select('total, status').eq('user_id', userId).gte('created_at', inicioMes),
-    admin.from('vendas').select('total, status').eq('user_id', userId).gte('created_at', inicio7d),
+    admin.from('vendas').select('valor').eq('user_id', userId).gte('created_at', inicioMes),
+    admin.from('vendas').select('valor').eq('user_id', userId).gte('created_at', inicio7d),
     admin.from('metas').select('*').eq('user_id', userId).eq('mes', agora.getMonth() + 1).eq('ano', agora.getFullYear()).maybeSingle(),
     admin.from('clientes').select('id, nome, telefone')
       .eq('user_id', userId)
@@ -23,10 +23,10 @@ export async function planoSemana(admin: SupabaseClient, userId: string): Promis
       .limit(10),
   ])
 
-  const okMes = (vendasMes ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const ok7d  = (vendas7d ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const fatMes = okMes.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
-  const fat7d  = ok7d.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
+  const okMes = vendasMes ?? []
+  const ok7d  = vendas7d ?? []
+  const fatMes = okMes.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
+  const fat7d  = ok7d.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
   const metaFat = meta?.meta_faturamento ? Number(meta.meta_faturamento) : null
   const faltaMeta = metaFat ? Math.max(0, metaFat - fatMes) : null
   const diaAtual = agora.getDate()
@@ -76,10 +76,10 @@ export async function analisarCrescimento(admin: SupabaseClient, userId: string)
     const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1)
     const inicio = d.toISOString()
     const fim = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString()
-    const { data } = await admin.from('vendas').select('total, status')
+    const { data } = await admin.from('vendas').select('valor')
       .eq('user_id', userId).gte('created_at', inicio).lte('created_at', fim)
-    const ok = (data ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-    const fat = ok.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
+    const ok = data ?? []
+    const fat = ok.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
     meses.push({ mes: d.toLocaleString('pt-BR', { month: 'short' }), fat, qtd: ok.length })
   }
 

@@ -16,17 +16,17 @@ export async function gerarRelatorio(admin: SupabaseClient, userId: string, peri
     { data: estoque },
     { data: mensagens },
   ] = await Promise.all([
-    admin.from('vendas').select('total, status, items, cliente_id, created_at').eq('user_id', userId).gte('created_at', inicio),
-    admin.from('vendas').select('total, status').eq('user_id', userId).gte('created_at', inicioAnterior).lt('created_at', inicio),
+    admin.from('vendas').select('valor, produtos, cliente_id, created_at').eq('user_id', userId).gte('created_at', inicio),
+    admin.from('vendas').select('valor').eq('user_id', userId).gte('created_at', inicioAnterior).lt('created_at', inicio),
     admin.from('clientes').select('id, nome').eq('user_id', userId).gte('created_at', inicio),
     admin.from('estoque').select('nome, cor, tamanhos, preco_venda, marca').eq('user_id', userId).eq('status', 'disponivel'),
     admin.from('whatsapp_mensagens').select('direcao').eq('user_id', userId).gte('timestamp', inicio),
   ])
 
-  const ok = (vendas ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const okAnt = (vendasAnt ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const totalAtual = ok.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
-  const totalAnt = okAnt.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
+  const ok = vendas ?? []
+  const okAnt = vendasAnt ?? []
+  const totalAtual = ok.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
+  const totalAnt = okAnt.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
   const variacaoFat = totalAnt > 0 ? ((totalAtual - totalAnt) / totalAnt * 100).toFixed(0) : null
   const ticketMedio = ok.length ? (totalAtual / ok.length).toFixed(2) : '0,00'
 
@@ -86,15 +86,15 @@ export async function diagnosticoCompleto(admin: SupabaseClient, userId: string)
     { data: estoque },
     { data: contatos },
   ] = await Promise.all([
-    admin.from('vendas').select('total, status, items, created_at').eq('user_id', userId)
+    admin.from('vendas').select('valor, produtos, created_at').eq('user_id', userId)
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     admin.from('clientes').select('id, nome, created_at').eq('user_id', userId),
     admin.from('estoque').select('nome, cor, tamanhos, preco_venda, marca').eq('user_id', userId).eq('status', 'disponivel'),
     admin.from('whatsapp_contatos').select('id').eq('user_id', userId),
   ])
 
-  const ok = (vendas30 ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const fat30 = ok.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
+  const ok = vendas30 ?? []
+  const fat30 = ok.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
 
   type TamanhoItem = { tamanho: string; qtd: number }
   const totalEstoque = (estoque ?? []).reduce((s: number, e: { tamanhos: TamanhoItem[] }) =>

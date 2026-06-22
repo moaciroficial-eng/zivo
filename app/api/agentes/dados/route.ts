@@ -44,9 +44,8 @@ export async function POST(request: NextRequest) {
   if (contato?.cliente_id) {
     const { data: compras } = await supabase
       .from('vendas')
-      .select('created_at, total, forma_pagamento, items, status')
+      .select('created_at, valor, forma_pagamento, produtos')
       .eq('cliente_id', contato.cliente_id)
-      .neq('status', 'cancelada')
       .order('created_at', { ascending: false })
       .limit(50)
 
@@ -55,7 +54,7 @@ export async function POST(request: NextRequest) {
 
       /* Extrai marcas de cada venda */
       for (const venda of compras) {
-        const items = Array.isArray(venda.items) ? venda.items : []
+        const items = Array.isArray(venda.produtos) ? venda.produtos : []
         for (const item of items) {
           const marca = item?.marca ?? item?.brand ?? null
           if (marca && typeof marca === 'string' && marca.trim()) {
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
 
       historicoCompras = `\n\nHistórico de compras (${totalCompras} pedidos):\n` +
         compras.slice(0, 5).map(c =>
-          `- ${new Date(c.created_at).toLocaleDateString('pt-BR')}: R$${c.total} (${c.forma_pagamento})`
+          `- ${new Date(c.created_at).toLocaleDateString('pt-BR')}: R$${c.valor} (${c.forma_pagamento ?? '-'})`
         ).join('\n') +
         (resumoMarcas ? `\nMarcas compradas: ${resumoMarcas}` : '')
     }

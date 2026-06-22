@@ -80,9 +80,8 @@ async function clientesInativos(admin: SupabaseClient, userId: string): Promise<
 
   const { data: vendas } = await admin
     .from('vendas')
-    .select('cliente_id, total, created_at')
+    .select('cliente_id, valor, created_at')
     .eq('user_id', userId)
-    .neq('status', 'cancelada')
     .gte('created_at', limite60)
 
   if (!vendas?.length) return null
@@ -95,7 +94,7 @@ async function clientesInativos(admin: SupabaseClient, userId: string): Promise<
     const data = v.created_at
     porCliente.set(v.cliente_id, {
       ultima: ex ? (data > ex.ultima ? data : ex.ultima) : data,
-      total:  (ex?.total ?? 0) + Number(v.total),
+      total:  (ex?.total ?? 0) + Number(v.valor),
       qtd:    (ex?.qtd   ?? 0) + 1,
     })
   }
@@ -126,7 +125,7 @@ async function estoqueCriticoComDemanda(admin: SupabaseClient, userId: string): 
 
   const [{ data: estoqueItems }, { data: vendasRecentes }] = await Promise.all([
     admin.from('estoque').select('id, nome, marca, cor, tamanhos').eq('user_id', userId).eq('status', 'disponivel'),
-    admin.from('vendas').select('items').eq('user_id', userId).neq('status', 'cancelada').gte('created_at', limite60),
+    admin.from('vendas').select('produtos').eq('user_id', userId).gte('created_at', limite60),
   ])
 
   if (!estoqueItems?.length || !vendasRecentes?.length) return null
@@ -134,7 +133,7 @@ async function estoqueCriticoComDemanda(admin: SupabaseClient, userId: string): 
   /* Conta quantas vezes cada produto apareceu em vendas */
   const vendidosCount = new Map<string, number>()
   for (const venda of vendasRecentes) {
-    const items = Array.isArray(venda.items) ? venda.items : []
+    const items = Array.isArray(venda.produtos) ? venda.produtos : []
     for (const item of items) {
       const id = item?.produto_id ?? item?.estoque_id ?? item?.id
       if (id) vendidosCount.set(id, (vendidosCount.get(id) ?? 0) + 1)

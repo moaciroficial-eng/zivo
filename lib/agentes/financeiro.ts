@@ -16,15 +16,15 @@ export async function situacaoFinanceira(admin: SupabaseClient, userId: string):
     { data: vendasMesAnt },
     { data: meta },
   ] = await Promise.all([
-    admin.from('vendas').select('total, status, created_at').eq('user_id', userId).gte('created_at', inicioMes),
-    admin.from('vendas').select('total, status').eq('user_id', userId).gte('created_at', inicioMesAnt).lt('created_at', fimMesAnt),
+    admin.from('vendas').select('valor, created_at').eq('user_id', userId).gte('created_at', inicioMes),
+    admin.from('vendas').select('valor').eq('user_id', userId).gte('created_at', inicioMesAnt).lt('created_at', fimMesAnt),
     admin.from('metas').select('*').eq('user_id', userId).eq('mes', agora.getMonth() + 1).eq('ano', agora.getFullYear()).maybeSingle(),
   ])
 
-  const ok = (vendasMes ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const okAnt = (vendasMesAnt ?? []).filter((v: { status: string }) => v.status !== 'cancelada')
-  const fatAtual = ok.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
-  const fatAnt = okAnt.reduce((s: number, v: { total: number }) => s + (Number(v.total) || 0), 0)
+  const ok = vendasMes ?? []
+  const okAnt = vendasMesAnt ?? []
+  const fatAtual = ok.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
+  const fatAnt = okAnt.reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
 
   const ritmoDiario = diaAtual > 0 ? fatAtual / diaAtual : 0
   const projecaoMes = ritmoDiario * diasNoMes
