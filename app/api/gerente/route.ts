@@ -39,9 +39,15 @@ export async function POST(request: NextRequest) {
 
   /* Lista unificada: WhatsApp contacts + clientes do cadastro sem WhatsApp ainda */
   const contatosIds = new Set((contatos ?? []).map((c: { cliente_id: string | null }) => c.cliente_id).filter(Boolean))
+  const clienteMap  = new Map((clientes ?? []).map((c: { id: string; nome: string }) => [c.id, c.nome]))
 
-  const linhasWhats = (contatos ?? []).map((c: { id: string; nome: string; phone: string }) =>
-    `[WA] ${c.nome ?? c.phone} → whatsapp_id: ${c.id}`)
+  const linhasWhats = (contatos ?? []).map((c: { id: string; nome: string; phone: string; cliente_id: string | null }) => {
+    const nomeCadastro = c.cliente_id ? clienteMap.get(c.cliente_id) : null
+    const nomeExibido  = nomeCadastro && nomeCadastro !== c.nome
+      ? `${c.nome ?? c.phone} (nome completo no cadastro: ${nomeCadastro})`
+      : (c.nome ?? c.phone)
+    return `[WA] ${nomeExibido} → whatsapp_id: ${c.id}`
+  })
 
   const linhasCadastro = (clientes ?? [])
     .filter((c: { id: string; telefone: string | null }) => !contatosIds.has(c.id) && c.telefone)
