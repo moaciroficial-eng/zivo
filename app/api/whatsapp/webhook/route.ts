@@ -41,7 +41,9 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     /* Z-API envia cada mensagem como um objeto raiz */
-    const phone    = typeof payload.phone === 'string' ? payload.phone.replace(/\D/g, '') : null
+    /* Normaliza phone: sempre com código do país 55, sem espaços/traços */
+    const rawPhone = typeof payload.phone === 'string' ? payload.phone.replace(/\D/g, '') : null
+    const phone    = rawPhone ? (rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`) : null
     const fromMe   = Boolean(payload.fromMe)
     const isGroup  = Boolean(payload.isGroup)
     const msgType  = payload.type as string | undefined
