@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
     admin.from('clientes').select('id, nome, telefone, data_nascimento').eq('user_id', user.id).limit(1000),
     admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
-    admin.from('estoque').select('id, nome, marca, cor, tamanhos').eq('user_id', user.id).eq('status', 'disponivel').limit(500),
+    admin.from('estoque').select('id, marca').eq('user_id', user.id).limit(2000),
   ])
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
@@ -117,32 +117,16 @@ export async function POST(request: NextRequest) {
     })
     .join('\n')
 
-  /* Resumo compacto do estoque por marca */
-  type TamanhoItem = { tamanho: string; qtd: number }
-  const marcaEstoqueMap = new Map<string, { total: number; criticos: string[] }>()
-  for (const item of (estoque ?? [])) {
-    const marca = (item.marca ?? 'Sem marca').trim()
-    const qtdTotal = ((item.tamanhos ?? []) as TamanhoItem[]).reduce((s, t) => s + (t.qtd || 0), 0)
-    if (!marcaEstoqueMap.has(marca)) marcaEstoqueMap.set(marca, { total: 0, criticos: [] })
-    const entry = marcaEstoqueMap.get(marca)!
-    entry.total += qtdTotal
-    if (qtdTotal <= 2) entry.criticos.push(`${item.nome}${item.cor ? ` ${item.cor}` : ''}`)
-  }
-  const linhasEstoque = [...marcaEstoqueMap.entries()]
-    .sort((a, b) => b[1].total - a[1].total)
-    .map(([marca, d]) => {
-      const critico = d.criticos.length > 0 ? ` ⚠️ crítico: ${d.criticos.slice(0, 3).join(', ')}` : ''
-      return `• ${marca}: ${d.total} unid.${critico}`
-    })
-    .join('\n')
+  /* Resumo de marcas disponíveis no estoque (para contexto do Gerente) */
+  const marcasNoEstoque = [...new Set((estoque ?? []).map((e: { marca: string | null }) => e.marca).filter(Boolean))].join(', ')
+  const linhasEstoque = marcasNoEstoque || '(nenhuma marca cadastrada)'
 
   const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
 Você recebe comandos do dono da loja e coordena os agentes para executar.
 Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — NUNCA diga que não tem acesso.
 Quando precisar de análise mais profunda, indique "consultar_agente" no JSON.
 
-ESTOQUE ATUAL (por marca):
-${linhasEstoque || '(nenhum produto cadastrado)'}
+MARCAS NO ESTOQUE: ${linhasEstoque}
 
 COMPRAS DO MÊS ATUAL: ${totalVendasMes} venda(s) registrada(s)
 ATENÇÃO: Esta lista abaixo é COMPLETA e DEFINITIVA — não existe "agente de vendas" separado. Use esses dados para responder perguntas sobre quem comprou o quê:
