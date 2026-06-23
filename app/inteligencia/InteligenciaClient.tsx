@@ -32,12 +32,22 @@ export default function InteligenciaClient({ sugestoes: inicial, userId }: { sug
   const [rodando, setRodando] = useState(false)
   const [expandida, setExpandida] = useState<string | null>(null)
 
+  const [erro, setErro] = useState<string | null>(null)
+
   async function rodarInteligencia() {
     setRodando(true)
+    setErro(null)
     try {
-      await fetch('/api/cron/inteligencia')
-      window.location.reload()
-    } catch {
+      const res = await fetch('/api/inteligencia/analisar', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        window.location.reload()
+      } else {
+        setErro(data.erro ?? 'Erro desconhecido')
+        setRodando(false)
+      }
+    } catch (e) {
+      setErro(String(e))
       setRodando(false)
     }
   }
@@ -88,6 +98,12 @@ export default function InteligenciaClient({ sugestoes: inicial, userId }: { sug
             )}
           </button>
         </div>
+
+        {erro && (
+          <div className="mb-4 px-4 py-3 bg-red-900/30 border border-red-500/40 rounded-lg text-sm text-red-300">
+            {erro}
+          </div>
+        )}
 
         {/* Sugestões */}
         {pendentes.length === 0 ? (
