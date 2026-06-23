@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
     admin.from('clientes').select('id, nome, telefone, data_nascimento').eq('user_id', user.id).limit(1000),
     admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
-    admin.from('estoque').select('nome, marca, cor, tamanhos').eq('user_id', user.id).eq('status', 'disponivel').limit(500),
+    admin.from('estoque').select('id, nome, marca, cor, tamanhos').eq('user_id', user.id).eq('status', 'disponivel').limit(500),
   ])
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
@@ -61,6 +61,13 @@ export async function POST(request: NextRequest) {
 
   const listaTodos = [...linhasWhats, ...linhasCadastro].join('\n')
 
+  /* Mapa estoque_id → marca (para enriquecer os produtos das vendas) */
+  const estoqueIdToMarca = new Map(
+    (estoque ?? [])
+      .filter((e: { id: string; marca: string | null }) => e.id && e.marca)
+      .map((e: { id: string; marca: string }) => [e.id, e.marca])
+  )
+
   /* Mapa de marcas → clientes que compraram no mês */
   const clienteIdToWaId = new Map(
     (contatos ?? [])
@@ -69,22 +76,30 @@ export async function POST(request: NextRequest) {
   )
   const clienteIdToNome = new Map((clientes ?? []).map((c: { id: string; nome: string }) => [c.id, c.nome]))
 
-  const marcaClientesMap = new Map<string, { nome: string; waId: string | null; clienteId: string }[]>()
+  const marcaClientesMap = new Map<string, { nome: string; waId: string | null; clienteId: string | null }[]>()
+  let totalVendasMes = 0
+
   for (const venda of (vendasMes ?? [])) {
-    if (!venda.cliente_id) continue
+    totalVendasMes++
     const produtos = Array.isArray(venda.produtos) ? venda.produtos : []
     for (const p of produtos) {
-      const marca = (p?.marca ?? p?.brand ?? '').trim()
+      /* Busca marca: primeiro no produto, depois via estoque_id */
+      const marca = (p?.marca ?? p?.brand ?? estoqueIdToMarca.get(p?.estoque_id) ?? '').trim()
       if (!marca) continue
+
       const marcaKey = marca.toLowerCase()
       if (!marcaClientesMap.has(marcaKey)) marcaClientesMap.set(marcaKey, [])
       const lista = marcaClientesMap.get(marcaKey)!
-      const jaEsta = lista.some(x => x.clienteId === venda.cliente_id)
+
+      const chave = venda.cliente_id ?? venda.cliente_nome
+      const jaEsta = lista.some(x => (x.clienteId ?? x.nome) === chave)
       if (!jaEsta) {
         lista.push({
-          nome: clienteIdToNome.get(venda.cliente_id) ?? venda.cliente_nome ?? 'Cliente',
-          waId: clienteIdToWaId.get(venda.cliente_id) ?? null,
-          clienteId: venda.cliente_id,
+          nome: venda.cliente_id
+            ? (clienteIdToNome.get(venda.cliente_id) ?? venda.cliente_nome ?? 'Cliente')
+            : (venda.cliente_nome ?? 'Avulso'),
+          waId: venda.cliente_id ? (clienteIdToWaId.get(venda.cliente_id) ?? null) : null,
+          clienteId: venda.cliente_id ?? null,
         })
       }
     }
@@ -129,8 +144,8 @@ Quando precisar de análise mais profunda, indique "consultar_agente" no JSON.
 ESTOQUE ATUAL (por marca):
 ${linhasEstoque || '(nenhum produto cadastrado)'}
 
-COMPRAS DO MÊS ATUAL (clientes por marca):
-${linhasMarcas || '(nenhuma venda registrada neste mês ainda)'}
+COMPRAS DO MÊS ATUAL: ${totalVendasMes} venda(s) registrada(s)
+${linhasMarcas || '(produtos sem marca identificada — os itens não têm estoque_id vinculado)'}
 
 PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
 ${listaTodos || '(nenhum cadastrado ainda)'}
