@@ -108,18 +108,37 @@ REGRAS:
     ...(acao.dados_novos ?? {}),
   }
 
-  /* Atualiza cadastro do cliente */
-  if (contato.cliente_id && acao.salvar_no_cliente) {
-    const update: Record<string, string> = {}
-    if (acao.salvar_no_cliente.nome) update.nome = acao.salvar_no_cliente.nome
-    if (acao.salvar_no_cliente.data_nascimento) {
-      const partes = String(acao.salvar_no_cliente.data_nascimento).split('/')
-      if (partes.length === 3) update.data_nascimento = `${partes[2]}-${partes[1]}-${partes[0]}`
+  /* Resolve cliente_id (fallback: busca por telefone) */
+  let clienteAlvoId = contato.cliente_id
+  if (!clienteAlvoId && contato.phone) {
+    const phoneLast = contato.phone.replace(/\D/g, '').slice(-8)
+    const { data: clienteMatch } = await admin
+      .from('clientes').select('id').eq('user_id', userId)
+      .ilike('telefone', `%${phoneLast}`).maybeSingle()
+    if (clienteMatch) {
+      clienteAlvoId = clienteMatch.id
+      await admin.from('whatsapp_contatos').update({ cliente_id: clienteAlvoId }).eq('id', contato.id)
     }
-    if (acao.salvar_no_cliente.telefone) update.telefone = acao.salvar_no_cliente.telefone
+  }
+
+  /* Atualiza cadastro do cliente */
+  if (clienteAlvoId) {
+    /* Usa dados do turno atual + dados acumulados quando concluído */
+    const fontes = acao.concluido
+      ? [acao.salvar_no_cliente ?? {}, dadosAtualizados]
+      : [acao.salvar_no_cliente ?? {}]
+
+    const update: Record<string, string> = {}
+    for (const fonte of fontes) {
+      if (fonte.nome && !update.nome) update.nome = String(fonte.nome)
+      if (fonte.data_nascimento && !update.data_nascimento) {
+        const partes = String(fonte.data_nascimento).split('/')
+        if (partes.length === 3) update.data_nascimento = `${partes[2]}-${partes[1]}-${partes[0]}`
+      }
+      if (fonte.telefone && !update.telefone) update.telefone = String(fonte.telefone)
+    }
     if (Object.keys(update).length > 0) {
-      await admin.from('clientes').update({ ...update, updated_at: new Date().toISOString() })
-        .eq('id', contato.cliente_id)
+      await admin.from('clientes').update(update).eq('id', clienteAlvoId)
     }
   }
 
