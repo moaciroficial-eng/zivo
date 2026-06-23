@@ -79,9 +79,9 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }, conhecimento] = await Promise.all([
+  const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }, conhecimento, { data: tarefaAtiva }] = await Promise.all([
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
-    admin.from('whatsapp_contatos').select('nome, phone').eq('id', contatoId).single(),
+    admin.from('whatsapp_contatos').select('nome, phone, cliente_id').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
       .select('direcao, conteudo, timestamp')
       .eq('contato_id', contatoId)
@@ -92,6 +92,11 @@ export async function POST(request: NextRequest) {
       .eq('contato_id', contatoId)
       .maybeSingle(),
     carregarConhecimento(admin, userId),
+    admin.from('agente_conversa_estado')
+      .select('id, tarefa_id, dados_coletados, agente_tarefas(instrucao)')
+      .eq('contato_id', contatoId)
+      .eq('status', 'aguardando')
+      .maybeSingle(),
   ])
 
   if (!contato) return NextResponse.json({ ok: false })
@@ -104,6 +109,87 @@ export async function POST(request: NextRequest) {
   if (!instrucaoOwner && ultimaEnviada) {
     const delta = Date.now() - new Date(ultimaEnviada.timestamp).getTime()
     if (delta < 15000) return NextResponse.json({ ok: true, skipped: 'throttled' })
+  }
+
+  /* ── MODO TAREFA: cliente respondeu a uma missão do Gerente ── */
+  if (tarefaAtiva) {
+    const tarefaDados = tarefaAtiva.agente_tarefas as unknown as { instrucao: string } | null
+    const instrucaoTarefa = tarefaDados?.instrucao ?? ''
+    const nomeClienteTarefa = contato?.nome?.split(' ')[0] ?? 'cliente'
+
+    const exRes = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: `Tarefa em andamento: "${instrucaoTarefa}"
+Cliente ${nomeClienteTarefa} respondeu: "${mensagem}"
+
+Extraia os dados informados e gere uma resposta natural de confirmação.
+JSON:
+{
+  "dados": {
+    "nome": "nome completo se informado, senão null",
+    "data_nascimento": "YYYY-MM-DD se informado, senão null",
+    "telefone": "número se informado, senão null",
+    "email": "email se informado, senão null",
+    "endereco": "endereço se informado, senão null"
+  },
+  "resposta": "1 frase agradecendo e confirmando o que foi registrado. Tom natural, brasileiro."
+}`,
+      }],
+    })
+
+    const exText = (exRes.content[0] as { text: string }).text.trim()
+    const exMatch = exText.match(/\{[\s\S]*\}/)
+    const ex = exMatch ? JSON.parse(exMatch[0]) : null
+
+    if (ex) {
+      const dadosLimpos: Record<string, string> = {}
+      for (const [k, v] of Object.entries(ex.dados ?? {})) {
+        if (v && typeof v === 'string') dadosLimpos[k] = v
+      }
+
+      /* Atualiza clientes se há vínculo */
+      const clienteId = (contato as { cliente_id?: string | null }).cliente_id
+      if (clienteId && Object.keys(dadosLimpos).length > 0) {
+        await admin.from('clientes').update({
+          ...dadosLimpos,
+          updated_at: new Date().toISOString(),
+        }).eq('id', clienteId)
+      }
+
+      /* Atualiza o estado da conversa */
+      const dadosAntigos = (tarefaAtiva.dados_coletados as Record<string, string>) ?? {}
+      await admin.from('agente_conversa_estado').update({
+        status: 'concluido',
+        dados_coletados: { ...dadosAntigos, ...dadosLimpos },
+        updated_at: new Date().toISOString(),
+      }).eq('id', tarefaAtiva.id)
+
+      /* Incrementa concluídos na tarefa */
+      const { data: tarefa } = await admin
+        .from('agente_tarefas').select('concluidos, total').eq('id', tarefaAtiva.tarefa_id).single()
+      if (tarefa) {
+        const novoConcluidos = (tarefa.concluidos ?? 0) + 1
+        await admin.from('agente_tarefas').update({
+          concluidos: novoConcluidos,
+          status: novoConcluidos >= tarefa.total ? 'concluida' : 'ativa',
+        }).eq('id', tarefaAtiva.tarefa_id)
+      }
+
+      /* Responde ao cliente */
+      const respConfirmacao = ex.resposta ?? 'Obrigada pelas informações! 😊'
+      await sendWhatsAppMessage({ phone: contato!.phone, message: respConfirmacao })
+      const ts = new Date().toISOString()
+      await admin.from('whatsapp_mensagens').insert({
+        user_id: userId, contato_id: contatoId,
+        direcao: 'enviada', tipo: 'texto',
+        conteudo: respConfirmacao, status: 'enviada', timestamp: ts,
+      })
+    }
+
+    return NextResponse.json({ ok: true, modo: 'tarefa' })
   }
 
   const horario   = config?.horario   ?? HORARIO_PADRAO
