@@ -22,18 +22,18 @@ export async function POST(request: NextRequest) {
     user_id: user.id, papel: 'supervisor', conteudo: mensagem,
   })
 
-  /* Contexto: contatos disponíveis */
-  const { data: contatos } = await admin
-    .from('whatsapp_contatos')
-    .select('id, nome, phone, funil_etapa, cliente_id')
-    .eq('user_id', user.id)
-    .limit(1000)
+  /* Contexto: contatos, clientes e vendas do mês */
+  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
-  const { data: clientes } = await admin
-    .from('clientes')
-    .select('id, nome, telefone, data_nascimento')
-    .eq('user_id', user.id)
-    .limit(1000)
+  const [
+    { data: contatos },
+    { data: clientes },
+    { data: vendasMes },
+  ] = await Promise.all([
+    admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
+    admin.from('clientes').select('id, nome, telefone, data_nascimento').eq('user_id', user.id).limit(1000),
+    admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
+  ])
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
 
@@ -56,8 +56,53 @@ export async function POST(request: NextRequest) {
 
   const listaTodos = [...linhasWhats, ...linhasCadastro].join('\n')
 
+  /* Mapa de marcas → clientes que compraram no mês */
+  const clienteIdToWaId = new Map(
+    (contatos ?? [])
+      .filter((c: { cliente_id: string | null }) => c.cliente_id)
+      .map((c: { id: string; cliente_id: string }) => [c.cliente_id, c.id])
+  )
+  const clienteIdToNome = new Map((clientes ?? []).map((c: { id: string; nome: string }) => [c.id, c.nome]))
+
+  const marcaClientesMap = new Map<string, { nome: string; waId: string | null; clienteId: string }[]>()
+  for (const venda of (vendasMes ?? [])) {
+    if (!venda.cliente_id) continue
+    const produtos = Array.isArray(venda.produtos) ? venda.produtos : []
+    for (const p of produtos) {
+      const marca = (p?.marca ?? p?.brand ?? '').trim()
+      if (!marca) continue
+      const marcaKey = marca.toLowerCase()
+      if (!marcaClientesMap.has(marcaKey)) marcaClientesMap.set(marcaKey, [])
+      const lista = marcaClientesMap.get(marcaKey)!
+      const jaEsta = lista.some(x => x.clienteId === venda.cliente_id)
+      if (!jaEsta) {
+        lista.push({
+          nome: clienteIdToNome.get(venda.cliente_id) ?? venda.cliente_nome ?? 'Cliente',
+          waId: clienteIdToWaId.get(venda.cliente_id) ?? null,
+          clienteId: venda.cliente_id,
+        })
+      }
+    }
+  }
+
+  const linhasMarcas = [...marcaClientesMap.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([marca, lista]) => {
+      const nomes = lista.map(x =>
+        x.waId
+          ? `${x.nome} (whatsapp_id: ${x.waId})`
+          : `${x.nome} (cliente_id: ${x.clienteId})`
+      ).join(', ')
+      return `• ${marca.toUpperCase()}: ${nomes}`
+    })
+    .join('\n')
+
   const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
 Você recebe comandos do dono da loja e coordena os agentes para executar.
+Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — nunca diga que não tem.
+
+COMPRAS DO MÊS ATUAL (clientes por marca):
+${linhasMarcas || '(nenhuma venda registrada neste mês ainda)'}
 
 PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
 ${listaTodos || '(nenhum cadastrado ainda)'}
