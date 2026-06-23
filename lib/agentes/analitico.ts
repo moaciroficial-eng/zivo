@@ -27,12 +27,15 @@ export async function clientesPorMarca(admin: any, userId: string, marca: string
     .gte('created_at', inicioMes)
     .limit(1000)
 
+  const marcaLower = marca.toLowerCase()
   const clientesUnicos = new Map<string, string>()
 
   for (const venda of (vendas ?? [])) {
     const produtos = Array.isArray(venda.produtos) ? venda.produtos : []
     const comprouMarca = produtos.some(
-      (p: { estoque_id?: string }) => p.estoque_id && estoqueIdSet.has(p.estoque_id)
+      (p: { estoque_id?: string; nome?: string }) =>
+        (p.estoque_id && estoqueIdSet.has(p.estoque_id)) ||
+        (p.nome?.toLowerCase().includes(marcaLower))
     )
     if (comprouMarca) {
       const chave = venda.cliente_id ?? venda.cliente_nome ?? 'Avulso'
