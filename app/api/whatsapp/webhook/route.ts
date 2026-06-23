@@ -301,7 +301,13 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ contatoId: contato.id, userId }),
         }).catch(() => null)
 
-        if (tipo === 'texto' && conteudo) {
+        if (tipo === 'audio' || tipo === 'ptt') {
+          const nomeCliente = contato.nome?.split(' ')[0] ?? 'você'
+          sendWhatsAppMessage({
+            phone,
+            message: `Oi ${nomeCliente}! 😊 Por enquanto não consigo ouvir áudios. Pode escrever sua mensagem por texto? Vai ser mais rápido pra te responder! 🙏`,
+          }).catch(() => null)
+        } else if (tipo === 'texto' && conteudo) {
           fetch(`${baseUrl}/api/agentes/atendimento`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
