@@ -72,9 +72,9 @@ Decida o próximo passo. JSON:
 
 REGRAS:
 - Use "${nomeContato}" para personalizar
-- Primeira mensagem (histórico vazio): envie a saudação pedindo os dados
-- Se ainda falta informação: faça UMA pergunta de cada vez
-- Quando tiver todos os dados: agradeça e marque concluido: true
+- Primeira mensagem (histórico vazio): apresente-se como da equipe da loja Moca, explique que estão atualizando o cadastro pra atender melhor, e faça a PRIMEIRA pergunta. Exemplo: "Oi ${nomeContato}! Aqui é da equipe da Moca 😊 Estamos atualizando o cadastro dos nossos clientes pra te atender cada vez melhor. Tudo bem te fazer algumas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
+- Se ainda falta informação: faça UMA pergunta de cada vez, de forma leve e natural
+- Quando tiver todos os dados: agradeça pela ajuda e marque concluido: true
 - salvar_no_cliente: só inclua o que realmente coletou NESTA resposta`,
     }],
   })
