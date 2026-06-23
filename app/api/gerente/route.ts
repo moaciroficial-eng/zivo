@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
+import { situacaoFinanceira } from '@/lib/agentes/financeiro'
+import { diagnosticoCompleto } from '@/lib/agentes/analitico'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -29,10 +32,12 @@ export async function POST(request: NextRequest) {
     { data: contatos },
     { data: clientes },
     { data: vendasMes },
+    { data: estoque },
   ] = await Promise.all([
     admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
     admin.from('clientes').select('id, nome, telefone, data_nascimento').eq('user_id', user.id).limit(1000),
     admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
+    admin.from('estoque').select('nome, marca, cor, tamanhos').eq('user_id', user.id).eq('status', 'disponivel').limit(500),
   ])
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
@@ -97,9 +102,32 @@ export async function POST(request: NextRequest) {
     })
     .join('\n')
 
+  /* Resumo compacto do estoque por marca */
+  type TamanhoItem = { tamanho: string; qtd: number }
+  const marcaEstoqueMap = new Map<string, { total: number; criticos: string[] }>()
+  for (const item of (estoque ?? [])) {
+    const marca = (item.marca ?? 'Sem marca').trim()
+    const qtdTotal = ((item.tamanhos ?? []) as TamanhoItem[]).reduce((s, t) => s + (t.qtd || 0), 0)
+    if (!marcaEstoqueMap.has(marca)) marcaEstoqueMap.set(marca, { total: 0, criticos: [] })
+    const entry = marcaEstoqueMap.get(marca)!
+    entry.total += qtdTotal
+    if (qtdTotal <= 2) entry.criticos.push(`${item.nome}${item.cor ? ` ${item.cor}` : ''}`)
+  }
+  const linhasEstoque = [...marcaEstoqueMap.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([marca, d]) => {
+      const critico = d.criticos.length > 0 ? ` ⚠️ crítico: ${d.criticos.slice(0, 3).join(', ')}` : ''
+      return `• ${marca}: ${d.total} unid.${critico}`
+    })
+    .join('\n')
+
   const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
 Você recebe comandos do dono da loja e coordena os agentes para executar.
-Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — nunca diga que não tem.
+Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — NUNCA diga que não tem acesso.
+Quando precisar de análise mais profunda, indique "consultar_agente" no JSON.
+
+ESTOQUE ATUAL (por marca):
+${linhasEstoque || '(nenhum produto cadastrado)'}
 
 COMPRAS DO MÊS ATUAL (clientes por marca):
 ${linhasMarcas || '(nenhuma venda registrada neste mês ainda)'}
@@ -110,32 +138,41 @@ ${listaTodos || '(nenhum cadastrado ainda)'}
 DADOS DA LOJA:
 - Clientes sem data de nascimento: ${semCadastroCompleto}
 
-Quando o supervisor pedir uma tarefa de mensagens automáticas, responda em JSON:
+Responda SEMPRE em JSON válido com este formato:
 {
-  "resposta": "texto amigável confirmando EXATAMENTE para quem vai enviar e pedindo confirmação",
+  "resposta": "texto amigável para o supervisor",
+  "tarefa": null,
+  "consultar_agente": null
+}
+
+Para TAREFAS de mensagem automática, inclua o campo "tarefa":
+{
+  "resposta": "confirmando exatamente quem vai receber e pedindo confirmação",
   "tarefa": {
-    "titulo": "título curto da tarefa",
+    "titulo": "título curto",
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
-    "instrucao": "instrução detalhada para o agente executar a conversa. PARA ATUALIZAR CADASTRO: perguntar APENAS (1) nome completo se o contato tiver só o primeiro nome, (2) data de nascimento, (3) tamanho de camiseta, (4) numeração de calça. Nada mais — sem CPF, endereço, email. Ser leve e rápido. Encerrar agradecendo.",
+    "instrucao": "instrução para o agente executar. ATUALIZAR CADASTRO: perguntar apenas nome completo, data de nascimento, tamanho camiseta, numeração calça. Ser rápido e encerrar agradecendo.",
     "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo",
     "contatos_especificos": [],
     "clientes_especificos": []
-  }
+  },
+  "consultar_agente": null
+}
+
+Para ANÁLISE PROFUNDA que precisa de mais dados do que você tem, use "consultar_agente":
+{
+  "resposta": "Deixa eu consultar o agente especialista...",
+  "tarefa": null,
+  "consultar_agente": "estoque | financeiro | diagnostico",
+  "filtro_busca": "termo de busca se for estoque específico"
 }
 
 REGRAS:
-- Pessoa com [WA]: coloque o whatsapp_id em "contatos_especificos"
-- Pessoa com [CAD]: coloque o cliente_id em "clientes_especificos" (o sistema cria o contato e envia pelo telefone do cadastro)
-- Para grupos genéricos use "filtro_contatos"
-- Se o nome não estiver em nenhuma das listas, diga claramente qual é o problema
-
-Se for apenas uma pergunta ou conversa (sem tarefa), responda em JSON:
-{
-  "resposta": "sua resposta em linguagem natural",
-  "tarefa": null
-}
-
-IMPORTANTE: Responda SEMPRE em JSON válido.`
+- [WA] → whatsapp_id em "contatos_especificos"
+- [CAD] → cliente_id em "clientes_especificos"
+- Grupos genéricos → "filtro_contatos"
+- Use os dados de ESTOQUE e COMPRAS que você tem antes de pedir ajuda do agente especialista
+- Só use "consultar_agente" se precisar de análise detalhada além do resumo que você tem`
 
   const messages = [
     ...historico.map((h: { papel: string; conteudo: string }) => ({
@@ -154,7 +191,27 @@ IMPORTANTE: Responda SEMPRE em JSON válido.`
 
   const text = (res.content[0] as { text: string }).text.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { resposta: text, tarefa: null }
+  const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { resposta: text, tarefa: null, consultar_agente: null }
+
+  /* Se o Gerente pediu consulta a agente especialista, executa e reformula */
+  if (parsed.consultar_agente && !parsed.tarefa) {
+    let dadosEspecialista = ''
+    try {
+      if (parsed.consultar_agente === 'estoque') {
+        dadosEspecialista = parsed.filtro_busca
+          ? await buscarProduto(admin as never, user.id, parsed.filtro_busca)
+          : await diagnosticoEstoque(admin as never, user.id)
+      } else if (parsed.consultar_agente === 'financeiro') {
+        dadosEspecialista = await situacaoFinanceira(admin as never, user.id)
+      } else if (parsed.consultar_agente === 'diagnostico') {
+        dadosEspecialista = await diagnosticoCompleto(admin as never, user.id)
+      }
+    } catch { /* usa resposta original se especialista falhar */ }
+
+    if (dadosEspecialista) {
+      parsed.resposta = dadosEspecialista
+    }
+  }
 
   /* Salva resposta do gerente */
   const { data: msgGerente } = await admin.from('gerente_mensagens').insert({
