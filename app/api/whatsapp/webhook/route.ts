@@ -41,9 +41,13 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     /* Z-API envia cada mensagem como um objeto raiz */
-    /* Normaliza phone: sempre com código do país 55, sem espaços/traços */
+    /* Normaliza phone: sempre com código do país 55 e com o 9 do celular brasileiro */
     const rawPhone = typeof payload.phone === 'string' ? payload.phone.replace(/\D/g, '') : null
-    const phone    = rawPhone ? (rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`) : null
+    const phoneWith55 = rawPhone ? (rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`) : null
+    /* Adiciona o 9 se for celular BR sem ele: 55 + 2 DDD + 8 dígitos começando em 6-9 = 12 dígitos */
+    const phone = phoneWith55 && phoneWith55.length === 12 && /^55\d{2}[6-9]/.test(phoneWith55)
+      ? `${phoneWith55.slice(0, 4)}9${phoneWith55.slice(4)}`
+      : phoneWith55
     const fromMe   = Boolean(payload.fromMe)
     const isGroup  = Boolean(payload.isGroup)
     const msgType  = payload.type as string | undefined
