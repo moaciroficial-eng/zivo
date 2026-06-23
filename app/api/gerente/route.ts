@@ -145,7 +145,8 @@ ESTOQUE ATUAL (por marca):
 ${linhasEstoque || '(nenhum produto cadastrado)'}
 
 COMPRAS DO MÊS ATUAL: ${totalVendasMes} venda(s) registrada(s)
-${linhasMarcas || '(produtos sem marca identificada — os itens não têm estoque_id vinculado)'}
+ATENÇÃO: Esta lista abaixo é COMPLETA e DEFINITIVA — não existe "agente de vendas" separado. Use esses dados para responder perguntas sobre quem comprou o quê:
+${linhasMarcas || '(nenhuma venda com produto vinculado ao estoque encontrada)'}
 
 PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
 ${listaTodos || '(nenhum cadastrado ainda)'}
@@ -174,20 +175,22 @@ Para TAREFAS de mensagem automática, inclua o campo "tarefa":
   "consultar_agente": null
 }
 
-Para ANÁLISE PROFUNDA que precisa de mais dados do que você tem, use "consultar_agente":
+Use "consultar_agente" APENAS para análises financeiras ou de diagnóstico, NUNCA para perguntas sobre quem comprou uma marca (você já tem esses dados):
 {
-  "resposta": "Deixa eu consultar o agente especialista...",
+  "resposta": "Deixa eu verificar...",
   "tarefa": null,
-  "consultar_agente": "estoque | financeiro | diagnostico",
-  "filtro_busca": "termo de busca se for estoque específico"
+  "consultar_agente": "financeiro | estoque | diagnostico",
+  "filtro_busca": "termo se for busca no estoque"
 }
 
-REGRAS:
+REGRAS IMPORTANTES:
+- Perguntas sobre quem comprou qual marca → responda DIRETO usando os dados de COMPRAS DO MÊS ATUAL acima. NUNCA diga que não tem ou que precisa consultar outro agente.
 - [WA] → whatsapp_id em "contatos_especificos"
 - [CAD] → cliente_id em "clientes_especificos"
 - Grupos genéricos → "filtro_contatos"
-- Use os dados de ESTOQUE e COMPRAS que você tem antes de pedir ajuda do agente especialista
-- Só use "consultar_agente" se precisar de análise detalhada além do resumo que você tem`
+- "consultar_agente: financeiro" → só para faturamento, metas, receita
+- "consultar_agente: estoque" → só para análise profunda de inventário
+- NUNCA invente dados que não estão na lista acima`
 
   const messages = [
     ...historico.map((h: { papel: string; conteudo: string }) => ({
