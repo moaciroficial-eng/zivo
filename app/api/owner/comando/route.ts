@@ -48,7 +48,7 @@ Mensagem: "${mensagem}"
 
 Retorne JSON:
 {
-  "acao": "conversa" | "relatorio_semana" | "relatorio_mes" | "diagnostico" | "financeiro" | "meta" | "plano_semana" | "crescimento" | "estoque_diagnostico" | "estoque_busca" | "clientes" | "pausar" | "ativar",
+  "acao": "conversa" | "vendas_hoje" | "relatorio_semana" | "relatorio_mes" | "diagnostico" | "financeiro" | "meta" | "plano_semana" | "crescimento" | "estoque_diagnostico" | "estoque_busca" | "clientes" | "pausar" | "ativar",
   "resposta_direta": "se for só conversa, responda aqui naturalmente. Senão deixe null",
   "filtro": "produto ou cliente buscado (se aplicável)",
   "valor": número se for definir meta, senão null
@@ -66,7 +66,8 @@ Exemplos:
 - "como tá o crescimento" → acao: crescimento
 - "situação do estoque" → acao: estoque_diagnostico
 - "tem camiseta M" → acao: estoque_busca, filtro: "camiseta M"
-- "quanto vendemos" → acao: financeiro
+- "quanto vendemos hoje" | "vendas de hoje" | "resumo do dia" → acao: vendas_hoje
+- "quanto vendemos" | "quanto vendemos esse mês" → acao: financeiro
 - "clientes inativos" → acao: clientes
 - "pausa o atendimento" → acao: pausar
 - "ativa o atendimento" → acao: ativar
@@ -85,6 +86,26 @@ Exemplos:
       case 'conversa':
         resposta = cmd.resposta_direta ?? 'Como posso ajudar?'
         break
+
+      case 'vendas_hoje': {
+        const hoje = new Date()
+        const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString()
+        const { data: vendasHoje } = await admin
+          .from('vendas').select('valor, cliente_nome, produtos, created_at')
+          .eq('user_id', userId).gte('created_at', inicioDia)
+          .order('created_at', { ascending: false })
+        const total = (vendasHoje ?? []).reduce((s: number, v: { valor: number }) => s + (Number(v.valor) || 0), 0)
+        const qtd = vendasHoje?.length ?? 0
+        if (qtd === 0) {
+          resposta = `📊 *Vendas de hoje*\n\nNenhuma venda registrada ainda hoje.`
+        } else {
+          const lista = (vendasHoje ?? []).slice(0, 10).map((v: { cliente_nome: string; valor: number }) =>
+            `• ${v.cliente_nome ?? 'Avulso'} — R$${Number(v.valor).toFixed(2)}`
+          ).join('\n')
+          resposta = `📊 *Vendas de hoje*\n\n💰 Total: R$${total.toFixed(2)} | ${qtd} venda(s)\n\n${lista}`
+        }
+        break
+      }
 
       case 'relatorio_semana':
         resposta = await gerarRelatorio(admin, userId, 'semana')
