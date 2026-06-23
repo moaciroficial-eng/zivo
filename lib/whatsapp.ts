@@ -14,7 +14,11 @@ export async function sendWhatsAppMessage({ phone, message }: SendOptions): Prom
   }
 
   const normalized = phone.replace(/\D/g, '')
-  const number = normalized.startsWith('55') ? normalized : `55${normalized}`
+  const with55 = normalized.startsWith('55') ? normalized : `55${normalized}`
+  /* Garante o 9 do celular brasileiro: 55 + DDD + 8 dígitos começando em 6-9 → adiciona 9 */
+  const number = with55.length === 12 && /^55\d{2}[6-9]/.test(with55)
+    ? `${with55.slice(0, 4)}9${with55.slice(4)}`
+    : with55
 
   const res = await fetch(`${BASE}/send-text`, {
     method: 'POST',

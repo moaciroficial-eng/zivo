@@ -186,7 +186,7 @@ REGRAS:
 4. Palavra solta de produto ("camiseta", "boné", "calça", "vestido") → buscar_estoque: true
 5. Cliente reagiu a PREÇO ("caro", "salgado") → pode_responder: true, sem buscar estoque, ofereça alternativa mais barata
 6. Cliente reagiu negativamente ("não gostei", "não quero") → empatia + ofereça alternativa
-7. Emoji, figurinha, "ok", "sim", "não" sozinhos → pode_responder: false
+7. Emoji, figurinha, "ok", "sim", "não" sozinhos SEM histórico → pode_responder: false. COM histórico de conversa recente → pode_responder: true, responda brevemente confirmando
 8. NUNCA diga que mensagem chegou em branco
 9. NUNCA mais de 1 pergunta por vez
 10. NUNCA use # ou ## no texto
