@@ -127,10 +127,8 @@ Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — NUNCA diga q
 Quando precisar de análise mais profunda, indique "consultar_agente" no JSON.
 
 MARCAS NO ESTOQUE: ${linhasEstoque}
-
-COMPRAS DO MÊS ATUAL: ${totalVendasMes} venda(s) registrada(s)
-ATENÇÃO: Esta lista abaixo é COMPLETA e DEFINITIVA — não existe "agente de vendas" separado. Use esses dados para responder perguntas sobre quem comprou o quê:
-${linhasMarcas || '(nenhuma venda com produto vinculado ao estoque encontrada)'}
+TOTAL DE VENDAS NO MÊS: ${totalVendasMes} venda(s)
+(Para saber quem comprou uma marca específica, use consultar_agente: "vendas_marca")
 
 PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
 ${listaTodos || '(nenhum cadastrado ainda)'}
