@@ -35,14 +35,9 @@ export default function InteligenciaClient({ sugestoes: inicial, userId }: { sug
   async function rodarInteligencia() {
     setRodando(true)
     try {
-      const res = await fetch('/api/cron/inteligencia')
-      const data = await res.json()
-      if (data.ok) {
-        const novo = await fetch('/api/inteligencia/listar')
-        if (novo.ok) setSugestoes(await novo.json())
-        else window.location.reload()
-      }
-    } finally {
+      await fetch('/api/cron/inteligencia')
+      window.location.reload()
+    } catch {
       setRodando(false)
     }
   }

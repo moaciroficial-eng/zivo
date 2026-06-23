@@ -1,6 +1,8 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+export const maxDuration = 60
+
 export async function GET() {
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
