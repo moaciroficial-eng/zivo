@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
         }).catch(() => null)
 
         if (tipo === 'audio' || tipo === 'ptt') {
-          const nomeCliente = contato.nome?.split(' ')[0] ?? 'você'
+          const nomeCliente = senderName?.split(' ')[0] ?? 'você'
           sendWhatsAppMessage({
             phone,
             message: `Oi ${nomeCliente}! 😊 Por enquanto não consigo ouvir áudios. Pode escrever sua mensagem por texto? Vai ser mais rápido pra te responder! 🙏`,
