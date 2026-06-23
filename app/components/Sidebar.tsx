@@ -82,6 +82,15 @@ const NAV = [
           </svg>
         ),
       },
+      {
+        href: '/inteligencia',
+        label: 'Inteligência',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.663 17h4.673M12 3a6 6 0 0 1 6 6c0 2.12-1.1 3.978-2.75 5.05L15 17H9l-.25-2.95A6.002 6.002 0 0 1 6 9a6 6 0 0 1 6-6z"/><line x1="12" y1="21" x2="12" y2="17"/>
+          </svg>
+        ),
+      },
     ],
   },
   {
