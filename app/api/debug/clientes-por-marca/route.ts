@@ -47,16 +47,31 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  /* Vendas com produto cujo NOME contém a marca mas estoque_id não bate */
+  const vendasNomeBate: { id: string; cliente: string; produtos_suspeitos: unknown[] }[] = []
+  for (const venda of (vendas ?? [])) {
+    const produtos = Array.isArray(venda.produtos) ? venda.produtos : []
+    const suspeitos = produtos.filter(
+      (p: { estoque_id?: string; nome?: string }) =>
+        p.nome?.toLowerCase().includes(marca.toLowerCase()) &&
+        (!p.estoque_id || !estoqueIdSet.has(p.estoque_id))
+    )
+    if (suspeitos.length > 0) {
+      vendasNomeBate.push({ id: venda.id, cliente: venda.cliente_nome, produtos_suspeitos: suspeitos })
+    }
+  }
+
   return NextResponse.json({
     marca_buscada: marca,
     userId,
     inicioMes,
     estoque_encontrado: estoqueItems?.length ?? 0,
-    estoque_ids: estoqueItems?.map((e: { id: string; nome: string; marca: string }) => ({ id: e.id, nome: e.nome, marca: e.marca })),
     vendas_no_mes: vendas?.length ?? 0,
-    vendas_com_marca: vendasComMarca.length,
-    clientes: clientesEncontrados,
-    detalhe_vendas: vendasComMarca,
+    vendas_com_marca_por_id: vendasComMarca.length,
+    vendas_com_marca_por_nome: vendasNomeBate.length,
+    clientes_encontrados: clientesEncontrados,
+    detalhe_por_id: vendasComMarca,
+    detalhe_por_nome_sem_id: vendasNomeBate,
     erro_estoque: errEstoque?.message,
     erro_vendas: errVendas?.message,
   })
