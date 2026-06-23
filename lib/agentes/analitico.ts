@@ -1,9 +1,57 @@
-import { SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-export async function gerarRelatorio(admin: SupabaseClient, userId: string, periodo: 'semana' | 'mes' = 'semana'): Promise<string> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function clientesPorMarca(admin: any, userId: string, marca: string): Promise<string> {
+  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+
+  /* Todos os IDs do estoque da marca buscada */
+  const { data: estoqueItems } = await admin
+    .from('estoque')
+    .select('id, nome')
+    .eq('user_id', userId)
+    .ilike('marca', `%${marca}%`)
+
+  if (!estoqueItems?.length) {
+    return `Nenhum produto da marca "${marca}" encontrado no estoque.`
+  }
+
+  const estoqueIdSet = new Set((estoqueItems as { id: string }[]).map(e => e.id))
+
+  /* Todas as vendas do mês com produtos */
+  const { data: vendas } = await admin
+    .from('vendas')
+    .select('cliente_id, cliente_nome, produtos')
+    .eq('user_id', userId)
+    .gte('created_at', inicioMes)
+    .limit(1000)
+
+  const clientesUnicos = new Map<string, string>()
+
+  for (const venda of (vendas ?? [])) {
+    const produtos = Array.isArray(venda.produtos) ? venda.produtos : []
+    const comprouMarca = produtos.some(
+      (p: { estoque_id?: string }) => p.estoque_id && estoqueIdSet.has(p.estoque_id)
+    )
+    if (comprouMarca) {
+      const chave = venda.cliente_id ?? venda.cliente_nome ?? 'Avulso'
+      if (!clientesUnicos.has(chave)) {
+        clientesUnicos.set(chave, venda.cliente_nome ?? 'Avulso')
+      }
+    }
+  }
+
+  if (!clientesUnicos.size) {
+    return `Nenhum cliente comprou produtos da marca "${marca}" este mês. (${estoqueItems.length} produtos da marca no estoque, ${(vendas ?? []).length} vendas analisadas)`
+  }
+
+  const lista = [...clientesUnicos.values()].map(n => `• ${n}`).join('\n')
+  return `*Clientes que compraram ${marca} em ${new Date().toLocaleString('pt-BR', { month: 'long' })}* (${clientesUnicos.size} clientes):\n\n${lista}`
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function gerarRelatorio(admin: any, userId: string, periodo: 'semana' | 'mes' = 'semana'): Promise<string> {
   const agora = new Date()
   const dias = periodo === 'semana' ? 7 : 30
   const inicio = new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000).toISOString()
@@ -79,7 +127,8 @@ ${estoquesBaixos.length > 0 ? '⚠️ Estoque crítico: [lista]' : '✅ Estoque:
   return (res.content[0] as { text: string }).text.trim()
 }
 
-export async function diagnosticoCompleto(admin: SupabaseClient, userId: string): Promise<string> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function diagnosticoCompleto(admin: any, userId: string): Promise<string> {
   const [
     { data: vendas30 },
     { data: clientes },

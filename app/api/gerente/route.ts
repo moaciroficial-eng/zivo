@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { situacaoFinanceira } from '@/lib/agentes/financeiro'
-import { diagnosticoCompleto } from '@/lib/agentes/analitico'
+import { diagnosticoCompleto, clientesPorMarca } from '@/lib/agentes/analitico'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -159,22 +159,23 @@ Para TAREFAS de mensagem automática, inclua o campo "tarefa":
   "consultar_agente": null
 }
 
-Use "consultar_agente" APENAS para análises financeiras ou de diagnóstico, NUNCA para perguntas sobre quem comprou uma marca (você já tem esses dados):
+Para CONSULTAR CLIENTES POR MARCA (lista completa e confiável):
 {
-  "resposta": "Deixa eu verificar...",
+  "resposta": "Consultando quem comprou [marca]...",
   "tarefa": null,
-  "consultar_agente": "financeiro | estoque | diagnostico",
-  "filtro_busca": "termo se for busca no estoque"
+  "consultar_agente": "vendas_marca",
+  "filtro_busca": "nome da marca exato"
 }
 
-REGRAS IMPORTANTES:
-- Perguntas sobre quem comprou qual marca → responda DIRETO usando os dados de COMPRAS DO MÊS ATUAL acima. NUNCA diga que não tem ou que precisa consultar outro agente.
+Para análise financeira: "consultar_agente": "financeiro"
+Para estoque detalhado: "consultar_agente": "estoque"
+Para diagnóstico geral: "consultar_agente": "diagnostico"
+
+REGRAS:
+- Perguntou quem comprou uma marca → SEMPRE use consultar_agente: "vendas_marca". Não tente adivinhar pela lista resumida.
 - [WA] → whatsapp_id em "contatos_especificos"
 - [CAD] → cliente_id em "clientes_especificos"
-- Grupos genéricos → "filtro_contatos"
-- "consultar_agente: financeiro" → só para faturamento, metas, receita
-- "consultar_agente: estoque" → só para análise profunda de inventário
-- NUNCA invente dados que não estão na lista acima`
+- Grupos genéricos → "filtro_contatos"`
 
   const messages = [
     ...historico.map((h: { papel: string; conteudo: string }) => ({
@@ -199,7 +200,9 @@ REGRAS IMPORTANTES:
   if (parsed.consultar_agente && !parsed.tarefa) {
     let dadosEspecialista = ''
     try {
-      if (parsed.consultar_agente === 'estoque') {
+      if (parsed.consultar_agente === 'vendas_marca' && parsed.filtro_busca) {
+        dadosEspecialista = await clientesPorMarca(admin, user.id, parsed.filtro_busca)
+      } else if (parsed.consultar_agente === 'estoque') {
         dadosEspecialista = parsed.filtro_busca
           ? await buscarProduto(admin as never, user.id, parsed.filtro_busca)
           : await diagnosticoEstoque(admin as never, user.id)
