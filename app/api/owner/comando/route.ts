@@ -188,8 +188,24 @@ Exemplos:
   }
 
   if (resposta) {
-    try { await sendWhatsAppMessage({ phone: ownerPhone, message: resposta }) }
-    catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
+    try {
+      await sendWhatsAppMessage({ phone: ownerPhone, message: resposta })
+      /* Salva no histórico do chat */
+      const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
+      const { data: contatoDono } = await admin
+        .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
+      if (contatoDono?.id) {
+        const timestamp = new Date().toISOString()
+        await admin.from('whatsapp_mensagens').insert({
+          user_id: userId, contato_id: contatoDono.id,
+          direcao: 'enviada', tipo: 'texto',
+          conteudo: resposta, status: 'enviada', timestamp,
+        })
+        await admin.from('whatsapp_contatos').update({
+          ultima_mensagem: resposta, ultima_mensagem_at: timestamp,
+        }).eq('id', contatoDono.id)
+      }
+    } catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
   }
 
   return NextResponse.json({ ok: true, acao: cmd.acao })

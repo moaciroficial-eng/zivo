@@ -111,6 +111,21 @@ export async function POST(request: NextRequest) {
     /* Se for o dono mensangendo a loja: rota para comandos ou escalação, nunca atendimento */
     if (direcao === 'recebida' && isOwner && conteudo) {
       console.log(`[webhook] Dono detectado: ${phone}`)
+
+      /* Salva a mensagem do dono no histórico */
+      const { data: contatoDono } = await supabase
+        .from('whatsapp_contatos')
+        .upsert({ user_id: cleanUserId, phone, nome: 'Moca (você)', ultima_mensagem: conteudo, ultima_mensagem_at: timestamp },
+          { onConflict: 'user_id,phone', ignoreDuplicates: false })
+        .select('id').single()
+      if (contatoDono?.id && messageId) {
+        await supabase.from('whatsapp_mensagens').upsert({
+          user_id: cleanUserId, contato_id: contatoDono.id,
+          message_id: messageId, direcao: 'recebida', tipo, conteudo,
+          status: 'recebida', timestamp, raw: payload,
+        }, { onConflict: 'message_id', ignoreDuplicates: true })
+      }
+
       const { data: escalacoes } = await supabase
         .from('atendimento_escalacoes')
         .select('id, contato_id')
@@ -129,7 +144,6 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ contatoId: escal.contato_id, userId: cleanUserId, mensagem: conteudo, instrucaoOwner: conteudo }),
         }).catch(() => null)
       } else {
-        /* Ack imediato pra dono saber que o comando chegou */
         if (conteudo && conteudo.trim().length > 3) {
           sendWhatsAppMessage({ phone: ownerPhone, message: '⏳' }).catch(() => null)
         }
