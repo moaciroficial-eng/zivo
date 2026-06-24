@@ -106,10 +106,17 @@ REGRAS:
     }).eq('id', contato.id)
   }
 
-  /* Merge de dados coletados */
+  /* Merge de dados coletados — filtra nulls para não sobrescrever dados já coletados */
+  const dadosNovosLimpos = Object.fromEntries(
+    Object.entries(acao.dados_novos ?? {}).filter(([, v]) => v != null)
+  )
+  const salvarLimpo = Object.fromEntries(
+    Object.entries(acao.salvar_no_cliente ?? {}).filter(([, v]) => v != null)
+  )
   const dadosAtualizados = {
     ...(estado.dados_coletados ?? {}),
-    ...(acao.dados_novos ?? {}),
+    ...dadosNovosLimpos,
+    ...salvarLimpo, // mantém no dados_coletados para a IA saber o que já foi coletado
   }
 
   /* Resolve cliente_id (fallback: busca por telefone) */
