@@ -307,26 +307,32 @@ export async function POST(request: NextRequest) {
           message: `Oi ${nomeCliente}! 😊 Por enquanto não consigo ouvir áudios. Pode escrever sua mensagem por texto? Vai ser mais rápido pra te responder! 🙏`,
         }).catch(() => null)
       } else if (tipo === 'texto' && conteudo) {
-        /* Agente de Dados (análise) — dispara imediatamente */
-        if (!estadoAtivo) {
+        if (estadoAtivo) {
+          /* Tarefa ativa: chama gerente/executar diretamente para evitar cadeia fire-and-forget */
+          fetch(`${baseUrl}/api/gerente/executar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              tarefaId:        estadoAtivo.tarefa_id,
+              contatoId:       contato.id,
+              respostaContato: conteudo,
+            }),
+          }).catch(() => null)
+        } else {
+          /* Atendimento normal: debounce de 3s para agrupar mensagens em sequência */
           fetch(`${baseUrl}/api/agentes/dados`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contatoId: contato.id, userId }),
           }).catch(() => null)
-        }
 
-        /* Processamento com debounce de 3s — aguarda mensagens enviadas em sequência */
-        fetch(`${baseUrl}/api/agentes/processar`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contatoId: contato.id,
-            userId,
-            timestamp,
-            tarefaAtiva: estadoAtivo ? { tarefa_id: estadoAtivo.tarefa_id } : null,
-          }),
-        }).catch(() => null)
+          fetch(`${baseUrl}/api/agentes/processar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contatoId: contato.id, userId, timestamp }),
+          }).catch(() => null)
+        }
       }
     }
 
