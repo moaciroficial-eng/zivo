@@ -147,6 +147,12 @@ REGRAS:
         if (partes.length === 3) update.data_nascimento = `${partes[2]}-${partes[1]}-${partes[0]}`
       }
       if (fonte.telefone && !update.telefone) update.telefone = String(fonte.telefone)
+      const camposCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta', 'tam_camiseta', 'tamanho_roupa']
+      const camposCalca = ['numeracao_calca', 'calca', 'numeracao', 'tam_calca', 'tamanho_calca']
+      const tc = camposCamiseta.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
+      const tca = camposCalca.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
+      if (tc && !update.tamanho_camiseta) update.tamanho_camiseta = String(tc)
+      if (tca && !update.tamanho_calca) update.tamanho_calca = String(tca)
     }
     if (Object.keys(update).length > 0) {
       await admin.from('clientes').update(update).eq('id', clienteAlvoId)
