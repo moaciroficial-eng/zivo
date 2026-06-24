@@ -165,7 +165,7 @@ REGRAS:
     if (tamCalca) tamanhos.push(`Calça: ${tamCalca}`)
     await admin.from('contato_insights').upsert({
       user_id: userId, contato_id: contato.id,
-      cliente_id: contato.cliente_id ?? null,
+      cliente_id: clienteAlvoId ?? contato.cliente_id ?? null,
       tamanhos, ultima_analise: new Date().toISOString(), updated_at: new Date().toISOString(),
     }, { onConflict: 'contato_id' })
   }
