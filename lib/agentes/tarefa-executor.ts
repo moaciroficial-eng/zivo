@@ -58,25 +58,28 @@ DADOS JÁ COLETADOS: ${JSON.stringify(estado.dados_coletados)}
 HISTÓRICO:
 ${historico.map(h => `[${h.papel.toUpperCase()}] ${h.texto}`).join('\n') || '(início da conversa)'}
 
-Decida o próximo passo. JSON:
+Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 {
-  "proxima_mensagem": "mensagem para o contato (null se tarefa concluída)",
-  "dados_novos": {},
+  "proxima_mensagem": "mensagem para o contato (null se concluído)",
+  "dados_novos": {
+    "tamanho_camiseta": "P/M/G/GG/XGG se coletou (null se não)",
+    "numeracao_calca": "36/38/40/42... se coletou (null se não)"
+  },
   "concluido": false,
   "salvar_no_cliente": {
-    "nome": "nome completo se coletou",
-    "data_nascimento": "DD/MM/AAAA se coletou",
-    "telefone": "se coletou"
+    "nome": "nome completo se coletou (null se não)",
+    "data_nascimento": "DD/MM/AAAA se coletou (null se não)",
+    "telefone": "número se coletou (null se não)"
   }
 }
 
 REGRAS:
 - Use "${nomeContato}" para personalizar
-- Primeira mensagem (histórico vazio): apresente-se como Moca e explique o motivo do contato. Exemplo: "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
-- Histórico com mensagens anteriores: NÃO se reapresente, continue a conversa naturalmente como se fosse o Moca mesmo
-- Se ainda falta informação: faça UMA pergunta de cada vez, de forma leve e natural
-- Quando tiver todos os dados: agradeça de forma pessoal e marque concluido: true
-- salvar_no_cliente: só inclua o que realmente coletou NESTA resposta`,
+- Primeira mensagem (histórico vazio): apresente-se como Moca. Exemplo: "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
+- Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
+- Faça UMA pergunta de cada vez
+- Quando tiver todos os dados necessários: agradeça e marque concluido: true
+- Nos campos "dados_novos" e "salvar_no_cliente": inclua APENAS o que foi coletado NESTA resposta, null nos demais`,
     }],
   })
 
@@ -143,11 +146,16 @@ REGRAS:
     }
   }
 
-  /* Salva tamanhos nos insights */
-  if (dadosAtualizados.tamanho_camiseta || dadosAtualizados.numeracao_calca) {
+  /* Salva tamanhos nos insights — aceita variações de nome de campo */
+  const camposCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta', 'tam_camiseta', 'tamanho_roupa']
+  const camposCalca = ['numeracao_calca', 'calca', 'numeracao', 'tam_calca', 'tamanho_calca']
+  const tamCamiseta = camposCamiseta.map(c => dadosAtualizados[c]).find(v => v != null)
+  const tamCalca = camposCalca.map(c => dadosAtualizados[c]).find(v => v != null)
+
+  if (tamCamiseta || tamCalca) {
     const tamanhos: string[] = []
-    if (dadosAtualizados.tamanho_camiseta) tamanhos.push(String(dadosAtualizados.tamanho_camiseta))
-    if (dadosAtualizados.numeracao_calca) tamanhos.push(String(dadosAtualizados.numeracao_calca))
+    if (tamCamiseta) tamanhos.push(`Camiseta: ${tamCamiseta}`)
+    if (tamCalca) tamanhos.push(`Calça: ${tamCalca}`)
     await admin.from('contato_insights').upsert({
       user_id: userId, contato_id: contato.id,
       cliente_id: contato.cliente_id ?? null,
