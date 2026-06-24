@@ -299,39 +299,34 @@ export async function POST(request: NextRequest) {
         .limit(1)
       const estadoAtivo = estadosAtivos?.[0] ?? null
 
-      if (estadoAtivo) {
-        /* Continua a conversa automatizada do Gerente */
-        fetch(`${baseUrl}/api/gerente/executar`, {
+      if (tipo === 'audio' || tipo === 'ptt') {
+        /* Áudio: responde imediatamente pedindo para digitar */
+        const nomeCliente = senderName?.split(' ')[0] ?? 'você'
+        sendWhatsAppMessage({
+          phone,
+          message: `Oi ${nomeCliente}! 😊 Por enquanto não consigo ouvir áudios. Pode escrever sua mensagem por texto? Vai ser mais rápido pra te responder! 🙏`,
+        }).catch(() => null)
+      } else if (tipo === 'texto' && conteudo) {
+        /* Agente de Dados (análise) — dispara imediatamente */
+        if (!estadoAtivo) {
+          fetch(`${baseUrl}/api/agentes/dados`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contatoId: contato.id, userId }),
+          }).catch(() => null)
+        }
+
+        /* Processamento com debounce de 3s — aguarda mensagens enviadas em sequência */
+        fetch(`${baseUrl}/api/agentes/processar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            contatoId: contato.id,
             userId,
-            tarefaId:        estadoAtivo.tarefa_id,
-            contatoId:       contato.id,
-            respostaContato: conteudo,
+            timestamp,
+            tarefaAtiva: estadoAtivo ? { tarefa_id: estadoAtivo.tarefa_id } : null,
           }),
         }).catch(() => null)
-      } else {
-        /* Agente de Dados (análise) + Agente de Atendimento (resposta automática) */
-        fetch(`${baseUrl}/api/agentes/dados`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contatoId: contato.id, userId }),
-        }).catch(() => null)
-
-        if (tipo === 'audio' || tipo === 'ptt') {
-          const nomeCliente = senderName?.split(' ')[0] ?? 'você'
-          sendWhatsAppMessage({
-            phone,
-            message: `Oi ${nomeCliente}! 😊 Por enquanto não consigo ouvir áudios. Pode escrever sua mensagem por texto? Vai ser mais rápido pra te responder! 🙏`,
-          }).catch(() => null)
-        } else if (tipo === 'texto' && conteudo) {
-          fetch(`${baseUrl}/api/agentes/atendimento`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contatoId: contato.id, userId, mensagem: conteudo }),
-          }).catch(() => null)
-        }
       }
     }
 
