@@ -185,6 +185,14 @@ REGRAS:
     updated_at: new Date().toISOString(),
   }).eq('id', estado.id)
 
+  /* Ao concluir, limpa todos os estados aguardando desse contato para evitar loop */
+  if (acao.concluido) {
+    await admin.from('agente_conversa_estado')
+      .update({ status: 'concluido', updated_at: new Date().toISOString() })
+      .eq('contato_id', contato.id)
+      .eq('status', 'aguardando')
+  }
+
   if (acao.concluido) {
     const novoConcluidos = (tarefa.concluidos ?? 0) + 1
     await admin.from('agente_tarefas').update({
