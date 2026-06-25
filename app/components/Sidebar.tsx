@@ -144,17 +144,17 @@ function NavItem({ href, label, icon, badge, onClick }: {
       title={label}
       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group ${
         active
-          ? 'bg-violet-500/15 text-violet-300 shadow-[inset_0_0_0_1px_rgba(139,92,246,0.2)]'
-          : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
+          ? 'bg-[#3B6FFF]/12 text-[#7FA8FF] shadow-[inset_0_0_0_1px_rgba(59,111,255,0.18)]'
+          : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
       }`}
     >
-      <span className={`shrink-0 transition-colors ${active ? 'text-violet-400' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+      <span className={`shrink-0 transition-colors ${active ? 'text-[#3B6FFF]' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
         {icon}
       </span>
       {label}
       {badge && badge > 0
-        ? <span className="ml-auto min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shrink-0">{badge > 99 ? '99+' : badge}</span>
-        : active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+        ? <span className="ml-auto min-w-[18px] h-[18px] bg-[#00D4AA] text-[#080B10] text-[10px] font-bold rounded-full flex items-center justify-center px-1 shrink-0">{badge > 99 ? '99+' : badge}</span>
+        : active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#00D4AA] shrink-0" />
       }
     </Link>
   )
@@ -188,16 +188,15 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <aside
-      className={`sidebar-drawer ${open ? 'sidebar-open' : ''} fixed top-0 left-0 h-screen w-60 z-40 flex flex-col bg-zinc-950 border-r border-zinc-800/60 transition-transform duration-300 ease-in-out`}
+      className={`sidebar-drawer ${open ? 'sidebar-open' : ''} fixed top-0 left-0 h-screen w-60 z-40 flex flex-col bg-[#080B10] border-r border-zinc-800/40 transition-transform duration-300 ease-in-out`}
     >
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-zinc-800/60 shrink-0">
         <Link href="/dashboard" onClick={onClose} className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20 group-hover:shadow-violet-500/30 transition-shadow">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-              <circle cx="12" cy="12" r="3" fill="white"/>
-            </svg>
+          {/* Logo: ponto pulsante */}
+          <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
+            <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-[#00D4AA] zivo-dot-ring" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#00D4AA] zivo-dot-core" />
           </div>
           <span className="font-bold text-white text-lg tracking-tight">zivo</span>
         </Link>
@@ -235,7 +234,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
       {/* User footer */}
       <div className="border-t border-zinc-800/60 px-3 py-3 shrink-0">
         <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500/30 to-indigo-500/30 border border-violet-500/20 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
+          <div className="w-7 h-7 rounded-full bg-[#3B6FFF]/20 border border-[#3B6FFF]/30 flex items-center justify-center text-xs font-bold text-[#7FA8FF] shrink-0">
             {email ? email.charAt(0).toUpperCase() : '?'}
           </div>
           <p className="text-xs text-zinc-400 truncate flex-1 min-w-0">{email}</p>
