@@ -214,7 +214,7 @@ function ClienteCard({ c }: { c: ClienteContatar }) {
 
   return (
     <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3.5 flex gap-3">
-      <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center shrink-0 mt-0.5">
+      <div className="w-8 h-8 rounded-lg bg-[#3B6FFF]/10 text-[#3B6FFF] flex items-center justify-center shrink-0 mt-0.5">
         <IconPhone />
       </div>
       <div className="flex-1 min-w-0">
@@ -246,8 +246,8 @@ function CircularProgress({ pct, size = 148 }: { pct: number; size?: number }) {
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
       <defs>
         <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#7c3aed" />
-          <stop offset="100%" stopColor="#10b981" />
+          <stop offset="0%" stopColor="#3B6FFF" />
+          <stop offset="100%" stopColor="#00D4AA" />
         </linearGradient>
       </defs>
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="#27272a" strokeWidth="11" />
@@ -417,7 +417,7 @@ export default function DashboardClient({
   const hc = healthStatus ? healthConfig[healthStatus] : null
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
+    <div className="min-h-screen bg-[#080B10] text-white">
       <div className="max-w-5xl mx-auto px-6 py-8">
 
         <div className="mb-6">
@@ -426,15 +426,15 @@ export default function DashboardClient({
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-          <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
+          <Link href="/vendas" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita Total</p>
-            <p className="text-2xl font-bold mt-1 text-emerald-400">{fmtNum(totalReceita)}</p>
+            <p className="text-2xl font-bold mt-1 text-[#3B6FFF]">{fmtNum(totalReceita)}</p>
           </Link>
-          <Link href="/vendas" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group">
+          <Link href="/vendas" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas</p>
             <p className="text-3xl font-bold mt-1">{totalVendas}</p>
           </Link>
-          <Link href="/whatsapp" className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 transition group flex flex-col justify-between">
+          <Link href="/whatsapp" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">WhatsApp</p>
             <div className="flex items-end justify-between mt-1">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
@@ -443,20 +443,20 @@ export default function DashboardClient({
               <span className="text-xs text-zinc-500 group-hover:text-zinc-400 transition">Abrir chat →</span>
             </div>
           </Link>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl p-5 flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Meta {getMesLabel(mes)}</p>
             {meta ? (
               <>
-                <p className="text-2xl font-bold mt-1 text-violet-400">{fmtNum(meta.valor_meta)}</p>
+                <p className="text-2xl font-bold mt-1 text-[#3B6FFF]">{fmtNum(meta.valor_meta)}</p>
                 <div className="mt-2">
                   <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                    <div className="h-full bg-gradient-to-r from-[#3B6FFF] to-[#00D4AA] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                   </div>
                   <p className="text-xs text-zinc-500 mt-1">{pct}% atingido</p>
                 </div>
               </>
             ) : (
-              <button onClick={() => setShowMetaModal(true)} className="mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition text-left cursor-pointer">
+              <button onClick={() => setShowMetaModal(true)} className="mt-2 text-xs font-semibold text-[#3B6FFF] hover:text-[#7FA8FF] transition text-left cursor-pointer">
                 + Definir meta →
               </button>
             )}
@@ -492,12 +492,12 @@ export default function DashboardClient({
         {/* ── Meta section ──────────────────────────────────────── */}
         {!meta ? (
           <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl p-10 flex flex-col items-center gap-4 text-center">
-            <div className="w-12 h-12 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400"><IconTarget /></div>
+            <div className="w-12 h-12 rounded-full bg-[#3B6FFF]/10 flex items-center justify-center text-[#3B6FFF]"><IconTarget /></div>
             <div>
               <p className="font-semibold text-lg">Defina sua meta de faturamento</p>
               <p className="text-zinc-400 text-sm mt-1 max-w-sm">A IA cria um plano de vendas diário com produtos a priorizar e clientes a contatar para você bater a meta.</p>
             </div>
-            <button onClick={() => setShowMetaModal(true)} className="mt-1 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-semibold text-sm transition cursor-pointer">
+            <button onClick={() => setShowMetaModal(true)} className="mt-1 px-5 py-2.5 bg-gradient-to-r from-[#3B6FFF] to-[#00D4AA] hover:opacity-90 text-white rounded-xl font-semibold text-sm transition cursor-pointer">
               Definir meta do mês
             </button>
           </div>
@@ -505,12 +505,12 @@ export default function DashboardClient({
           <div className="space-y-5">
 
             {/* ── Meta Hero Dashboard ─────────────────────────── */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl overflow-hidden">
 
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <div className="text-violet-400"><IconTarget /></div>
+                  <div className="text-[#3B6FFF]"><IconTarget /></div>
                   <span className="font-semibold">Meta de {getMesLabel(mes)}</span>
                   <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
                     statusPace === 'otimo' ? 'text-emerald-400 bg-emerald-500/15' :
@@ -560,7 +560,7 @@ export default function DashboardClient({
                     </div>
                     <div className="bg-zinc-800/60 rounded-xl p-3">
                       <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Meta</p>
-                      <p className="text-base font-bold text-violet-400 mt-0.5 leading-none">{fmtNum(meta.valor_meta)}</p>
+                      <p className="text-base font-bold text-[#3B6FFF] mt-0.5 leading-none">{fmtNum(meta.valor_meta)}</p>
                     </div>
                   </div>
 
@@ -568,7 +568,7 @@ export default function DashboardClient({
                   <div>
                     <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%`, background: pct >= 100 ? '#10b981' : 'linear-gradient(90deg,#7c3aed,#10b981)' }} />
+                        style={{ width: `${pct}%`, background: pct >= 100 ? '#00D4AA' : 'linear-gradient(90deg,#3B6FFF,#00D4AA)' }} />
                     </div>
                     <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
                       <span>0</span>
@@ -650,7 +650,7 @@ export default function DashboardClient({
                         ? 'Plano equilibrado com descontos moderados quando necessário.'
                         : 'Plano pode usar descontos estratégicos para acelerar o giro.'}
                     </p>
-                    <button onClick={() => setShowSaudeModal(true)} className="text-xs text-violet-400 hover:text-violet-300 mt-2 transition cursor-pointer">
+                    <button onClick={() => setShowSaudeModal(true)} className="text-xs text-[#3B6FFF] hover:text-[#7FA8FF] mt-2 transition cursor-pointer">
                       Adicionar dados detalhados para análise mais precisa →
                     </button>
                   </div>
@@ -724,10 +724,10 @@ export default function DashboardClient({
               /* CTA para saúde financeira */
               <button
                 onClick={() => setShowSaudeModal(true)}
-                className="w-full flex items-center justify-between bg-zinc-900 border border-dashed border-zinc-700 hover:border-violet-500/40 rounded-2xl px-5 py-4 transition group cursor-pointer"
+                className="w-full flex items-center justify-between bg-zinc-900 border border-dashed border-zinc-700 hover:border-[#3B6FFF]/40 rounded-2xl px-5 py-4 transition group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-violet-400 transition">
+                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-[#3B6FFF] transition">
                     <IconShield />
                   </div>
                   <div className="text-left">
@@ -735,13 +735,13 @@ export default function DashboardClient({
                     <p className="text-xs text-zinc-500">Afogado, estável ou saudável — a IA calibra o plano de acordo</p>
                   </div>
                 </div>
-                <span className="text-zinc-500 group-hover:text-violet-400 transition text-sm">→</span>
+                <span className="text-zinc-500 group-hover:text-[#3B6FFF] transition text-sm">→</span>
               </button>
             )}
 
             {/* ── Plan section ──────────────────────────────── */}
             {isGenerating ? (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-2 h-2 bg-violet-400 rounded-full animate-pulse" />
                   <span className="text-sm text-zinc-400">Gerando plano com IA…</span>
@@ -759,7 +759,7 @@ export default function DashboardClient({
               <>
                 {/* Today's plan */}
                 {diaHoje && (
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                  <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
                       <div>
                         <h2 className="font-semibold">Plano de Hoje</h2>
@@ -767,7 +767,7 @@ export default function DashboardClient({
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-zinc-500">Meta do dia</p>
-                        <p className="text-lg font-bold text-violet-400">{fmtNum(diaHoje.meta_dia)}</p>
+                        <p className="text-lg font-bold text-[#3B6FFF]">{fmtNum(diaHoje.meta_dia)}</p>
                         {pontoEqDiario > 0 && (
                           <p className={`text-xs mt-0.5 ${diaHoje.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
                             {diaHoje.meta_dia >= pontoEqDiario ? '✓ cobre despesas' : `⚠ eq: ${fmtNum(pontoEqDiario)}`}
@@ -796,8 +796,8 @@ export default function DashboardClient({
                       )}
 
                       {diaHoje.dica && (
-                        <div className="flex items-start gap-2.5 bg-violet-500/5 border border-violet-500/15 rounded-xl p-3.5">
-                          <div className="text-violet-400 mt-0.5 shrink-0"><IconLightbulb /></div>
+                        <div className="flex items-start gap-2.5 bg-[#3B6FFF]/5 border border-[#3B6FFF]/15 rounded-xl p-3.5">
+                          <div className="text-[#3B6FFF] mt-0.5 shrink-0"><IconLightbulb /></div>
                           <p className="text-sm text-zinc-300">{diaHoje.dica}</p>
                         </div>
                       )}
@@ -807,7 +807,7 @@ export default function DashboardClient({
 
                 {/* Próximos dias */}
                 {proximosDias.length > 0 && (
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                  <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl overflow-hidden">
                     <button
                       onClick={() => setShowNextDays(v => !v)}
                       className="w-full px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 transition"
@@ -825,7 +825,7 @@ export default function DashboardClient({
                                 <span className="text-zinc-500 text-sm ml-2">{dia.data.split('-').reverse().join('/')}</span>
                               </div>
                               <div className="text-right">
-                                <span className="text-sm font-bold text-violet-400">{fmtNum(dia.meta_dia)}</span>
+                                <span className="text-sm font-bold text-[#3B6FFF]">{fmtNum(dia.meta_dia)}</span>
                                 {pontoEqDiario > 0 && dia.meta_dia > 0 && (
                                   <span className={`ml-2 text-xs ${dia.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
                                     {dia.meta_dia >= pontoEqDiario ? '✓' : '⚠'}
@@ -845,7 +845,7 @@ export default function DashboardClient({
                               ))}
                               {dia.clientes_contatar.slice(0, 1).map((c, j) => (
                                 <div key={j} className="flex items-center gap-2 text-xs text-zinc-500">
-                                  <span className="text-violet-400">●</span>
+                                  <span className="text-[#3B6FFF]">●</span>
                                   <span className="truncate">{c.nome}</span>
                                 </div>
                               ))}
