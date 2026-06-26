@@ -34,7 +34,9 @@ async function enviarWpp(
     await admin.from('whatsapp_contatos').update({ ultima_mensagem: mensagem, ultima_mensagem_at: ts }).eq('id', contato.id)
   }
   /* Registra ação pra evitar duplo disparo */
-  await admin.from('inteligencia_acoes').insert({ user_id: userId, cliente_id: clienteId, mensagem, enviada_em: new Date().toISOString() }).catch(() => null)
+  try {
+    await admin.from('inteligencia_acoes').insert({ user_id: userId, cliente_id: clienteId, mensagem, enviada_em: new Date().toISOString() })
+  } catch { /* ignora */ }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -265,17 +267,19 @@ export async function GET() {
     }
     const mesPico = Object.entries(porMes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
-    await admin.from('contato_insights').upsert({
-      user_id: userId,
-      cliente_id: cliente.id,
-      ritmo_compra_dias: ritmoMedio,
-      dias_sem_comprar: diasSemComprar,
-      ultima_compra: ultimaCompra,
-      mes_pico: mesPico,
-      qtd_compras: vcList.length,
-      total_gasto: vcList.reduce((s, v) => s + Number(v.valor), 0),
-      ticket_medio: vcList.reduce((s, v) => s + Number(v.valor), 0) / vcList.length,
-    }, { onConflict: 'user_id,cliente_id' }).catch(() => null)
+    try {
+      await admin.from('contato_insights').upsert({
+        user_id: userId,
+        cliente_id: cliente.id,
+        ritmo_compra_dias: ritmoMedio,
+        dias_sem_comprar: diasSemComprar,
+        ultima_compra: ultimaCompra,
+        mes_pico: mesPico,
+        qtd_compras: vcList.length,
+        total_gasto: vcList.reduce((s, v) => s + Number(v.valor), 0),
+        ticket_medio: vcList.reduce((s, v) => s + Number(v.valor), 0) / vcList.length,
+      }, { onConflict: 'user_id,cliente_id' })
+    } catch { /* ignora erro de upsert individual */ }
   }
 
   return NextResponse.json({ ok: true, enviadas, giroMedio })
