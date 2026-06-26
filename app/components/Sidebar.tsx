@@ -83,8 +83,8 @@ const NAV = [
         ),
       },
       {
-        href: '/inteligencia',
-        label: 'Inteligência',
+        href: '/ia',
+        label: 'IA',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9.663 17h4.673M12 3a6 6 0 0 1 6 6c0 2.12-1.1 3.978-2.75 5.05L15 17H9l-.25-2.95A6.002 6.002 0 0 1 6 9a6 6 0 0 1 6-6z"/><line x1="12" y1="21" x2="12" y2="17"/>
@@ -120,15 +120,6 @@ const NAV = [
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-        ),
-      },
-      {
-        href: '/agentes',
-        label: 'Agentes IA',
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
           </svg>
         ),
       },
