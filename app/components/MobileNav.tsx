@@ -46,11 +46,11 @@ const TABS = [
     ),
   },
   {
-    href: '/biblioteca',
-    label: 'Fotos',
+    href: '/ia',
+    label: 'IA',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+        <path d="M9.663 17h4.673M12 3a6 6 0 0 1 6 6c0 2.12-1.1 3.978-2.75 5.05L15 17H9l-.25-2.95A6.002 6.002 0 0 1 6 9a6 6 0 0 1 6-6z"/><line x1="12" y1="21" x2="12" y2="17"/>
       </svg>
     ),
   },
@@ -93,7 +93,7 @@ export default function MobileNav() {
             key={tab.href}
             href={tab.href}
             className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors ${
-              active ? 'text-violet-400' : 'text-zinc-500 hover:text-zinc-300'
+              active ? 'text-[#7FA8FF]' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
             <span className={`relative transition-transform ${active ? 'scale-110' : ''}`}>
@@ -104,10 +104,10 @@ export default function MobileNav() {
                 </span>
               )}
             </span>
-            <span className={`text-[10px] font-medium leading-none ${active ? 'text-violet-400' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] font-medium leading-none ${active ? 'text-[#7FA8FF]' : 'text-zinc-600'}`}>
               {tab.label}
             </span>
-            {active && <span className="absolute bottom-0 w-8 h-0.5 bg-violet-400 rounded-full" />}
+            {active && <span className="absolute bottom-0 w-8 h-0.5 bg-[#3B6FFF] rounded-full" />}
           </Link>
         )
       })}
