@@ -171,7 +171,7 @@ export default function ClientesClient({
   const supabase = createClient()
   const [clientes, setClientes] = useState(initialClientes)
   const [drawer, setDrawer] = useState(false)
-  const [drawerTab, setDrawerTab] = useState<'dados' | 'historico'>('dados')
+  const [drawerTab, setDrawerTab] = useState<'dados' | 'historico' | 'ia'>('dados')
   const [editing, setEditing] = useState<Cliente | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -184,6 +184,8 @@ export default function ClientesClient({
   const [historicoVendas, setHistoricoVendas] = useState<HistoricoVenda[]>([])
   const [historicoCrediarios, setHistoricoCrediarios] = useState<HistoricoCrediario[]>([])
   const [loadingHistorico, setLoadingHistorico] = useState(false)
+  const [insightCliente, setInsightCliente] = useState<Record<string, unknown> | null>(null)
+  const [loadingInsight, setLoadingInsight] = useState(false)
 
   const [pagandoParcelaCliente, setPagandoParcelaCliente] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
 
@@ -225,7 +227,7 @@ export default function ClientesClient({
 
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
-    setHistoricoVendas([]); setHistoricoCrediarios([])
+    setHistoricoVendas([]); setHistoricoCrediarios([]); setInsightCliente(null)
   }
 
   async function loadHistorico(c: Cliente) {
@@ -239,6 +241,17 @@ export default function ClientesClient({
     setHistoricoVendas((vendas ?? []) as HistoricoVenda[])
     setHistoricoCrediarios((crediarios ?? []) as HistoricoCrediario[])
     setLoadingHistorico(false)
+  }
+
+  async function loadInsight(c: Cliente) {
+    setLoadingInsight(true)
+    const { data } = await supabase
+      .from('contato_insights')
+      .select('classificacao,tendencia,total_gasto,qtd_compras,ticket_medio,dias_sem_comprar,ultima_compra,ritmo_compra_dias,mes_pico,marcas_favoritas,tamanhos')
+      .eq('cliente_id', c.id)
+      .maybeSingle()
+    setInsightCliente(data as Record<string, unknown> | null)
+    setLoadingInsight(false)
   }
 
   async function handleMarcarParcelaPaga(crediarioId: string, parcelaId: string, formaPagamento: string) {
@@ -590,15 +603,21 @@ export default function ClientesClient({
               <div className="flex border-b border-zinc-800 shrink-0">
                 <button
                   onClick={() => setDrawerTab('dados')}
-                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'dados' ? 'text-white border-b-2 border-violet-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'dados' ? 'text-white border-b-2 border-[#3B6FFF]' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   Cadastro
                 </button>
                 <button
-                  onClick={() => setDrawerTab('historico')}
-                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'historico' ? 'text-white border-b-2 border-violet-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  onClick={() => { setDrawerTab('historico'); if (editing) loadHistorico(editing) }}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'historico' ? 'text-white border-b-2 border-[#3B6FFF]' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   Histórico
+                </button>
+                <button
+                  onClick={() => { setDrawerTab('ia'); if (editing) loadInsight(editing) }}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'ia' ? 'text-white border-b-2 border-[#00D4AA]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  IA
                 </button>
               </div>
             )}
@@ -789,6 +808,139 @@ export default function ClientesClient({
                         )}
                       </div>
                     </>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* Drawer body — aba IA */}
+            {editing && drawerTab === 'ia' && (
+              <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+                {loadingInsight ? (
+                  <p className="text-sm text-zinc-500 text-center py-10">Carregando...</p>
+                ) : !insightCliente ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                      <span className="text-2xl">🤖</span>
+                    </div>
+                    <p className="text-sm font-medium text-zinc-300">Dados insuficientes</p>
+                    <p className="text-xs text-zinc-500 max-w-[220px]">A IA ainda está aprendendo sobre esse cliente. Continue registrando as compras dele.</p>
+                  </div>
+                ) : (() => {
+                  const ins = insightCliente
+                  const classificacao = ins.classificacao as string | null
+                  const tendencia = ins.tendencia as string | null
+                  const totalGasto = Number(ins.total_gasto ?? 0)
+                  const qtdCompras = Number(ins.qtd_compras ?? 0)
+                  const ticketMedio = Number(ins.ticket_medio ?? 0)
+                  const diasSem = Number(ins.dias_sem_comprar ?? 0)
+                  const ritmo = ins.ritmo_compra_dias as number | null
+                  const mesPico = ins.mes_pico as string | null
+                  const marcas = (ins.marcas_favoritas as string[] | null) ?? []
+                  const tamanhos = (ins.tamanhos as string[] | null) ?? []
+
+                  const classMap: Record<string, { label: string; cor: string }> = {
+                    vip:       { label: 'VIP', cor: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30' },
+                    frequente: { label: 'Frequente', cor: 'text-[#3B6FFF] bg-[#3B6FFF]/10 border-[#3B6FFF]/30' },
+                    ocasional: { label: 'Ocasional', cor: 'text-zinc-300 bg-zinc-700/40 border-zinc-600/30' },
+                    inativo:   { label: 'Inativo', cor: 'text-red-400 bg-red-400/10 border-red-400/30' },
+                  }
+                  const tendMap: Record<string, { label: string; emoji: string }> = {
+                    aquecendo:   { label: 'Aquecendo', emoji: '🔥' },
+                    estavel:     { label: 'Estável', emoji: '✅' },
+                    esfriando:   { label: 'Esfriando', emoji: '❄️' },
+                    desaparecendo: { label: 'Sumindo', emoji: '⚠️' },
+                  }
+
+                  const cls = classificacao ? classMap[classificacao] : null
+                  const tend = tendencia ? tendMap[tendencia] : null
+
+                  const mesesPt: Record<string, string> = {
+                    '01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril',
+                    '05':'Maio','06':'Junho','07':'Julho','08':'Agosto',
+                    '09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro',
+                  }
+                  const mesPicoLabel = mesPico ? mesesPt[mesPico.slice(5)] ?? mesPico : null
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Classificação + Tendência */}
+                      <div className="flex gap-2 flex-wrap">
+                        {cls && (
+                          <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${cls.cor}`}>{cls.label}</span>
+                        )}
+                        {tend && (
+                          <span className="text-xs font-medium px-3 py-1 rounded-full border border-zinc-700 text-zinc-300 bg-zinc-800">
+                            {tend.emoji} {tend.label}
+                          </span>
+                        )}
+                        {diasSem > 0 && (
+                          <span className={`text-xs font-medium px-3 py-1 rounded-full border ${diasSem > (ritmo ?? 60) * 1.4 ? 'text-red-400 bg-red-400/10 border-red-400/30' : 'border-zinc-700 text-zinc-400 bg-zinc-800'}`}>
+                            {diasSem}d sem comprar
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Números */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-zinc-800/60 border border-zinc-700/40 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-white">{qtdCompras}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">compras</p>
+                        </div>
+                        <div className="bg-zinc-800/60 border border-zinc-700/40 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-white">R${totalGasto.toFixed(0)}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">total gasto</p>
+                        </div>
+                        <div className="bg-zinc-800/60 border border-zinc-700/40 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-white">R${ticketMedio.toFixed(0)}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">ticket médio</p>
+                        </div>
+                      </div>
+
+                      {/* O que a IA aprendeu */}
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                        <p className="text-xs font-semibold text-[#00D4AA] uppercase tracking-wider">O que a IA aprendeu</p>
+                        <div className="space-y-2">
+                          {ritmo && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-base">🔄</span>
+                              <p className="text-sm text-zinc-300">Compra a cada <span className="text-white font-medium">~{ritmo} dias</span></p>
+                            </div>
+                          )}
+                          {mesPicoLabel && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-base">📅</span>
+                              <p className="text-sm text-zinc-300">Pico de compras em <span className="text-white font-medium">{mesPicoLabel}</span></p>
+                            </div>
+                          )}
+                          {marcas.length > 0 && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-base">🏷️</span>
+                              <p className="text-sm text-zinc-300">Marcas favoritas: <span className="text-white font-medium">{marcas.join(', ')}</span></p>
+                            </div>
+                          )}
+                          {tamanhos.length > 0 && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-base">📏</span>
+                              <p className="text-sm text-zinc-300">Tamanhos: <span className="text-white font-medium">{tamanhos.join(', ')}</span></p>
+                            </div>
+                          )}
+                          {!ritmo && !mesPicoLabel && marcas.length === 0 && (
+                            <p className="text-sm text-zinc-500">Ainda coletando padrões de comportamento...</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Alerta de risco */}
+                      {ritmo && diasSem > ritmo * 1.4 && (
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                          <p className="text-sm font-medium text-red-400">⚠️ Fora do ritmo</p>
+                          <p className="text-xs text-red-300/70 mt-1">
+                            Esse cliente compra a cada ~{ritmo} dias mas está há {diasSem} dias sem aparecer. Hora de entrar em contato.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )
                 })()}
               </div>
