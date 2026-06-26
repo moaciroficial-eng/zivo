@@ -15,5 +15,5 @@ export default async function IAPage() {
       .order('created_at', { ascending: false }).limit(30),
   ])
 
-  return <IAClient sugestoes={sugestoes ?? []} agentes={agentes ?? []} logs={logs ?? []} />
+  return <IAClient sugestoes={sugestoes ?? []} agentes={agentes ?? []} logs={logs ?? []} userId={user.id} />
 }

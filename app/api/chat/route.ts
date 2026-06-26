@@ -31,12 +31,18 @@ export async function POST(request: NextRequest) {
     { data: estoque },
     { data: eventos },
     { data: config },
+    { data: waMensagens },
   ] = await Promise.all([
     admin.from('vendas').select('id,cliente_id,cliente_nome,valor,data_venda,produtos,forma_pagamento,presente,tipo_presente').eq('user_id', user.id).order('data_venda', { ascending: false }),
     admin.from('clientes').select('id,nome,telefone,tamanho_camiseta,tamanho_calca,tamanho_tenis,data_nascimento,observacoes').eq('user_id', user.id),
     admin.from('estoque').select('id,nome,marca,categoria,tamanhos,preco_custo,preco_venda,data_entrada').eq('user_id', user.id),
     admin.from('eventos').select('nome,data,descricao').eq('user_id', user.id).order('data', { ascending: true }).limit(30),
     admin.from('loja_config').select('nome_loja,horario,info_extra').eq('user_id', user.id).maybeSingle(),
+    admin.from('whatsapp_mensagens')
+      .select('direcao,conteudo,timestamp,whatsapp_contatos(nome,phone)')
+      .eq('user_id', user.id)
+      .order('timestamp', { ascending: false })
+      .limit(60),
   ])
 
   /* Agrega vendas por mês */
@@ -122,6 +128,14 @@ ${estoqueResumo.join('\n')}
 ${(eventos ?? []).map(e => `${e.data}: ${e.nome}${e.descricao ? ` — ${e.descricao}` : ''}`).join('\n')}
 
 ${config?.info_extra ? `### Info da loja:\n${config.info_extra}` : ''}
+
+### Conversas recentes no WhatsApp (últimas mensagens por contato):
+${(waMensagens ?? []).reverse().map(m => {
+  const contato = (m.whatsapp_contatos as { nome?: string; phone?: string } | null)
+  const quem = contato?.nome ?? contato?.phone ?? '?'
+  const dir = m.direcao === 'enviada' ? 'Loja' : quem
+  return `[${String(m.timestamp).slice(0, 10)}] ${dir}: ${m.conteudo}`
+}).join('\n')}
 
 ## Regras
 1. Responda SEMPRE com base nos dados reais acima — nunca invente números

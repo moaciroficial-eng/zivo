@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 /* ── Types ──────────────────────────────────────────────────── */
 type Message = { role: 'user' | 'assistant'; content: string }
@@ -39,28 +40,55 @@ function fmtDate(d: string | null) {
 }
 
 /* ════════════════════════════════════════════════════════════ */
-export default function IAClient({ sugestoes: initialSugestoes, agentes, logs }: {
-  sugestoes: Sugestao[]; agentes: Agente[]; logs: Log[]
+export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, userId }: {
+  sugestoes: Sugestao[]; agentes: Agente[]; logs: Log[]; userId: string
 }) {
+  const supabase = createClient()
   const [tab, setTab] = useState<'socio' | 'acoes' | 'gerente' | 'aprendizado'>('socio')
   const [sugestoes, setSugestoes] = useState(initialSugestoes)
   const router = useRouter()
 
   /* ── Sócio (chat) ──────────────────────────────────────── */
   const [msgs, setMsgs] = useState<Message[]>([])
+  const [msgsLoaded, setMsgsLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  /* Carrega histórico do banco ao montar */
+  useEffect(() => {
+    supabase
+      .from('chat_ia_mensagens')
+      .select('role, content')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(100)
+      .then(({ data }) => {
+        if (data && data.length > 0) setMsgs(data as Message[])
+        setMsgsLoaded(true)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
+
+  async function salvarMensagens(novos: Message[]) {
+    if (novos.length === 0) return
+    await supabase.from('chat_ia_mensagens').insert(
+      novos.map(m => ({ user_id: userId, role: m.role, content: m.content }))
+    )
+  }
 
   async function sendSocio(text?: string) {
     const content = (text ?? input).trim()
     if (!content || loading) return
-    const newMsgs: Message[] = [...msgs, { role: 'user', content }]
+    const userMsg: Message = { role: 'user', content }
+    const newMsgs: Message[] = [...msgs, userMsg]
     setMsgs(newMsgs)
     setInput('')
     setLoading(true)
+    /* Salva mensagem do usuário imediatamente */
+    await salvarMensagens([userMsg])
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -82,9 +110,16 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs }:
           return updated
         })
       }
+      /* Salva resposta da IA após streaming completo */
+      await salvarMensagens([{ role: 'assistant', content: assistantText }])
     } finally {
       setLoading(false)
     }
+  }
+
+  async function limparChat() {
+    await supabase.from('chat_ia_mensagens').delete().eq('user_id', userId)
+    setMsgs([])
   }
 
   /* ── Sugestões ─────────────────────────────────────────── */
@@ -209,7 +244,10 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs }:
       {tab === 'socio' && (
         <div className="flex-1 flex flex-col gap-3 min-h-0">
           <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
-            {msgs.length === 0 && (
+            {!msgsLoaded && (
+              <div className="text-center py-12 text-zinc-600 text-sm animate-pulse">Carregando conversa...</div>
+            )}
+            {msgsLoaded && msgs.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-3xl mb-3">🧑‍💼</p>
                 <p className="text-zinc-300 font-medium">Sócio virtual da Moca</p>
@@ -238,6 +276,14 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs }:
             <div ref={bottomRef} />
           </div>
           <div className="flex gap-2 border-t border-zinc-800 pt-3 shrink-0">
+            {msgs.length > 0 && (
+              <button onClick={limparChat} title="Limpar conversa"
+                className="p-2.5 text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 rounded-xl transition cursor-pointer shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            )}
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
