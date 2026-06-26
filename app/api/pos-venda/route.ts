@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   const { data: config } = await admin
     .from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
 
-  const nomeLoja = config?.nome_loja ?? 'MADS'
+  const nomeLoja = config?.nome_loja || 'Moca'
   const nomeCliente = (contato.nome ?? clienteNome ?? 'você').split(' ')[0]
 
   const mensagem = `Oi ${nomeCliente}! 😊 Obrigado pela sua compra na ${nomeLoja}! Foi um prazer te atender. Qualquer dúvida é só chamar por aqui. Até a próxima! 🛍️`
