@@ -48,7 +48,7 @@ export async function processarRespostaTarefa(
     max_tokens: 500,
     messages: [{
       role: 'user',
-      content: `Você é um agente executando uma tarefa via WhatsApp.
+      content: `Você é um agente executando uma tarefa via WhatsApp para uma loja de roupas.
 
 TAREFA: ${tarefa.instrucao}
 
@@ -62,14 +62,14 @@ Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 {
   "proxima_mensagem": "mensagem para o contato (null se concluído)",
   "dados_novos": {
-    "tamanho_camiseta": "P/M/G/GG/XGG se coletou (null se não)",
-    "numeracao_calca": "36/38/40/42... se coletou (null se não)"
+    "tamanho_camiseta": "P/M/G/GG/XGG se coletou (null se não coletou NESTA resposta)",
+    "tamanho_calca": "36/38/40/42/44/46... se coletou (null se não coletou NESTA resposta)",
+    "tamanho_tenis": "37/38/39/40/41/42/43... se coletou (null se não coletou NESTA resposta)"
   },
   "concluido": false,
   "salvar_no_cliente": {
-    "nome": "nome completo se coletou (null se não)",
-    "data_nascimento": "DD/MM/AAAA se coletou (null se não)",
-    "telefone": "número se coletou (null se não)"
+    "nome": "nome completo se coletou (null se não coletou NESTA resposta)",
+    "data_nascimento": "DD/MM/AAAA se coletou (null se não coletou NESTA resposta)"
   }
 }
 
@@ -78,7 +78,9 @@ REGRAS:
 - Primeira mensagem (histórico vazio): apresente-se como Moca. Exemplo: "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
 - Faça UMA pergunta de cada vez
-- Quando tiver todos os dados necessários: agradeça e marque concluido: true
+- Ordem sugerida: nome → data de nascimento → tamanho de camiseta → tamanho de calça → número de tênis
+- SÓ marque concluido: true quando tiver coletado TODOS esses campos: nome, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis — OU quando o contato se recusar a responder algum ("não sei", "não uso", "tanto faz")
+- Se o contato disser que não usa calça ou tênis, aceite e continue para o próximo campo
 - Nos campos "dados_novos" e "salvar_no_cliente": inclua APENAS o que foi coletado NESTA resposta, null nos demais`,
     }],
   })
@@ -148,27 +150,30 @@ REGRAS:
       }
       if (fonte.telefone && !update.telefone) update.telefone = String(fonte.telefone)
       const camposCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta', 'tam_camiseta', 'tamanho_roupa']
-      const camposCalca = ['numeracao_calca', 'calca', 'numeracao', 'tam_calca', 'tamanho_calca']
+      const camposCalca = ['tamanho_calca', 'numeracao_calca', 'calca', 'numeracao', 'tam_calca']
+      const camposTenis = ['tamanho_tenis', 'numero_tenis', 'tenis', 'numeracao_tenis', 'tam_tenis']
       const tc = camposCamiseta.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
       const tca = camposCalca.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
+      const tte = camposTenis.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
       if (tc && !update.tamanho_camiseta) update.tamanho_camiseta = String(tc)
       if (tca && !update.tamanho_calca) update.tamanho_calca = String(tca)
+      if (tte && !update.tamanho_tenis) update.tamanho_tenis = String(tte)
     }
     if (Object.keys(update).length > 0) {
       await admin.from('clientes').update(update).eq('id', clienteAlvoId)
     }
   }
 
-  /* Salva tamanhos nos insights — aceita variações de nome de campo */
-  const camposCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta', 'tam_camiseta', 'tamanho_roupa']
-  const camposCalca = ['numeracao_calca', 'calca', 'numeracao', 'tam_calca', 'tamanho_calca']
-  const tamCamiseta = camposCamiseta.map(c => dadosAtualizados[c]).find(v => v != null)
-  const tamCalca = camposCalca.map(c => dadosAtualizados[c]).find(v => v != null)
+  /* Salva tamanhos nos insights */
+  const tamCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta'].map(c => dadosAtualizados[c]).find(v => v != null)
+  const tamCalca = ['tamanho_calca', 'numeracao_calca', 'calca'].map(c => dadosAtualizados[c]).find(v => v != null)
+  const tamTenis = ['tamanho_tenis', 'numero_tenis', 'tenis'].map(c => dadosAtualizados[c]).find(v => v != null)
 
-  if (tamCamiseta || tamCalca) {
+  if (tamCamiseta || tamCalca || tamTenis) {
     const tamanhos: string[] = []
     if (tamCamiseta) tamanhos.push(`Camiseta: ${tamCamiseta}`)
     if (tamCalca) tamanhos.push(`Calça: ${tamCalca}`)
+    if (tamTenis) tamanhos.push(`Tênis: ${tamTenis}`)
     await admin.from('contato_insights').upsert({
       user_id: userId, contato_id: contato.id,
       cliente_id: clienteAlvoId ?? contato.cliente_id ?? null,
