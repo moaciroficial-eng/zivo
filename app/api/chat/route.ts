@@ -1,99 +1,161 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 
 const anthropic = new Anthropic()
-
-type CreateEventInput = { nome: string; data: string; descricao?: string }
 
 export async function POST(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: () => {},
-      },
-    },
+    { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } },
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return new Response('Unauthorized', { status: 401 })
+
+  const admin = createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-
   const { messages } = await request.json()
-
   const today = new Date().toISOString().slice(0, 10)
+  const anoAtual = new Date().getFullYear()
+  const mesAtual = String(new Date().getMonth() + 1).padStart(2, '0')
 
+  /* Carrega TUDO sem limite */
   const [
-    { data: clientes },
-    { data: vendas },
+    { data: todasVendas },
+    { data: todosClientes },
     { data: estoque },
     { data: eventos },
+    { data: config },
   ] = await Promise.all([
-    supabase.from('clientes').select('nome,telefone,tamanho_camiseta,tamanho_calca,tamanho_tenis,data_nascimento,observacoes').limit(40),
-    supabase.from('vendas').select('cliente_nome,valor,data_venda,produtos').order('data_venda', { ascending: false }).limit(20),
-    supabase.from('estoque').select('nome,marca,categoria,tamanhos,preco_custo,preco_venda').limit(40),
-    supabase.from('eventos').select('nome,data,descricao').order('data', { ascending: true }).limit(20),
+    admin.from('vendas').select('id,cliente_id,cliente_nome,valor,data_venda,produtos,forma_pagamento,presente,tipo_presente').eq('user_id', user.id).order('data_venda', { ascending: false }),
+    admin.from('clientes').select('id,nome,telefone,tamanho_camiseta,tamanho_calca,tamanho_tenis,data_nascimento,observacoes').eq('user_id', user.id),
+    admin.from('estoque').select('id,nome,marca,categoria,tamanhos,preco_custo,preco_venda,data_entrada').eq('user_id', user.id),
+    admin.from('eventos').select('nome,data,descricao').eq('user_id', user.id).order('data', { ascending: true }).limit(30),
+    admin.from('loja_config').select('nome_loja,horario,info_extra').eq('user_id', user.id).maybeSingle(),
   ])
 
-  const totalReceita = vendas?.reduce((s, v) => s + Number(v.valor), 0) ?? 0
+  /* Agrega vendas por mês */
+  const vendasPorMes: Record<string, { total: number; qtd: number }> = {}
+  for (const v of todasVendas ?? []) {
+    const mes = (v.data_venda as string).slice(0, 7)
+    if (!vendasPorMes[mes]) vendasPorMes[mes] = { total: 0, qtd: 0 }
+    vendasPorMes[mes].total += Number(v.valor)
+    vendasPorMes[mes].qtd++
+  }
 
-  const system = `Você é o sócio virtual do Moca, dono da loja de roupas masculinas em Barreiras-BA. Sua missão é aprender com os dados da loja todos os dias — vendas, estoque, clientes, datas — e agir como um sócio honesto e experiente.
+  /* Top clientes por valor */
+  const gastoCliente: Record<string, number> = {}
+  for (const v of todasVendas ?? []) {
+    const key = v.cliente_nome
+    gastoCliente[key] = (gastoCliente[key] ?? 0) + Number(v.valor)
+  }
+  const topClientes = Object.entries(gastoCliente)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([nome, total]) => `${nome}: R$${total.toFixed(0)}`)
+
+  /* Produtos mais vendidos */
+  const qtdProduto: Record<string, number> = {}
+  for (const v of todasVendas ?? []) {
+    for (const p of (v.produtos ?? []) as { nome?: string; qtd?: number }[]) {
+      if (p.nome) qtdProduto[p.nome] = (qtdProduto[p.nome] ?? 0) + (p.qtd ?? 1)
+    }
+  }
+  const topProdutos = Object.entries(qtdProduto)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([nome, qtd]) => `${nome}: ${qtd}un`)
+
+  /* Vendas do mês atual */
+  const vendasMesAtual = (todasVendas ?? []).filter(v => (v.data_venda as string).startsWith(`${anoAtual}-${mesAtual}`))
+  const faturamentoMes = vendasMesAtual.reduce((s, v) => s + Number(v.valor), 0)
+
+  /* Vendas recentes (últimas 30) para contexto detalhado */
+  const vendasRecentes = (todasVendas ?? []).slice(0, 30).map(v =>
+    `${v.data_venda} | ${v.cliente_nome} | R$${Number(v.valor).toFixed(0)} | ${v.forma_pagamento ?? ''}${v.presente ? ` | PRESENTE (${v.tipo_presente ?? ''})` : ''}`
+  )
+
+  type TamanhoItem = { tamanho: string; qtd: number }
+  const estoqueResumo = (estoque ?? []).map(e => {
+    const tam = ((e.tamanhos as TamanhoItem[]) ?? []).filter(t => t.qtd > 0)
+    const total = tam.reduce((s, t) => s + t.qtd, 0)
+    const diasNoEstoque = e.data_entrada ? Math.floor((Date.now() - new Date(e.data_entrada as string).getTime()) / 86400000) : null
+    return `${e.nome}${e.marca ? ` (${e.marca})` : ''} | ${total}un | ${tam.map(t => `${t.tamanho}:${t.qtd}`).join(' ')}${diasNoEstoque ? ` | ${diasNoEstoque}d no estoque` : ''} | R$${e.preco_venda ?? '?'}`
+  })
+
+  const totalReceita = (todasVendas ?? []).reduce((s, v) => s + Number(v.valor), 0)
+
+  const system = `Você é o sócio virtual do ${config?.nome_loja ?? 'Moca'}, dono de loja de roupas em Barreiras-BA. Analisa dados reais da loja e age como sócio honesto e experiente.
 
 Hoje é ${today}.
 
-## Regras de comportamento
+## DADOS COMPLETOS DA LOJA
 
-1. **Seja direto e realista** — se a meta tá difícil, fala; se um produto encalhou, alerta; nunca minta pra agradar.
-2. **Aprenda com cada venda registrada** — identifique o que gira rápido, o que encalha, quem compra o quê e em qual época.
-3. **Seja proativo** — toda vez que o Moca abrir o chat, analise os dados e traga pelo menos um insight sem ele precisar perguntar. Exemplos: "Moca, identifiquei que camiseta polo vende 3x mais em junho — temos estoque?", "Esse tênis tá há 45 dias parado, considera um desconto".
-4. **Foco 100% em varejo de moda masculina** — nada fora disso.
-5. **Considere a realidade regional de Barreiras-BA**: festas juninas, clima do sertão, poder aquisitivo local.
+### Receita total histórica: R$${totalReceita.toFixed(0)} | ${todasVendas?.length ?? 0} vendas registradas
 
-## Dados atuais da loja
+### Faturamento por mês:
+${Object.entries(vendasPorMes).sort((a,b) => b[0].localeCompare(a[0])).slice(0, 24).map(([mes, d]) => `${mes}: R$${d.total.toFixed(0)} (${d.qtd} vendas)`).join('\n')}
 
-### Clientes (${clientes?.length ?? 0} cadastrados)
-${JSON.stringify(clientes ?? [])}
+### Mês atual (${anoAtual}-${mesAtual}): R$${faturamentoMes.toFixed(0)} — ${vendasMesAtual.length} vendas
 
-### Vendas recentes — Receita total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalReceita)} (${vendas?.length ?? 0} registros)
-${JSON.stringify(vendas ?? [])}
+### Top 20 clientes por valor gasto:
+${topClientes.join('\n')}
 
-### Estoque (${estoque?.length ?? 0} produtos)
-${JSON.stringify(estoque ?? [])}
+### Produtos mais vendidos:
+${topProdutos.join('\n')}
 
-### Calendário (${eventos?.length ?? 0} eventos)
-${JSON.stringify(eventos ?? [])}
+### Últimas 30 vendas:
+${vendasRecentes.join('\n')}
 
-## Instruções adicionais
-- Responda sempre em português brasileiro informal, como um sócio falaria
-- Use valores monetários no formato BRL (ex: R$ 1.234,56)
-- Para criar eventos no calendário, use a ferramenta create_event — infira datas conhecidas sem perguntar ao usuário`
+### Clientes cadastrados (${todosClientes?.length ?? 0}):
+${(todosClientes ?? []).map(c => `${c.nome} | cam:${c.tamanho_camiseta ?? '?'} cal:${c.tamanho_calca ?? '?'} ten:${c.tamanho_tenis ?? '?'} | nasc:${c.data_nascimento ?? '?'}`).join('\n')}
+
+### Estoque (${estoque?.length ?? 0} produtos):
+${estoqueResumo.join('\n')}
+
+### Calendário:
+${(eventos ?? []).map(e => `${e.data}: ${e.nome}${e.descricao ? ` — ${e.descricao}` : ''}`).join('\n')}
+
+${config?.info_extra ? `### Info da loja:\n${config.info_extra}` : ''}
+
+## Regras
+1. Responda SEMPRE com base nos dados reais acima — nunca invente números
+2. Quando perguntarem sobre vendas, clientes ou estoque, use os dados completos acima
+3. Seja direto — se um produto encalhou, fala; se a meta tá em risco, alerta
+4. Use a ferramenta buscar_vendas quando precisar de detalhes que não estão no resumo
+5. Use a ferramenta create_event para criar eventos no calendário
+6. Responda em português informal, como um sócio falaria
+7. Considere a realidade regional de Barreiras-BA: São João, clima do sertão, festas locais`
 
   const tools: Anthropic.Tool[] = [
     {
       name: 'create_event',
-      description: 'Cria um novo evento no calendário da loja no Supabase. Use sempre que o usuário pedir para adicionar, criar, marcar ou registrar um evento, data comemorativa, compromisso ou lembrança no calendário.',
+      description: 'Cria um evento no calendário da loja.',
       input_schema: {
         type: 'object' as const,
         properties: {
-          nome: {
-            type: 'string',
-            description: 'Nome do evento (ex: "Dia dos Namorados", "Reunião com fornecedor")',
-          },
-          data: {
-            type: 'string',
-            description: `Data do evento no formato YYYY-MM-DD. Hoje é ${today}. Infira o ano corretamente com base no contexto.`,
-          },
-          descricao: {
-            type: 'string',
-            description: 'Descrição opcional com mais detalhes sobre o evento',
-          },
+          nome: { type: 'string', description: 'Nome do evento' },
+          data: { type: 'string', description: `Data YYYY-MM-DD. Hoje: ${today}` },
+          descricao: { type: 'string', description: 'Descrição opcional' },
         },
         required: ['nome', 'data'],
+      },
+    },
+    {
+      name: 'buscar_vendas',
+      description: 'Busca vendas específicas por período, cliente ou produto. Use quando precisar de detalhes não cobertos pelo resumo.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          cliente_nome: { type: 'string', description: 'Nome do cliente para filtrar (parcial)' },
+          mes: { type: 'string', description: 'Mês no formato YYYY-MM' },
+          produto: { type: 'string', description: 'Nome do produto para filtrar' },
+        },
       },
     },
   ]
@@ -101,57 +163,45 @@ ${JSON.stringify(eventos ?? [])}
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
-
-      // System como array para habilitar prompt caching (cache de 5 min no input)
       const systemCached = [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }]
 
-      // First call — non-streaming so we can detect and execute tool use
       const response1 = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 1500,
         system: systemCached,
         tools,
         messages,
       })
 
-      const toolUseBlocks = response1.content.filter(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-      )
+      const toolUseBlocks = response1.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
 
       if (toolUseBlocks.length > 0) {
         const toolResults: Anthropic.ToolResultBlockParam[] = []
 
         for (const toolUse of toolUseBlocks) {
           if (toolUse.name === 'create_event') {
-            const input = toolUse.input as CreateEventInput
-            const { error } = await supabase.from('eventos').insert({
-              nome: input.nome,
-              data: input.data,
-              descricao: input.descricao ?? null,
-            })
-            toolResults.push({
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: error
-                ? `Erro ao criar evento: ${error.message}`
-                : `Evento "${input.nome}" criado com sucesso para ${input.data}.`,
-            })
+            const input = toolUse.input as { nome: string; data: string; descricao?: string }
+            const { error } = await supabase.from('eventos').insert({ nome: input.nome, data: input.data, descricao: input.descricao ?? null })
+            toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: error ? `Erro: ${error.message}` : `Evento "${input.nome}" criado para ${input.data}.` })
+          }
+
+          if (toolUse.name === 'buscar_vendas') {
+            const input = toolUse.input as { cliente_nome?: string; mes?: string; produto?: string }
+            let filtradas = todasVendas ?? []
+            if (input.cliente_nome) filtradas = filtradas.filter(v => v.cliente_nome?.toLowerCase().includes(input.cliente_nome!.toLowerCase()))
+            if (input.mes) filtradas = filtradas.filter(v => (v.data_venda as string).startsWith(input.mes!))
+            if (input.produto) filtradas = filtradas.filter(v => (v.produtos as { nome?: string }[] ?? []).some(p => p.nome?.toLowerCase().includes(input.produto!.toLowerCase())))
+            const resultado = filtradas.slice(0, 50).map(v => `${v.data_venda} | ${v.cliente_nome} | R$${Number(v.valor).toFixed(0)} | ${JSON.stringify(v.produtos)}`)
+            toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: resultado.length > 0 ? resultado.join('\n') : 'Nenhuma venda encontrada com esses filtros.' })
           }
         }
 
-        // Second call — streaming final response after tool execution
-        const followUpMessages: Anthropic.MessageParam[] = [
-          ...messages,
-          { role: 'assistant', content: response1.content },
-          { role: 'user', content: toolResults },
-        ]
-
         const stream2 = anthropic.messages.stream({
           model: 'claude-sonnet-4-6',
-          max_tokens: 512,
+          max_tokens: 1500,
           system: systemCached,
           tools,
-          messages: followUpMessages,
+          messages: [...messages, { role: 'assistant', content: response1.content }, { role: 'user', content: toolResults }],
         })
 
         for await (const chunk of stream2) {
@@ -160,11 +210,8 @@ ${JSON.stringify(eventos ?? [])}
           }
         }
       } else {
-        // No tool use — emit the text directly
         for (const block of response1.content) {
-          if (block.type === 'text') {
-            controller.enqueue(encoder.encode(block.text))
-          }
+          if (block.type === 'text') controller.enqueue(encoder.encode(block.text))
         }
       }
 
@@ -172,7 +219,5 @@ ${JSON.stringify(eventos ?? [])}
     },
   })
 
-  return new Response(stream, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  })
+  return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }

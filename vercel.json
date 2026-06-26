@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/aniversarios",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/inteligencia-v2",
+      "schedule": "0 10 * * *"
     }
   ]
 }
