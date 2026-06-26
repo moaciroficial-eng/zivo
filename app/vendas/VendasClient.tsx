@@ -283,6 +283,10 @@ export default function VendasClient({
   const [showPayment, setShowPayment] = useState(false)
   const [pagSlots, setPagSlots] = useState<PagSlot[]>([emptySlot()])
   const [isHibrido, setIsHibrido] = useState(false)
+  const [isPresente, setIsPresente] = useState(false)
+  const [tipoPresente, setTipoPresente] = useState('')
+  const [obsPresente, setObsPresente] = useState('')
+  const [presenteTamanho, setPresenteTamanho] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const productSearchRef = useRef<HTMLInputElement>(null)
@@ -604,6 +608,7 @@ export default function VendasClient({
     setClienteDropdown(false); setProductSearch(''); setProductDropdown(false); setShowScanner(false)
     setShowPayment(false); resetPayment()
     setDescontoVendaTipo('%'); setDescontoVendaValor('')
+    setIsPresente(false); setTipoPresente(''); setObsPresente(''); setPresenteTamanho('')
   }
 
   /* ── Vender (new) → open payment overlay ── */
@@ -642,6 +647,10 @@ export default function VendasClient({
       data_venda: form.dataVenda,
       forma_pagamento: fp || null,
       caixa_id: findCaixaIdForDate(form.dataVenda),
+      presente: isPresente,
+      tipo_presente: isPresente && tipoPresente ? tipoPresente : null,
+      obs_presente: isPresente && obsPresente ? obsPresente : null,
+      presente_tamanho: isPresente && presenteTamanho ? presenteTamanho : null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         tamanho: p.tamanho || undefined,
@@ -698,8 +707,8 @@ export default function VendasClient({
         body: JSON.stringify({ mes, data_venda: payload.data_venda, produtos_vendidos: payload.produtos }),
       }).catch(() => {})
     }
-    /* Mensagem de pós-venda via WhatsApp */
-    if (payload.cliente_id) {
+    /* Mensagem de pós-venda via WhatsApp (não dispara para presentes) */
+    if (payload.cliente_id && !isPresente) {
       fetch('/api/pos-venda', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1539,7 +1548,63 @@ export default function VendasClient({
                 </Field>
               </div>
 
-              {/* 4. PAGAMENTO — edit only */}
+              {/* 4. PRESENTE */}
+              <div className="border border-zinc-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-200">É um presente?</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Não atualiza as preferências do comprador</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPresente(v => !v)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPresente ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isPresente ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                {isPresente && (
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">Tipo do presente</label>
+                      <select
+                        value={tipoPresente}
+                        onChange={e => setTipoPresente(e.target.value)}
+                        className={INPUT}
+                      >
+                        <option value="">Selecionar...</option>
+                        <option value="aniversario">Aniversário</option>
+                        <option value="namorado">Namorado/a</option>
+                        <option value="data_comemorativa">Data comemorativa</option>
+                        <option value="amigo_secreto">Amigo secreto</option>
+                        <option value="mae">Dia das mães</option>
+                        <option value="pai">Dia dos pais</option>
+                        <option value="outro">Outro</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">Tamanho do presenteado</label>
+                      <input
+                        className={INPUT}
+                        value={presenteTamanho}
+                        onChange={e => setPresenteTamanho(e.target.value)}
+                        placeholder="Ex: M, 40, GG..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">Observação</label>
+                      <input
+                        className={INPUT}
+                        value={obsPresente}
+                        onChange={e => setObsPresente(e.target.value)}
+                        placeholder="Ex: presente de aniversário de namoro"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. PAGAMENTO — edit only */}
               {editing && (
                 <Field label="Pagamento">
                   <button
