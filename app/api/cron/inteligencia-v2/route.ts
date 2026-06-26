@@ -37,25 +37,30 @@ async function enviarWpp(
   await admin.from('inteligencia_acoes').insert({ user_id: userId, cliente_id: clienteId, mensagem, enviada_em: new Date().toISOString() }).catch(() => null)
 }
 
-async function buscarPhone(admin: ReturnType<typeof createAdmin>, userId: string, clienteId: string, telefone?: string | null) {
-  const { data: wa } = await admin.from('whatsapp_contatos').select('phone').eq('user_id', userId).eq('cliente_id', clienteId).maybeSingle()
-  if (wa?.phone) return wa.phone as string
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buscarPhone(admin: any, userId: string, clienteId: string, telefone?: string | null) {
+  const r1 = await admin.from('whatsapp_contatos').select('phone').eq('user_id', userId).eq('cliente_id', clienteId).maybeSingle()
+  const wa = r1.data as { phone: string } | null
+  if (wa?.phone) return wa.phone
   if (telefone) {
     const last = telefone.replace(/\D/g, '').slice(-8)
-    const { data: wa2 } = await admin.from('whatsapp_contatos').select('phone').eq('user_id', userId).ilike('phone', `%${last}`).maybeSingle()
-    if (wa2?.phone) return wa2.phone as string
+    const r2 = await admin.from('whatsapp_contatos').select('phone').eq('user_id', userId).ilike('phone', `%${last}`).maybeSingle()
+    const wa2 = r2.data as { phone: string } | null
+    if (wa2?.phone) return wa2.phone
   }
   return null
 }
 
 /* Verifica se já enviou mensagem pra esse cliente nos últimos N dias */
-async function jaEnviouRecente(admin: ReturnType<typeof createAdmin>, userId: string, clienteId: string, diasMinimos: number) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function jaEnviouRecente(admin: any, userId: string, clienteId: string, diasMinimos: number) {
   const desde = new Date()
   desde.setDate(desde.getDate() - diasMinimos)
-  const { data } = await admin.from('inteligencia_acoes')
+  const r = await admin.from('inteligencia_acoes')
     .select('id').eq('user_id', userId).eq('cliente_id', clienteId)
     .gte('enviada_em', desde.toISOString()).limit(1)
-  return (data?.length ?? 0) > 0
+  const rows = r.data as unknown[] | null
+  return (rows?.length ?? 0) > 0
 }
 
 export async function GET() {
