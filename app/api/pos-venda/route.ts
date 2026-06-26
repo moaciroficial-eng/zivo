@@ -61,7 +61,11 @@ export async function POST(request: NextRequest) {
   const nomeLoja = config?.nome_loja || 'Moca'
   const nomeCliente = (contato.nome ?? clienteNome ?? 'você').split(' ')[0]
 
-  const mensagem = `Oi ${nomeCliente}! 😊 Obrigado pela sua compra na ${nomeLoja}! Foi um prazer te atender. Qualquer dúvida é só chamar por aqui. Até a próxima! 🛍️`
+  const variantes = [
+    `Obrigado pela sua compra, ${nomeCliente}! 🙏\nFoi um prazer te atender.\n\n${nomeLoja}`,
+    `Parabéns pela escolha, ${nomeCliente}! 😊\nFoi um prazer te atender.\n\n${nomeLoja}`,
+  ]
+  const mensagem = variantes[Math.floor(Math.random() * variantes.length)]
 
   try {
     await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
