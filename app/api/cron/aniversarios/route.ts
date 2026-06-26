@@ -65,8 +65,9 @@ export async function GET() {
   const anoAtual = hoje.getFullYear()
 
   const { data: config } = await admin
-    .from('loja_config').select('nome_loja').eq('user_id', userId).maybeSingle()
+    .from('loja_config').select('nome_loja, desconto_aniversario').eq('user_id', userId).maybeSingle()
   const nomeLoja = config?.nome_loja || 'Moca'
+  const desconto = config?.desconto_aniversario ?? 40
 
   /* Busca todos os clientes com nascimento cadastrado */
   const { data: clientes } = await admin
@@ -112,7 +113,7 @@ export async function GET() {
       .upsert({
         user_id: userId, cliente_id: cliente.id,
         ano: anoAtual, validade: domingo.toISOString().split('T')[0],
-        desconto: 40,
+        desconto,
       }, { onConflict: 'user_id,cliente_id,ano', ignoreDuplicates: false })
       .select().single()
 
@@ -125,7 +126,7 @@ export async function GET() {
 
     /* Dia anterior ao aniversário */
     if (ehAmanha && !cupomRow.msg_pre_enviada) {
-      const msg = `Oi ${nome}! Amanhã é seu aniversário e temos um presente pra você 🎁\n\nVocê está ganhando um cupom de *40% de desconto* válido até ${domingoStr}.\n\nÉ só me chamar aqui e dizer que veio buscar o presente! 😊\n\n${nomeLoja}`
+      const msg = `Oi ${nome}! Amanhã é seu aniversário e temos um presente pra você 🎁\n\nVocê está ganhando um cupom de *${desconto}% de desconto* válido até ${domingoStr}.\n\nÉ só me chamar aqui e dizer que veio buscar o presente! 😊\n\n${nomeLoja}`
       await enviarEHistorico(admin, userId, cliente.id, phone, msg)
       await admin.from('aniversario_cupons').update({ msg_pre_enviada: true }).eq('id', cupomRow.id)
       enviadas++
@@ -133,7 +134,7 @@ export async function GET() {
 
     /* Dia do aniversário */
     if (ehHoje && !cupomRow.msg_dia_enviada) {
-      const msg = `Feliz aniversário, ${nome}! 🎉🎂\n\nQue seu dia seja incrível! Lembra do seu cupom de *40% de desconto*? Válido até ${domingoStr}.\n\nÉ só me chamar 😊\n\n${nomeLoja}`
+      const msg = `Feliz aniversário, ${nome}! 🎉🎂\n\nQue seu dia seja incrível! Lembra do seu cupom de *${desconto}% de desconto*? Válido até ${domingoStr}.\n\nÉ só me chamar 😊\n\n${nomeLoja}`
       await enviarEHistorico(admin, userId, cliente.id, phone, msg)
       await admin.from('aniversario_cupons').update({ msg_dia_enviada: true }).eq('id', cupomRow.id)
       enviadas++
@@ -170,7 +171,7 @@ export async function GET() {
     if (!phone) continue
 
     const nome = cliente.nome?.split(' ')[0] ?? 'você'
-    const msg = `Oi ${nome}! Seu cupom de aniversário de *40% de desconto* vence amanhã ⏰\n\nAinda dá tempo de usar, é só me chamar 😊\n\n${nomeLoja}`
+    const msg = `Oi ${nome}! Seu cupom de aniversário de *${desconto}% de desconto* vence amanhã ⏰\n\nAinda dá tempo de usar, é só me chamar 😊\n\n${nomeLoja}`
     await enviarEHistorico(admin, userId, cupom.cliente_id, phone, msg)
     await admin.from('aniversario_cupons').update({ msg_lembrete_enviada: true }).eq('id', cupom.id)
     enviadas++
