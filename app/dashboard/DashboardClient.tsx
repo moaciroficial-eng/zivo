@@ -39,6 +39,7 @@ type DiaPlano = {
 }
 
 type Plano = {
+  comentario_socio?: string
   resumo: {
     meta: number
     vendido: number
@@ -757,6 +758,14 @@ export default function DashboardClient({
               </div>
             ) : plano ? (
               <>
+                {/* Comentário do sócio */}
+                {plano.comentario_socio && (
+                  <div className="bg-zinc-900/60 border border-zinc-700/50 rounded-2xl px-5 py-4 flex gap-3 items-start">
+                    <span className="text-xl shrink-0 mt-0.5">🧑‍💼</span>
+                    <p className="text-sm text-zinc-300 leading-relaxed">{plano.comentario_socio}</p>
+                  </div>
+                )}
+
                 {/* Today's plan */}
                 {diaHoje && (
                   <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl overflow-hidden">

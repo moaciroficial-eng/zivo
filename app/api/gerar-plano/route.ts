@@ -169,7 +169,7 @@ REGRAS FINANCEIRAS:
     : 0
   const vendasNecessarias = precoMedio > 0 ? Math.ceil(restante / precoMedio) : 0
 
-  const prompt = `Você é um assistente de vendas para uma loja de roupas/calçados no Brasil.
+  const prompt = `Você é o sócio mais experiente de uma loja de roupas/calçados no Brasil. Fala direto, sem frescura, como um sócio honesto falaria no dia a dia — nem robotizado, nem motivacional vazio.
 
 META DO MÊS (${mes}): R$ ${meta.toFixed(2)}
 Vendido até hoje (${hoje}): R$ ${vendido.toFixed(2)} (${pct}%)
@@ -215,6 +215,7 @@ ${regraFinanceira}
 
 Responda APENAS com JSON válido (sem markdown, sem explicações):
 {
+  "comentario_socio": "2-3 frases naturais e honestas sobre a situação atual da meta. Fale como sócio — sem emojis de status, sem 'intensifique as ações'. Se a meta tá difícil, diz. Se tá tranquila, diz. Se o ritmo tá bom mas precisa de empurrão, diz. Ex: 'Você tá em 67% com 10 dias ainda, tá no caminho certo. Mas sua média diária atual de R$280 precisa subir pra R$330 pra fechar. Foca nos clientes que não aparecem há mais de 20 dias.'",
   "resumo": {
     "meta": number,
     "vendido": number,
