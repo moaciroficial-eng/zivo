@@ -186,6 +186,7 @@ export default function ClientesClient({
   const [loadingHistorico, setLoadingHistorico] = useState(false)
   const [insightCliente, setInsightCliente] = useState<Record<string, unknown> | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
+  const [calculandoInsight, setCalculandoInsight] = useState(false)
 
   const [pagandoParcelaCliente, setPagandoParcelaCliente] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
 
@@ -252,6 +253,18 @@ export default function ClientesClient({
       .maybeSingle()
     setInsightCliente(data as Record<string, unknown> | null)
     setLoadingInsight(false)
+  }
+
+  async function calcularInsight(c: Cliente) {
+    setCalculandoInsight(true)
+    const res = await fetch('/api/clientes/calcular-insight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clienteId: c.id }),
+    })
+    const { insight } = await res.json()
+    if (insight) setInsightCliente(insight)
+    setCalculandoInsight(false)
   }
 
   async function handleMarcarParcelaPaga(crediarioId: string, parcelaId: string, formaPagamento: string) {
@@ -823,8 +836,15 @@ export default function ClientesClient({
                     <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
                       <span className="text-2xl">🤖</span>
                     </div>
-                    <p className="text-sm font-medium text-zinc-300">Dados insuficientes</p>
-                    <p className="text-xs text-zinc-500 max-w-[220px]">A IA ainda está aprendendo sobre esse cliente. Continue registrando as compras dele.</p>
+                    <p className="text-sm font-medium text-zinc-300">Ainda sem análise</p>
+                    <p className="text-xs text-zinc-500 max-w-[220px]">Clique abaixo para calcular agora ou aguarde o cron das 9h.</p>
+                    <button
+                      onClick={() => editing && calcularInsight(editing)}
+                      disabled={calculandoInsight}
+                      className="mt-2 px-4 py-2 bg-[#3B6FFF] hover:bg-[#5585FF] disabled:opacity-50 text-white text-sm font-medium rounded-xl transition cursor-pointer"
+                    >
+                      {calculandoInsight ? 'Calculando...' : '⚡ Calcular agora'}
+                    </button>
                   </div>
                 ) : (() => {
                   const ins = insightCliente
@@ -899,7 +919,16 @@ export default function ClientesClient({
 
                       {/* O que a IA aprendeu */}
                       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
-                        <p className="text-xs font-semibold text-[#00D4AA] uppercase tracking-wider">O que a IA aprendeu</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-[#00D4AA] uppercase tracking-wider">O que a IA aprendeu</p>
+                          <button
+                            onClick={() => editing && calcularInsight(editing)}
+                            disabled={calculandoInsight}
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition cursor-pointer"
+                          >
+                            {calculandoInsight ? 'Calculando...' : '↺ Atualizar'}
+                          </button>
+                        </div>
                         <div className="space-y-2">
                           {ritmo && (
                             <div className="flex items-start gap-2">
