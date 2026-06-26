@@ -698,6 +698,14 @@ export default function VendasClient({
         body: JSON.stringify({ mes, data_venda: payload.data_venda, produtos_vendidos: payload.produtos }),
       }).catch(() => {})
     }
+    /* Mensagem de pós-venda via WhatsApp */
+    if (payload.cliente_id) {
+      fetch('/api/pos-venda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: payload.cliente_id, clienteNome: payload.cliente_nome }),
+      }).catch(() => {})
+    }
     setSaving(false); closeDrawer()
   }
 
