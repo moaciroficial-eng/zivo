@@ -243,6 +243,58 @@ export async function GET() {
   }
 
   /* ════════════════════════════════════════════════════════
+     3.5. AFINIDADE DE MARCA + TAMANHO
+     Cliente gosta de Aramis e veste G → chegou Aramis G → avisa
+     ════════════════════════════════════════════════════════ */
+  const { data: todosInsights } = await admin
+    .from('contato_insights')
+    .select('cliente_id, marcas_favoritas, tamanhos')
+    .eq('user_id', userId)
+
+  type InsightSimples = { cliente_id: string; marcas_favoritas: string[] | null; tamanhos: string[] | null }
+  const insightsPorCliente = new Map<string, InsightSimples>(
+    ((todosInsights ?? []) as InsightSimples[]).map(i => [i.cliente_id, i])
+  )
+
+  for (const item of estoque) {
+    if (enviadas >= MAX_ENVIOS) break
+    if (!item.marca) continue
+
+    const tams = ((item.tamanhos as TamanhoItem[]) ?? []).filter(t => t.qtd > 0)
+    const tamanhosDisponiveis = tams.map(t => String(t.tamanho).toLowerCase())
+
+    const clientesAlvo = clientes.filter(c => {
+      const ins = insightsPorCliente.get(c.id)
+      if (!ins?.marcas_favoritas?.length) return false
+      const gostaDaMarca = ins.marcas_favoritas.some(
+        (m: string) => m.toLowerCase() === String(item.marca).toLowerCase()
+      )
+      if (!gostaDaMarca) return false
+      if (tamanhosDisponiveis.length === 0) return true
+      const tc  = c.tamanho_camiseta?.toLowerCase()
+      const tca = c.tamanho_calca?.toLowerCase()
+      const tte = c.tamanho_tenis?.toLowerCase()
+      return tamanhosDisponiveis.some(t => t === tc || t === tca || t === tte)
+    })
+
+    for (const cliente of clientesAlvo) {
+      if (enviadas >= MAX_ENVIOS) break
+      const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
+      if (!phone) continue
+      if (await jaEnviouRecente(admin, userId, cliente.id, 14)) continue
+
+      const nome   = cliente.nome?.split(' ')[0] ?? 'você'
+      const tamStr = tams.length > 0 ? ` no tamanho ${tams.map(t => t.tamanho).join('/')}` : ''
+      const preco  = item.preco_venda ? ` por R$${Number(item.preco_venda).toFixed(0)}` : ''
+      const msg    = `Oi ${nome}! Chegou uma peça nova da ${item.marca} aqui na ${nomeLoja}${tamStr}${preco} — sei que você curte essa marca 🔥 Quer dar uma olhada?`
+
+      await enviarWpp(admin, userId, cliente.id, phone, msg)
+      enviadas++
+      break
+    }
+  }
+
+  /* ════════════════════════════════════════════════════════
      4. ATUALIZA INSIGHTS DE RITMO NO BANCO
      ════════════════════════════════════════════════════════ */
   for (const cliente of clientes) {
@@ -280,6 +332,36 @@ export async function GET() {
         ticket_medio: vcList.reduce((s, v) => s + Number(v.valor), 0) / vcList.length,
       }, { onConflict: 'user_id,cliente_id' })
     } catch { /* ignora erro de upsert individual */ }
+  }
+
+  /* ════════════════════════════════════════════════════════
+     5. ANIVERSÁRIOS NOS PRÓXIMOS 7 DIAS
+     ════════════════════════════════════════════════════════ */
+  const descAniv = config?.desconto_aniversario ? `${config.desconto_aniversario}% de desconto` : 'um mimo especial'
+
+  for (const cliente of clientes) {
+    if (enviadas >= MAX_ENVIOS) break
+    if (!cliente.data_nascimento) continue
+
+    const parts = String(cliente.data_nascimento).split('-').map(Number)
+    const mesAniv = parts[1], diaAniv = parts[2]
+    const aniv = new Date(hoje.getFullYear(), mesAniv - 1, diaAniv)
+    if (aniv < hoje) aniv.setFullYear(hoje.getFullYear() + 1)
+    const diasAniv = Math.round((aniv.getTime() - hoje.getTime()) / 86400000)
+
+    if (diasAniv < 0 || diasAniv > 7) continue
+
+    const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
+    if (!phone) continue
+    if (await jaEnviouRecente(admin, userId, cliente.id, 30)) continue
+
+    const nome = cliente.nome?.split(' ')[0] ?? 'você'
+    const msg  = diasAniv === 0
+      ? `Oi ${nome}! Feliz aniversário! 🎂 Você tem ${descAniv} especial hoje aqui na ${nomeLoja}. Aproveite!`
+      : `Oi ${nome}! Seu aniversário tá chegando em ${diasAniv} ${diasAniv === 1 ? 'dia' : 'dias'} 🎉 Passa aqui na ${nomeLoja} e garante ${descAniv} especial pra você.`
+
+    await enviarWpp(admin, userId, cliente.id, phone, msg)
+    enviadas++
   }
 
   return NextResponse.json({ ok: true, enviadas, giroMedio })

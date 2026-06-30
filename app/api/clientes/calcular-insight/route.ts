@@ -35,8 +35,12 @@ export async function POST(request: NextRequest) {
 
   if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
 
-  const todasVendas = vendas ?? []
+  const todasVendas    = vendas ?? []
   const vendasProprias = todasVendas.filter(v => !v.presente)
+  const vendasPresente = todasVendas.filter(v => v.presente)
+  const giftBuyerScore = todasVendas.length > 0
+    ? Math.round((vendasPresente.length / todasVendas.length) * 100)
+    : 0
 
   const totalGasto = todasVendas.reduce((s, v) => s + Number(v.valor), 0)
   const qtdCompras = todasVendas.length
@@ -113,7 +117,8 @@ export async function POST(request: NextRequest) {
     ritmo_compra_dias: ritmoMedio,
     mes_pico: mesPico,
     marcas_favoritas: marcasFavoritas.length > 0 ? marcasFavoritas : null,
-    tamanhos: tamanhos.length > 0 ? tamanhos : null,
+    tamanhos:         tamanhos.length > 0 ? tamanhos : null,
+    gift_buyer_score: giftBuyerScore,
   }
 
   await admin.from('contato_insights').upsert(insight, { onConflict: 'user_id,cliente_id' })
