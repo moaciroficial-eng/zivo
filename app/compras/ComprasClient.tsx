@@ -13,6 +13,7 @@ interface ResultPedido {
   velocidade_mensal_valor: number
   cobertura_atual_meses: number
   valor_comprar: number
+  valor_comprar_venda: number
   pecas_comprar: number
   distribuicao_tamanhos: TamanhoItem[]
   alerta_dados_insuficientes: boolean
@@ -23,6 +24,7 @@ interface MarcaResult {
   marca: string
   pct_mix: number
   valor_comprar: number
+  valor_comprar_venda: number
   pecas_estimadas: number
   cobertura_atual_meses: number
   distribuicao_tamanhos: TamanhoItem[]
@@ -271,9 +273,12 @@ export default function ComprasClient({ marcas }: { marcas: string[] }) {
                     <p className="text-lg font-bold text-white">{resPedido.cobertura_atual_meses.toFixed(1)}m</p>
                   </div>
                   <div className="bg-[#3B6FFF]/10 border border-[#3B6FFF]/30 rounded-xl p-4 text-center">
-                    <p className="text-xs text-[#7FA8FF] mb-1">Comprar</p>
+                    <p className="text-xs text-[#7FA8FF] mb-1">Investir (custo)</p>
                     <p className="text-lg font-bold text-white">{fmt(resPedido.valor_comprar)}</p>
                     <p className="text-xs text-zinc-500">{resPedido.pecas_comprar} peças</p>
+                    {resPedido.valor_comprar_venda > 0 && (
+                      <p className="text-xs text-zinc-600 mt-1">≈ {fmt(resPedido.valor_comprar_venda)} em venda</p>
+                    )}
                   </div>
                 </div>
 
@@ -307,7 +312,10 @@ export default function ComprasClient({ marcas }: { marcas: string[] }) {
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-bold text-white">{fmt(m.valor_comprar)}</p>
-                          <p className="text-xs text-zinc-500">~{m.pecas_estimadas} peças</p>
+                          <p className="text-xs text-zinc-500">custo · ~{m.pecas_estimadas} peças</p>
+                          {m.valor_comprar_venda > 0 && (
+                            <p className="text-xs text-zinc-600">≈ {fmt(m.valor_comprar_venda)} venda</p>
+                          )}
                         </div>
                       </div>
                       {m.distribuicao_tamanhos?.length > 0 && (
