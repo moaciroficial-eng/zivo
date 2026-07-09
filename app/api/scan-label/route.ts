@@ -51,8 +51,10 @@ Formato exato:
 {"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
 
 Regras gerais:
-- "categoria" deve ser exatamente: "camiseta", "polo", "regata", "calca", "bermuda", "tenis", "chinelo" ou "outros"
+- "categoria" deve ser exatamente: "camiseta", "camisa", "polo", "regata", "calca", "bermuda", "tenis", "chinelo" ou "outros"
   - Use "polo" para camisetas polo (com gola e botões)
+  - Use "camisa" para camisas sociais, camisas masculinas com botões (ex: "CAMISA MC", "CAMISA SOCIAL", "CAMISA XADREZ")
+  - Use "camiseta" para camisetas básicas, t-shirts, regatas com manga curta sem botões
   - Use "bermuda" para bermudas e shorts
   - Use "calca" apenas para calças longas (jeans, sarja, jogger, moletom)
 - "tamanho": string com o tamanho identificado (ex: "M", "G", "42") ou null

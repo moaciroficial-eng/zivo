@@ -22,6 +22,7 @@ type NFeItem = {
   preco_custo: number | null
   preco_venda: number | null
   categoria: Produto['categoria']
+  manga: 'curta' | 'longa' | null
   marca: string | null
 }
 
@@ -66,8 +67,9 @@ function extractTax(group: Element | null, variants: string[], rateTag: string):
 
 function inferCategoria(nome: string): Produto['categoria'] {
   const n = nome.toUpperCase()
-  if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                                     return 'polo'
-  if (/CAMISETA|(?<![A-Z])CAMISA(?![A-Z])|T[-\s]?SHIRT/.test(n))                           return 'camiseta'
+  if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                                    return 'polo'
+  if (/CAMISETA|T[-\s]?SHIRT/.test(n))                                                      return 'camiseta'
+  if (/(?<![A-Z])CAMISA(?![A-Z])/.test(n))                                                  return 'camisa'
   if (/(?<![A-Z])REGATA(?![A-Z])/.test(n))                                                  return 'regata'
   if (/BERMUDA|SHORT/.test(n))                                                               return 'bermuda'
   if (/CALCA|CAL[CÇ]A|JEANS|SARJA|JOGGER|MOLETOM/.test(n))                                return 'calca'
@@ -76,10 +78,17 @@ function inferCategoria(nome: string): Produto['categoria'] {
   return 'outros'
 }
 
+function inferManga(nome: string): 'curta' | 'longa' | null {
+  const n = nome.toUpperCase()
+  if (/\bMC\b|MANGA CURTA/.test(n)) return 'curta'
+  if (/\bML\b|MANGA LONGA/.test(n)) return 'longa'
+  return null
+}
+
 type ParsedNFe = {
   emitente: string | null
   num_nfe: string | null
-  items: Omit<NFeItem, 'key' | 'selected' | 'categoria' | 'marca' | 'preco_venda'>[]
+  items: Omit<NFeItem, 'key' | 'selected' | 'categoria' | 'manga' | 'marca' | 'preco_venda'>[]
 }
 
 function parseXML(xml: string): ParsedNFe | { error: string } {
@@ -129,7 +138,7 @@ function parseXML(xml: string): ParsedNFe | { error: string } {
 /* ── Helpers ── */
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
-  camiseta: 'Camiseta', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', outros: 'Outros',
+  camiseta: 'Camiseta', camisa: 'Camisa', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', outros: 'Outros',
 }
 
 function fBRL(v: number | null) {
@@ -263,6 +272,7 @@ export default function ImportNFeModal({
         key:       String(i),
         selected:  true,
         categoria: inferCategoria(raw.nome),
+        manga:     inferManga(raw.nome),
         marca:     marcaCanonica,
         preco_venda: markup && raw.preco_custo != null
           ? parseFloat((raw.preco_custo * markup).toFixed(2))
@@ -300,6 +310,7 @@ export default function ImportNFeModal({
       codigo_produto: item.codigo_produto,
       cor:            null,
       categoria:      item.categoria,
+      manga:          item.categoria === 'camisa' ? item.manga : null,
       tamanhos:       [{ tamanho: 'UN', qtd: item.qtd }] as TamanhoQtd[],
       preco_custo:    item.preco_custo,
       preco_venda:    item.preco_venda,

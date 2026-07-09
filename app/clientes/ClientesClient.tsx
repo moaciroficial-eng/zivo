@@ -85,9 +85,26 @@ const EMPTY: FormState = {
   data_nascimento: '', dia_pagamento: '', observacoes: '',
 }
 
-const CAMISETAS = ['P', 'M', 'G', 'GG', 'XGG']
-const CALCAS    = ['38', '40', '42', '44', '46', '48', '50']
-const TENIS     = ['37', '38', '39', '40', '41', '42', '43', '44']
+const CAMISETAS  = ['P', 'M', 'G', 'GG', 'XGG']
+const CALCAS_M   = ['38', '40', '42', '44', '46', '48', '50']
+const CALCAS_F   = ['34', '36', '38', '40', '42', '44', '46']
+const TENIS_M    = ['37', '38', '39', '40', '41', '42', '43', '44']
+const TENIS_F    = ['34', '35', '36', '37', '38', '39', '40']
+
+function sizeConfig(genero: string, lojaConfig: { vende_tenis: boolean | null; vende_feminino: boolean | null } | null) {
+  const isFem = genero === 'F'
+  const vendeFem = lojaConfig?.vende_feminino ?? false
+  const vendeTenis = lojaConfig?.vende_tenis ?? true
+  return {
+    topLabel:   isFem ? 'Blusa' : 'Camiseta',
+    calcaLabel: 'Calça',
+    tenisLabel: isFem ? 'Calçado' : 'Tênis',
+    topOpts:    CAMISETAS,
+    calcaOpts:  isFem ? CALCAS_F : CALCAS_M,
+    tenisOpts:  isFem ? TENIS_F : TENIS_M,
+    showTenis:  vendeTenis && (!isFem || vendeFem),
+  }
+}
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
 
@@ -178,9 +195,11 @@ const IconHistory = () => (
 export default function ClientesClient({
   user,
   initialClientes,
+  lojaConfig,
 }: {
   user: { id: string; email: string }
   initialClientes: Cliente[]
+  lojaConfig: { vende_tenis: boolean | null; vende_feminino: boolean | null } | null
 }) {
   const supabase = createClient()
   const [clientes, setClientes] = useState(initialClientes)
@@ -434,8 +453,8 @@ export default function ClientesClient({
         telefone: r['telefone'] || null,
         email: r['email'] || null,
         tamanho_camiseta: CAMISETAS.includes(r['tamanho_camiseta']) ? r['tamanho_camiseta'] : null,
-        tamanho_calca:    CALCAS.includes(r['tamanho_calca'])       ? r['tamanho_calca']    : null,
-        tamanho_tenis:    TENIS.includes(r['tamanho_tenis'])         ? r['tamanho_tenis']    : null,
+        tamanho_calca:    [...CALCAS_M, ...CALCAS_F].includes(r['tamanho_calca']) ? r['tamanho_calca'] : null,
+        tamanho_tenis:    [...TENIS_M, ...TENIS_F].includes(r['tamanho_tenis'])   ? r['tamanho_tenis'] : null,
         data_nascimento: r['data_nascimento'] || null,
         dia_pagamento: r['dia_pagamento'] ? Number(r['dia_pagamento']) : null,
         observacoes: r['observacoes'] || null,
@@ -1066,10 +1085,15 @@ export default function ClientesClient({
                     <button
                       key={g}
                       type="button"
-                      onClick={() => setForm(f => ({ ...f, genero: f.genero === g ? '' : g }))}
+                      onClick={() => setForm(f => {
+                        const next = f.genero === g ? '' : g
+                        return { ...f, genero: next, tamanho_calca: '', tamanho_tenis: '' }
+                      })}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
                         form.genero === g
-                          ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                          ? g === 'M'
+                            ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                            : 'bg-pink-500/20 border-pink-500/50 text-pink-300'
                           : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                       }`}
                     >
@@ -1079,30 +1103,40 @@ export default function ClientesClient({
                 </div>
               </Field>
 
-              {/* Tamanhos */}
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium text-zinc-300">Tamanhos</p>
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label="Camiseta">
-                    <select value={form.tamanho_camiseta} onChange={field('tamanho_camiseta')} className={`${INPUT} appearance-none px-3`}>
-                      <option value="">—</option>
-                      {CAMISETAS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Calça">
-                    <select value={form.tamanho_calca} onChange={field('tamanho_calca')} className={`${INPUT} appearance-none px-3`}>
-                      <option value="">—</option>
-                      {CALCAS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Tênis">
-                    <select value={form.tamanho_tenis} onChange={field('tamanho_tenis')} className={`${INPUT} appearance-none px-3`}>
-                      <option value="">—</option>
-                      {TENIS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </Field>
-                </div>
-              </div>
+              {/* Tamanhos — dinâmico por gênero */}
+              {(() => {
+                const sc = sizeConfig(form.genero, lojaConfig)
+                return (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-medium text-zinc-300">Tamanhos</p>
+                    <div className={`grid gap-3 ${sc.showTenis ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <Field label={sc.topLabel}>
+                        <select value={form.tamanho_camiseta} onChange={field('tamanho_camiseta')} className={`${INPUT} appearance-none px-3`}>
+                          <option value="">—</option>
+                          {sc.topOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </Field>
+                      <Field label={sc.calcaLabel}>
+                        <select value={form.tamanho_calca} onChange={field('tamanho_calca')} className={`${INPUT} appearance-none px-3`}>
+                          <option value="">—</option>
+                          {sc.calcaOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </Field>
+                      {sc.showTenis && (
+                        <Field label={sc.tenisLabel}>
+                          <select value={form.tamanho_tenis} onChange={field('tamanho_tenis')} className={`${INPUT} appearance-none px-3`}>
+                            <option value="">—</option>
+                            {sc.tenisOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                    </div>
+                    {form.genero === 'F' && !(lojaConfig?.vende_feminino ?? false) && (
+                      <p className="text-xs text-zinc-600">Calçado feminino não ativado nas configurações da loja.</p>
+                    )}
+                  </div>
+                )
+              })()}
 
               <Field label="E-mail">
                 <input
@@ -1171,9 +1205,9 @@ export default function ClientesClient({
                               <p className="text-sm font-medium text-white">{dep.nome}</p>
                               <p className="text-xs text-zinc-500 capitalize">
                                 {dep.relacao} · {dep.genero === 'M' ? 'Masculino' : 'Feminino'}
-                                {dep.tamanho_camiseta && ` · Cam ${dep.tamanho_camiseta}`}
+                                {dep.tamanho_camiseta && ` · ${dep.genero === 'F' ? 'Blusa' : 'Cam'} ${dep.tamanho_camiseta}`}
                                 {dep.tamanho_calca && ` · Cal ${dep.tamanho_calca}`}
-                                {dep.tamanho_tenis && ` · Tên ${dep.tamanho_tenis}`}
+                                {dep.tamanho_tenis && ` · ${dep.genero === 'F' ? 'Calç' : 'Tên'} ${dep.tamanho_tenis}`}
                               </p>
                             </div>
                             <div className="flex gap-1 shrink-0">
@@ -1247,10 +1281,15 @@ export default function ClientesClient({
                           <button
                             key={g}
                             type="button"
-                            onClick={() => setDepForm(f => ({ ...f, genero: f.genero === g ? '' : g }))}
+                            onClick={() => setDepForm(f => {
+                              const next = f.genero === g ? '' : g
+                              return { ...f, genero: next, tamanho_calca: '', tamanho_tenis: '' }
+                            })}
                             className={`flex-1 py-2 rounded-lg text-sm font-medium border transition cursor-pointer ${
                               depForm.genero === g
-                                ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                                ? g === 'M'
+                                  ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                                  : 'bg-pink-500/20 border-pink-500/50 text-pink-300'
                                 : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                             }`}
                           >
@@ -1260,29 +1299,36 @@ export default function ClientesClient({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-zinc-400">Camiseta</label>
-                        <select value={depForm.tamanho_camiseta} onChange={e => setDepForm(f => ({ ...f, tamanho_camiseta: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
-                          <option value="">—</option>
-                          {CAMISETAS.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-zinc-400">Calça</label>
-                        <select value={depForm.tamanho_calca} onChange={e => setDepForm(f => ({ ...f, tamanho_calca: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
-                          <option value="">—</option>
-                          {CALCAS.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-zinc-400">Tênis</label>
-                        <select value={depForm.tamanho_tenis} onChange={e => setDepForm(f => ({ ...f, tamanho_tenis: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
-                          <option value="">—</option>
-                          {TENIS.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                    </div>
+                    {(() => {
+                      const sc = sizeConfig(depForm.genero, lojaConfig)
+                      return (
+                        <div className={`grid gap-2 ${sc.showTenis ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs text-zinc-400">{sc.topLabel}</label>
+                            <select value={depForm.tamanho_camiseta} onChange={e => setDepForm(f => ({ ...f, tamanho_camiseta: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
+                              <option value="">—</option>
+                              {sc.topOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs text-zinc-400">{sc.calcaLabel}</label>
+                            <select value={depForm.tamanho_calca} onChange={e => setDepForm(f => ({ ...f, tamanho_calca: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
+                              <option value="">—</option>
+                              {sc.calcaOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </div>
+                          {sc.showTenis && (
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs text-zinc-400">{sc.tenisLabel}</label>
+                              <select value={depForm.tamanho_tenis} onChange={e => setDepForm(f => ({ ...f, tamanho_tenis: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
+                                <option value="">—</option>
+                                {sc.tenisOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     <div className="flex flex-col gap-1">
                       <label className="text-xs text-zinc-400">Data de Nascimento</label>

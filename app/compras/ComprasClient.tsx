@@ -10,6 +10,7 @@ interface PublicoData {
   camiseta: Array<{ tamanho: string; count: number; pct: number }>
   calca:    Array<{ tamanho: string; count: number; pct: number }>
   tenis:    Array<{ tamanho: string; count: number; pct: number }>
+  camisa:   { total: number; mc: number; ml: number; sem: number }
 }
 
 function r(n: number, t: number) { return t ? Math.round(n / t * 100) : 0 }
@@ -124,6 +125,34 @@ function PublicoSection({ p }: { p: PublicoData }) {
               </div>
             ))}
           </div>
+
+          {/* Camisa Social — breakdown MC/ML */}
+          {p.camisa.total > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Camisa Social no Estoque</p>
+                <span className="text-xs text-zinc-600">{p.camisa.total} peças</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Manga Curta', count: p.camisa.mc, color: '#f97316' },
+                  { label: 'Manga Longa', count: p.camisa.ml, color: '#fb923c' },
+                  { label: 'Sem info',    count: p.camisa.sem, color: '#52525b' },
+                ].filter(item => item.count > 0).map(item => (
+                  <div key={item.label} className="flex flex-col gap-1.5">
+                    <div className="flex items-end justify-between">
+                      <span className="text-xs text-zinc-500">{item.label}</span>
+                      <span className="text-sm font-bold text-white">{item.count}</span>
+                    </div>
+                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${r(item.count, p.camisa.total)}%`, backgroundColor: item.color }} />
+                    </div>
+                    <span className="text-[11px] text-zinc-600">{r(item.count, p.camisa.total)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       )}

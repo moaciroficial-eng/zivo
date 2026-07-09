@@ -12,6 +12,8 @@ type Config = {
   ativo: boolean | null
   proativo_ativo: boolean | null
   desconto_aniversario: number | null
+  vende_tenis: boolean | null
+  vende_feminino: boolean | null
 }
 
 function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc: string }) {
@@ -51,6 +53,8 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
   const [ativo, setAtivo]               = useState(config?.ativo ?? true)
   const [proativoAtivo, setProativoAtivo] = useState(config?.proativo_ativo ?? true)
   const [desconto, setDesconto]         = useState(config?.desconto_aniversario ?? 40)
+  const [vendeTenis, setVendeTenis]     = useState(config?.vende_tenis ?? true)
+  const [vendeFeminino, setVendeFeminino] = useState(config?.vende_feminino ?? false)
 
   const [saving, setSaving]   = useState(false)
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
@@ -74,6 +78,8 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
         ativo,
         proativo_ativo: proativoAtivo,
         desconto_aniversario: desconto,
+        vende_tenis: vendeTenis,
+        vende_feminino: vendeFeminino,
       }, { onConflict: 'user_id' })
     setSaving(false)
     if (error) showToast('Erro ao salvar: ' + error.message, false)
@@ -151,6 +157,26 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
             onChange={setProativoAtivo}
             label="Agente proativo"
             desc="Envia mensagens automáticas baseadas no comportamento dos clientes"
+          />
+        </div>
+
+        {/* Produtos */}
+        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-1 divide-y divide-zinc-800/60">
+          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 pb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA]" />
+            Produtos da Loja
+          </h2>
+          <Toggle
+            checked={vendeTenis}
+            onChange={setVendeTenis}
+            label="Vende tênis"
+            desc="Exibe campo de numeração de calçado no cadastro de clientes"
+          />
+          <Toggle
+            checked={vendeFeminino}
+            onChange={setVendeFeminino}
+            label="Vende feminino"
+            desc="Ativa sugestões e cadastros voltados para clientes femininas"
           />
         </div>
 

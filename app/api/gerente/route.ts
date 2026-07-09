@@ -11,7 +11,8 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 function inferCategoria(nome: string): string {
   const n = nome.toUpperCase()
   if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                    return 'polo'
-  if (/CAMISETA|(?<![A-Z])CAMISA(?![A-Z])|T[-\s]?SHIRT/.test(n))           return 'camiseta'
+  if (/CAMISETA|T[-\s]?SHIRT/.test(n))                                      return 'camiseta'
+  if (/(?<![A-Z])CAMISA(?![A-Z])/.test(n))                                  return 'camisa'
   if (/(?<![A-Z])REGATA(?![A-Z])/.test(n))                                  return 'regata'
   if (/BERMUDA|SHORT/.test(n))                                               return 'bermuda'
   if (/CALCA|CAL[CÇ]A|JEANS|SARJA|JOGGER|MOLETOM/.test(n))                 return 'calca'
@@ -201,7 +202,7 @@ Ou para produtos de marcas específicas:
 Tipos de operação disponíveis:
 - "atualizar_genero_clientes" → infere gênero (M/F) dos clientes pelo nome usando IA
 - "atualizar_genero_produtos" → define gênero (M/F/U/I) nos produtos de marcas específicas. Use "genero": "M" para Masculino, "F" para Feminino, "U" para Unissex, "I" para Infantil.
-- "corrigir_categorias" → analisa o nome de todos os produtos e corrige a categoria (camiseta, polo, regata, calca, bermuda, tenis, chinelo, outros) onde estiver errada
+- "corrigir_categorias" → analisa o nome de todos os produtos e corrige a categoria (camiseta, camisa, polo, regata, calca, bermuda, tenis, chinelo, outros) onde estiver errada
 
 Para CONSULTAR CLIENTES POR MARCA (lista completa e confiável):
 {

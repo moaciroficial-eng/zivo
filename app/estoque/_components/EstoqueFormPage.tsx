@@ -9,7 +9,7 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
   if (sp.nome)     next.nome  = sp.nome
   if (sp.marca)    next.marca = sp.marca
   const cat = sp.categoria as Produto['categoria'] | undefined
-  if (cat && ['camiseta','regata','calca','bermuda','polo','tenis','chinelo','outros'].includes(cat)) {
+  if (cat && ['camiseta','camisa','regata','calca','bermuda','polo','tenis','chinelo','outros'].includes(cat)) {
     next.categoria  = cat
     next.tamanhos   = []
     next.qtd_outros = '0'
@@ -34,6 +34,7 @@ type FormState = {
   cor: string
   genero: 'M' | 'F' | 'U' | 'I' | ''
   categoria: Produto['categoria'] | ''
+  manga: 'curta' | 'longa' | ''
   tamanhos: TamanhoQtd[]
   qtd_outros: string
   preco_custo: string
@@ -51,6 +52,7 @@ type FormState = {
 
 const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
   camiseta: ['P', 'M', 'G', 'GG', 'XGG'],
+  camisa:   ['P', 'M', 'G', 'GG', 'XGG'],
   regata:   ['P', 'M', 'G', 'GG', 'XGG'],
   calca:    ['38', '40', '42', '44', '46', '48', '50'],
   bermuda:  ['P', 'M', 'G', 'GG', 'XGG'],
@@ -62,6 +64,7 @@ const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta',
+  camisa:   'Camisa',
   regata:   'Regata',
   calca:    'Calça',
   bermuda:  'Bermuda',
@@ -73,6 +76,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
 
 const CAT_COLOR: Record<Produto['categoria'], string> = {
   camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  camisa:   'bg-orange-500/15 text-orange-300 border-orange-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
   calca:    'bg-blue-500/15 text-blue-300 border-blue-500/25',
   bermuda:  'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
@@ -98,7 +102,7 @@ function totalQtd(tamanhos: TamanhoQtd[]) {
 const EMPTY_TRIBUTOS = { ncm: '', cfop: '', icms: '', pis: '', cofins: '', cest: '' }
 
 function toFormState(p?: Produto): FormState {
-  if (!p) return { nome: '', marca: '', codigo_produto: '', cor: '', genero: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
+  if (!p) return { nome: '', marca: '', codigo_produto: '', cor: '', genero: '', categoria: '', manga: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
   return {
     nome: p.nome,
     marca: p.marca ?? '',
@@ -106,6 +110,7 @@ function toFormState(p?: Produto): FormState {
     cor: p.cor ?? '',
     genero: (p.genero as FormState['genero']) ?? '',
     categoria: p.categoria,
+    manga: (p.manga ?? '') as FormState['manga'],
     tamanhos: p.categoria !== 'outros' ? (p.tamanhos ?? []) : [],
     qtd_outros: p.categoria === 'outros' ? String(p.tamanhos.reduce((s, t) => s + t.qtd, 0)) : '0',
     preco_custo: p.preco_custo != null ? String(p.preco_custo) : '',
@@ -308,7 +313,7 @@ export default function EstoqueFormPage({
   }
 
   function handleCategoriaChange(cat: Produto['categoria'] | '') {
-    setForm(f => ({ ...f, categoria: cat, tamanhos: [], qtd_outros: '0' }))
+    setForm(f => ({ ...f, categoria: cat, manga: '', tamanhos: [], qtd_outros: '0' }))
   }
 
 
@@ -407,6 +412,7 @@ export default function EstoqueFormPage({
       cor: form.cor.trim() || null,
       genero: form.genero || null,
       categoria: form.categoria,
+      manga: form.categoria === 'camisa' ? (form.manga || null) : null,
       tamanhos: tamanhosFinal,
       preco_custo: form.preco_custo ? Number(form.preco_custo) : null,
       preco_venda: form.preco_venda ? Number(form.preco_venda) : null,
@@ -599,8 +605,8 @@ export default function EstoqueFormPage({
 
               {/* Categoria */}
               <Field label="Categoria *">
-                <div className="grid grid-cols-4 gap-2">
-                  {(['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'] as Produto['categoria'][]).map(cat => (
+                <div className="grid grid-cols-3 gap-2">
+                  {(['camiseta', 'polo', 'regata', 'camisa', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'] as Produto['categoria'][]).map(cat => (
                     <button
                       key={cat}
                       type="button"
@@ -616,6 +622,28 @@ export default function EstoqueFormPage({
                   ))}
                 </div>
               </Field>
+
+              {/* Manga — apenas para camisa */}
+              {form.categoria === 'camisa' && (
+                <Field label="Manga">
+                  <div className="flex gap-2">
+                    {([['curta', 'M. Curta (MC)'], ['longa', 'M. Longa (ML)']] as const).map(([val, label]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, manga: f.manga === val ? '' : val }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition cursor-pointer ${
+                          form.manga === val
+                            ? 'bg-orange-500/20 border-orange-500/50 text-orange-300'
+                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              )}
 
               {/* Tamanhos */}
               {form.categoria && form.categoria !== 'outros' && (

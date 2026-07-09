@@ -8,7 +8,8 @@ export type Produto = {
   codigo_produto: string | null
   cor: string | null
   genero: 'M' | 'F' | 'U' | 'I' | null
-  categoria: 'camiseta' | 'regata' | 'calca' | 'bermuda' | 'polo' | 'tenis' | 'chinelo' | 'outros'
+  categoria: 'camiseta' | 'camisa' | 'regata' | 'calca' | 'bermuda' | 'polo' | 'tenis' | 'chinelo' | 'outros'
+  manga: 'curta' | 'longa' | null
   tamanhos: TamanhoQtd[]
   preco_custo: number | null
   preco_venda: number | null

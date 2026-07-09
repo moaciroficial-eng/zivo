@@ -14,9 +14,10 @@ export default async function ComprasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: rows }, { data: clientes }] = await Promise.all([
+  const [{ data: rows }, { data: clientes }, { data: camisas }] = await Promise.all([
     supabase.from('estoque').select('marca').eq('user_id', user.id).not('marca', 'is', null),
     supabase.from('clientes').select('genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis').eq('user_id', user.id),
+    supabase.from('estoque').select('manga').eq('user_id', user.id).eq('categoria', 'camisa'),
   ])
 
   const marcas = [...new Set((rows ?? []).map(r => r.marca as string).filter(Boolean))].sort()
@@ -55,6 +56,11 @@ export default async function ComprasPage() {
       .sort((a, b) => b.count - a.count)
   }
 
+  const totalCamisas = camisas?.length ?? 0
+  const camisaMC = camisas?.filter(c => c.manga === 'curta').length ?? 0
+  const camisaML = camisas?.filter(c => c.manga === 'longa').length ?? 0
+  const camisaSem = totalCamisas - camisaMC - camisaML
+
   const publico = {
     total,
     genero: { M: generoM, F: generoF, sem: generoSem },
@@ -63,6 +69,7 @@ export default async function ComprasPage() {
     camiseta: contarTamanhos('tamanho_camiseta'),
     calca:    contarTamanhos('tamanho_calca'),
     tenis:    contarTamanhos('tamanho_tenis'),
+    camisa: { total: totalCamisas, mc: camisaMC, ml: camisaML, sem: camisaSem },
   }
 
   return <ComprasClient marcas={marcas} publico={publico} />
