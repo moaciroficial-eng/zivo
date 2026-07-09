@@ -10,6 +10,7 @@ interface Contato {
   nome: string | null
   phone: string
   cliente_id: string | null
+  genero?: string | null
 }
 
 interface Estado {
@@ -38,6 +39,7 @@ export async function processarRespostaTarefa(
 ): Promise<{ respondeu: boolean; concluido: boolean }> {
   const nomeContato = contato.nome?.split(' ')[0] ?? 'você'
   const historico: HistoricoItem[] = Array.isArray(estado.historico) ? [...estado.historico] : []
+  const isFem = contato.genero === 'F'
 
   if (respostaContato) {
     historico.push({ papel: 'contato', texto: respostaContato })
@@ -52,7 +54,7 @@ export async function processarRespostaTarefa(
 
 TAREFA: ${tarefa.instrucao}
 
-CONTATO: ${contato.nome ?? contato.phone}
+CONTATO: ${contato.nome ?? contato.phone}${isFem ? ' (GÊNERO: FEMININO)' : ''}
 DADOS JÁ COLETADOS: ${JSON.stringify(estado.dados_coletados)}
 
 HISTÓRICO:
@@ -62,9 +64,9 @@ Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 {
   "proxima_mensagem": "mensagem para o contato (null se concluído)",
   "dados_novos": {
-    "tamanho_camiseta": "P/M/G/GG/XGG se coletou (null se não coletou NESTA resposta)",
-    "tamanho_calca": "36/38/40/42/44/46... se coletou (null se não coletou NESTA resposta)",
-    "tamanho_tenis": "37/38/39/40/41/42/43... se coletou (null se não coletou NESTA resposta)"
+    "tamanho_camiseta": "${isFem ? 'P/M/G/GG/XGG (blusa) se coletou' : 'P/M/G/GG/XGG se coletou'} (null se não coletou NESTA resposta)",
+    "tamanho_calca": "${isFem ? '34/36/38/40/42/44/46' : '38/40/42/44/46/48/50'} se coletou (null se não coletou NESTA resposta)",
+    "tamanho_tenis": "${isFem ? '34/35/36/37/38/39/40' : '37/38/39/40/41/42/43/44'} se coletou (null se não coletou NESTA resposta)"
   },
   "concluido": false,
   "salvar_no_cliente": {
@@ -78,8 +80,13 @@ REGRAS:
 - Primeira mensagem (histórico vazio): apresente-se como Moca. Exemplo: "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
 - Faça UMA pergunta de cada vez
-- Ordem sugerida: nome → data de nascimento → tamanho de camiseta → tamanho de calça → número de tênis
-- SÓ marque concluido: true quando tiver coletado TODOS esses campos: nome, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis — OU quando o contato se recusar a responder algum ("não sei", "não uso", "tanto faz")
+${isFem
+  ? `- Ordem sugerida: nome → data de nascimento → tamanho de blusa (P/M/G/GG/XGG) → tamanho de calça (34 ao 46)
+- NÃO pergunte número de tênis para clientes femininas
+- SÓ marque concluido: true quando tiver: nome, data_nascimento, tamanho_camiseta (blusa), tamanho_calca — OU quando recusar responder algum`
+  : `- Ordem sugerida: nome → data de nascimento → tamanho de camiseta → tamanho de calça → número de tênis
+- SÓ marque concluido: true quando tiver coletado TODOS: nome, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis — OU quando recusar responder algum`
+}
 - Se o contato disser que não usa calça ou tênis, aceite e continue para o próximo campo
 - Nos campos "dados_novos" e "salvar_no_cliente": inclua APENAS o que foi coletado NESTA resposta, null nos demais`,
     }],

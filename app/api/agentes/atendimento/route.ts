@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
   const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }, conhecimento, { data: tarefaAtiva }] = await Promise.all([
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
-    admin.from('whatsapp_contatos').select('nome, phone, cliente_id').eq('id', contatoId).single(),
+    admin.from('whatsapp_contatos').select('nome, phone, cliente_id, clientes(genero)').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
       .select('direcao, conteudo, timestamp')
       .eq('contato_id', contatoId)
@@ -120,12 +120,13 @@ export async function POST(request: NextRequest) {
       { id: string; instrucao: string; concluidos: number; total: number } | null
 
     if (tarefaDados) {
+      const generoCliente = (contato as { clientes?: { genero?: string | null } | null }).clientes?.genero ?? null
       await processarRespostaTarefa(
         admin,
         userId,
         { id: tarefaAtiva.tarefa_id, instrucao: tarefaDados.instrucao, concluidos: tarefaDados.concluidos, total: tarefaDados.total },
         { id: tarefaAtiva.id, tarefa_id: tarefaAtiva.tarefa_id, status: tarefaAtiva.status, historico: tarefaAtiva.historico ?? [], dados_coletados: tarefaAtiva.dados_coletados ?? {} },
-        { id: contatoId, nome: contato!.nome, phone: contato!.phone, cliente_id: (contato as { cliente_id?: string | null }).cliente_id ?? null },
+        { id: contatoId, nome: contato!.nome, phone: contato!.phone, cliente_id: (contato as { cliente_id?: string | null }).cliente_id ?? null, genero: generoCliente },
         mensagem,
       )
     }
