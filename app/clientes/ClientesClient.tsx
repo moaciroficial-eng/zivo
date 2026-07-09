@@ -4,6 +4,17 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
+export type Dependente = {
+  id: string
+  nome: string
+  relacao: 'marido' | 'pai' | 'filho' | 'filha'
+  genero: 'M' | 'F'
+  tamanho_camiseta?: string
+  tamanho_calca?: string
+  tamanho_tenis?: string
+  data_nascimento?: string
+}
+
 export type Cliente = {
   id: string
   user_id: string
@@ -17,6 +28,7 @@ export type Cliente = {
   data_nascimento: string | null
   dia_pagamento: number | null
   observacoes: string | null
+  dependentes: Dependente[] | null
   created_at: string
 }
 
@@ -192,6 +204,10 @@ export default function ClientesClient({
 
   const [pagandoParcelaCliente, setPagandoParcelaCliente] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
 
+  const [dependentes, setDependentes] = useState<Dependente[]>([])
+  const [addingDep, setAddingDep] = useState(false)
+  const [depForm, setDepForm] = useState({ nome: '', relacao: '' as Dependente['relacao'] | '', genero: '' as 'M' | 'F' | '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' })
+
   function field(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm(f => ({ ...f, [key]: e.target.value }))
@@ -220,6 +236,8 @@ export default function ClientesClient({
       dia_pagamento: c.dia_pagamento?.toString() ?? '',
       observacoes: c.observacoes ?? '',
     })
+    setDependentes(c.dependentes ?? [])
+    setAddingDep(false)
     setFormError(''); setDrawerTab('dados'); setDrawer(true)
     loadHistorico(c)
   }
@@ -232,6 +250,7 @@ export default function ClientesClient({
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
     setHistoricoVendas([]); setHistoricoCrediarios([]); setInsightCliente(null)
+    setDependentes([]); setAddingDep(false)
   }
 
   async function loadHistorico(c: Cliente) {
@@ -321,6 +340,7 @@ export default function ClientesClient({
       data_nascimento: form.data_nascimento || null,
       dia_pagamento: form.dia_pagamento ? Number(form.dia_pagamento) : null,
       observacoes: form.observacoes || null,
+      dependentes: dependentes,
     }
 
     if (editing) {
@@ -1093,6 +1113,162 @@ export default function ClientesClient({
                   className={`${INPUT} resize-none`}
                 />
               </Field>
+
+              {/* Dependentes */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-zinc-300">Dependentes</p>
+                  {!addingDep && (
+                    <button
+                      type="button"
+                      onClick={() => { setAddingDep(true); setDepForm({ nome: '', relacao: '', genero: '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' }) }}
+                      className="text-xs text-violet-400 hover:text-violet-300 transition cursor-pointer"
+                    >
+                      + Adicionar
+                    </button>
+                  )}
+                </div>
+
+                {dependentes.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {dependentes.map(dep => (
+                      <div key={dep.id} className="flex items-center justify-between bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-3 py-2.5">
+                        <div>
+                          <p className="text-sm font-medium text-white">{dep.nome}</p>
+                          <p className="text-xs text-zinc-500 capitalize">{dep.relacao} · {dep.genero === 'M' ? 'Masculino' : 'Feminino'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDependentes(ds => ds.filter(d => d.id !== dep.id))}
+                          className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0"
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {addingDep && (
+                  <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl p-4 flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-zinc-400">Nome *</label>
+                        <input
+                          type="text"
+                          value={depForm.nome}
+                          onChange={e => setDepForm(f => ({ ...f, nome: e.target.value }))}
+                          placeholder="Nome"
+                          className={INPUT}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-zinc-400">Relação *</label>
+                        <select
+                          value={depForm.relacao}
+                          onChange={e => setDepForm(f => ({ ...f, relacao: e.target.value as Dependente['relacao'] }))}
+                          className={`${INPUT} appearance-none px-3`}
+                        >
+                          <option value="">Selecionar...</option>
+                          <option value="marido">Marido</option>
+                          <option value="pai">Pai</option>
+                          <option value="filho">Filho</option>
+                          <option value="filha">Filha</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-zinc-400 block mb-1">Gênero *</label>
+                      <div className="flex gap-2">
+                        {(['M', 'F'] as const).map(g => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setDepForm(f => ({ ...f, genero: f.genero === g ? '' : g }))}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition cursor-pointer ${
+                              depForm.genero === g
+                                ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                            }`}
+                          >
+                            {g === 'M' ? 'Masculino' : 'Feminino'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-zinc-400">Camiseta</label>
+                        <select value={depForm.tamanho_camiseta} onChange={e => setDepForm(f => ({ ...f, tamanho_camiseta: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
+                          <option value="">—</option>
+                          {CAMISETAS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-zinc-400">Calça</label>
+                        <select value={depForm.tamanho_calca} onChange={e => setDepForm(f => ({ ...f, tamanho_calca: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
+                          <option value="">—</option>
+                          {CALCAS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-zinc-400">Tênis</label>
+                        <select value={depForm.tamanho_tenis} onChange={e => setDepForm(f => ({ ...f, tamanho_tenis: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
+                          <option value="">—</option>
+                          {TENIS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-zinc-400">Data de Nascimento</label>
+                      <input
+                        type="date"
+                        value={depForm.data_nascimento}
+                        onChange={e => setDepForm(f => ({ ...f, data_nascimento: e.target.value }))}
+                        className={INPUT}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setAddingDep(false)}
+                        className="flex-1 text-sm text-zinc-400 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg py-2 transition cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!depForm.nome.trim() || !depForm.relacao || !depForm.genero) return
+                          const newDep: Dependente = {
+                            id: crypto.randomUUID(),
+                            nome: depForm.nome.trim(),
+                            relacao: depForm.relacao as Dependente['relacao'],
+                            genero: depForm.genero as 'M' | 'F',
+                            tamanho_camiseta: depForm.tamanho_camiseta || undefined,
+                            tamanho_calca: depForm.tamanho_calca || undefined,
+                            tamanho_tenis: depForm.tamanho_tenis || undefined,
+                            data_nascimento: depForm.data_nascimento || undefined,
+                          }
+                          setDependentes(ds => [...ds, newDep])
+                          setAddingDep(false)
+                        }}
+                        className="flex-1 text-sm font-semibold bg-violet-600 hover:bg-violet-500 rounded-lg py-2 transition cursor-pointer"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {dependentes.length === 0 && !addingDep && (
+                  <p className="text-xs text-zinc-600">Nenhum dependente. Ex: marido, pai, filho.</p>
+                )}
+              </div>
 
               {formError && (
                 <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2.5">

@@ -37,7 +37,7 @@ export default async function VendasPage() {
 
   const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }] = await Promise.all([
     supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
-    supabase.from('clientes').select('id, nome').eq('user_id', user.id).order('nome'),
+    supabase.from('clientes').select('id, nome, dependentes').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, preco_venda, preco_custo, codigo_barras, status, tamanhos')
       .eq('user_id', user.id).not('status', 'eq', 'vendido').order('nome'),
     supabase.from('crediario').select('*, parcelas_crediario(*)').eq('user_id', user.id)

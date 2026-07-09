@@ -38,7 +38,9 @@ type Caixa = {
   created_at: string
 }
 
-type ClienteOption = { id: string; nome: string }
+type ClienteDependente = { id: string; nome: string; relacao: string; genero: 'M' | 'F'; tamanho_camiseta?: string; tamanho_calca?: string; tamanho_tenis?: string }
+
+type ClienteOption = { id: string; nome: string; dependentes?: ClienteDependente[] }
 
 type TamanhoQtd = { tamanho: string; qtd: number }
 
@@ -307,6 +309,8 @@ export default function VendasClient({
   const [crParcelas, setCrParcelas] = useState<number | null>(null)
   const [crDataPrimeira, setCrDataPrimeira] = useState('')
   const [pagandoParcela, setPagandoParcela] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
+  const [clienteDependentes, setClienteDependentes] = useState<ClienteDependente[]>([])
+  const [selectedDepId, setSelectedDepId] = useState<string>('')
 
   /* ── Cliente autocomplete ── */
 
@@ -317,11 +321,15 @@ export default function VendasClient({
   function selectCliente(c: ClienteOption) {
     setForm(f => ({ ...f, clienteSearch: c.nome, clienteId: c.id, clienteNome: c.nome }))
     setClienteDropdown(false)
+    setClienteDependentes(c.dependentes ?? [])
+    setSelectedDepId('')
   }
 
   function handleClienteInput(val: string) {
     setForm(f => ({ ...f, clienteSearch: val, clienteId: '', clienteNome: val }))
     setClienteDropdown(true)
+    setClienteDependentes([])
+    setSelectedDepId('')
   }
 
   /* ── Produtos ── */
@@ -609,6 +617,7 @@ export default function VendasClient({
     setShowPayment(false); resetPayment()
     setDescontoVendaTipo('%'); setDescontoVendaValor('')
     setIsPresente(false); setTipoPresente(''); setObsPresente(''); setPresenteTamanho('')
+    setClienteDependentes([]); setSelectedDepId('')
   }
 
   /* ── Vender (new) → open payment overlay ── */
@@ -639,6 +648,7 @@ export default function VendasClient({
     const totalVenda = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
     // crediário: só a entrada entra no caixa agora; o restante é recebido nas parcelas
     const valor = fp === 'crediario' ? (parseFloat(crEntrada) || 0) : totalVenda
+    const selectedDep = clienteDependentes.find(d => d.id === selectedDepId)
     const payload = {
       user_id: user.id,
       cliente_id: form.clienteId || null,
@@ -651,6 +661,8 @@ export default function VendasClient({
       tipo_presente: isPresente && tipoPresente ? tipoPresente : null,
       obs_presente: isPresente && obsPresente ? obsPresente : null,
       presente_tamanho: isPresente && presenteTamanho ? presenteTamanho : null,
+      para_dependente_nome: selectedDep?.nome ?? null,
+      para_dependente_id: selectedDepId || null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         tamanho: p.tamanho || undefined,
@@ -1527,6 +1539,40 @@ export default function VendasClient({
                   <p className="text-xs text-violet-400 flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
                 )}
               </Field>
+
+              {/* 2b. PARA QUEM (dependentes) */}
+              {form.clienteId && clienteDependentes.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-zinc-300">Para quem é a compra?</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDepId('')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
+                        selectedDepId === ''
+                          ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                      }`}
+                    >
+                      {form.clienteNome}
+                    </button>
+                    {clienteDependentes.map(dep => (
+                      <button
+                        key={dep.id}
+                        type="button"
+                        onClick={() => setSelectedDepId(dep.id)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
+                          selectedDepId === dep.id
+                            ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                        }`}
+                      >
+                        {dep.nome} <span className="text-xs opacity-60">({dep.relacao})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 3. DATA + VALOR */}
               <div className="grid grid-cols-2 gap-4">
