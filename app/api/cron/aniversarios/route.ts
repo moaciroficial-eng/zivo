@@ -69,16 +69,16 @@ export async function GET() {
   const nomeLoja = config?.nome_loja || 'Moca'
   const desconto = config?.desconto_aniversario ?? 40
 
-  /* Busca todos os clientes com nascimento cadastrado */
+  /* Busca todos os clientes (com ou sem nascimento, para checar dependentes também) */
   const { data: clientes } = await admin
     .from('clientes')
-    .select('id, nome, telefone, data_nascimento')
+    .select('id, nome, telefone, data_nascimento, dependentes')
     .eq('user_id', userId)
-    .not('data_nascimento', 'is', null)
 
   let enviadas = 0
 
   for (const cliente of clientes ?? []) {
+    if (!cliente.data_nascimento) continue
     const nasc = new Date(cliente.data_nascimento)
     const nascM = nasc.getUTCMonth() + 1
     const nascD = nasc.getUTCDate()
@@ -138,6 +138,71 @@ export async function GET() {
       await enviarEHistorico(admin, userId, cliente.id, phone, msg)
       await admin.from('aniversario_cupons').update({ msg_dia_enviada: true }).eq('id', cupomRow.id)
       enviadas++
+    }
+  }
+
+  /* Aniversários de dependentes — avisa a cliente titular */
+  const hojeIso = hoje.toISOString().split('T')[0]
+  for (const cliente of clientes ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deps = ((cliente.dependentes ?? []) as any[]).filter(d => d.data_nascimento)
+    if (!deps.length) continue
+
+    /* Busca phone uma única vez por cliente */
+    let phone: string | null = null
+    const { data: wa } = await admin
+      .from('whatsapp_contatos').select('phone, id')
+      .eq('user_id', userId).eq('cliente_id', cliente.id).maybeSingle()
+    if (wa?.phone) {
+      phone = wa.phone
+    } else if (cliente.telefone) {
+      const last = cliente.telefone.replace(/\D/g, '').slice(-8)
+      const { data: wa2 } = await admin
+        .from('whatsapp_contatos').select('phone, id')
+        .eq('user_id', userId).ilike('phone', `%${last}`).maybeSingle()
+      if (wa2?.phone) phone = wa2.phone
+    }
+    if (!phone) continue
+
+    const contatoId = wa?.id ?? null
+    const nomeCliente = cliente.nome?.split(' ')[0] ?? 'você'
+
+    for (const dep of deps) {
+      const nascDep = new Date(dep.data_nascimento)
+      const nascDepM = nascDep.getUTCMonth() + 1
+      const nascDepD = nascDep.getUTCDate()
+
+      const depHoje   = nascDepM === hojeM   && nascDepD === hojeD
+      const depAmanha = nascDepM === amanhaM && nascDepD === amanhaD
+      if (!depHoje && !depAmanha) continue
+
+      /* Evita reenvio checando mensagens de hoje para este contato com o nome do dep */
+      if (contatoId) {
+        const { data: jaEnviou } = await admin
+          .from('whatsapp_mensagens')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('contato_id', contatoId)
+          .gte('timestamp', `${hojeIso}T00:00:00.000Z`)
+          .ilike('conteudo', `%${dep.nome.split(' ')[0]}%`)
+          .limit(1).maybeSingle()
+        if (jaEnviou) continue
+      }
+
+      const nomeDepPrimeiro = dep.nome?.split(' ')[0] ?? dep.nome
+      const relacao = dep.relacao as string // marido, pai, filho, filha
+
+      if (depAmanha) {
+        const msg = `Oi ${nomeCliente}! Amanhã é o aniversário do seu ${relacao} ${nomeDepPrimeiro} 🎂\n\nQue tal um presente especial? Use *${desconto}% de desconto* aqui na ${nomeLoja} até ${domingoStr}!\n\nÉ só me chamar 😊`
+        await enviarEHistorico(admin, userId, cliente.id, phone, msg)
+        enviadas++
+      }
+
+      if (depHoje) {
+        const msg = `Oi ${nomeCliente}! Hoje é aniversário do ${relacao} ${nomeDepPrimeiro}! 🎉\n\nVenham comemorar com *${desconto}% de desconto* aqui na ${nomeLoja}, válido até ${domingoStr}!\n\nÉ só me chamar 😊`
+        await enviarEHistorico(admin, userId, cliente.id, phone, msg)
+        enviadas++
+      }
     }
   }
 
