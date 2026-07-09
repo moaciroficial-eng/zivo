@@ -599,8 +599,8 @@ export default function EstoqueFormPage({
 
               {/* Categoria */}
               <Field label="Categoria *">
-                <div className="grid grid-cols-6 gap-2">
-                  {(['camiseta', 'regata', 'calca', 'polo', 'tenis', 'chinelo', 'outros'] as Produto['categoria'][]).map(cat => (
+                <div className="grid grid-cols-4 gap-2">
+                  {(['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'] as Produto['categoria'][]).map(cat => (
                     <button
                       key={cat}
                       type="button"
