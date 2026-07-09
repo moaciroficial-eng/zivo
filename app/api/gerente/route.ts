@@ -12,6 +12,7 @@ function inferCategoria(nome: string): string {
   const n = nome.toUpperCase()
   if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                    return 'polo'
   if (/CAMISETA|T[-\s]?SHIRT/.test(n))                                      return 'camiseta'
+  if (/(?<![A-Z])BLUSA(?![A-Z])/.test(n))                                   return 'blusa'
   if (/(?<![A-Z])CAMISA(?![A-Z])/.test(n))                                  return 'camisa'
   if (/(?<![A-Z])REGATA(?![A-Z])/.test(n))                                  return 'regata'
   if (/BERMUDA|SHORT/.test(n))                                               return 'bermuda'
@@ -202,7 +203,7 @@ Ou para produtos de marcas específicas:
 Tipos de operação disponíveis:
 - "atualizar_genero_clientes" → infere gênero (M/F) dos clientes pelo nome usando IA
 - "atualizar_genero_produtos" → define gênero (M/F/U/I) nos produtos de marcas específicas. Use "genero": "M" para Masculino, "F" para Feminino, "U" para Unissex, "I" para Infantil.
-- "corrigir_categorias" → analisa o nome de todos os produtos e corrige a categoria (camiseta, camisa, polo, regata, calca, bermuda, tenis, chinelo, outros) onde estiver errada
+- "corrigir_categorias" → analisa o nome de todos os produtos e corrige a categoria (camiseta, blusa, camisa, polo, regata, calca, bermuda, tenis, chinelo, outros) onde estiver errada
 
 Para CONSULTAR CLIENTES POR MARCA (lista completa e confiável):
 {

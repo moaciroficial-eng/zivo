@@ -9,7 +9,7 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
   if (sp.nome)     next.nome  = sp.nome
   if (sp.marca)    next.marca = sp.marca
   const cat = sp.categoria as Produto['categoria'] | undefined
-  if (cat && ['camiseta','camisa','regata','calca','bermuda','polo','tenis','chinelo','outros'].includes(cat)) {
+  if (cat && ['camiseta','blusa','camisa','regata','calca','bermuda','polo','tenis','chinelo','outros'].includes(cat)) {
     next.categoria  = cat
     next.tamanhos   = []
     next.qtd_outros = '0'
@@ -52,18 +52,20 @@ type FormState = {
 
 const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
   camiseta: ['P', 'M', 'G', 'GG', 'XGG'],
+  blusa:    ['P', 'M', 'G', 'GG', 'XGG'],
   camisa:   ['P', 'M', 'G', 'GG', 'XGG'],
   regata:   ['P', 'M', 'G', 'GG', 'XGG'],
-  calca:    ['38', '40', '42', '44', '46', '48', '50'],
+  calca:    ['34', '36', '38', '40', '42', '44', '46', '48', '50'],
   bermuda:  ['P', 'M', 'G', 'GG', 'XGG'],
   polo:     ['P', 'M', 'G', 'GG', 'XGG'],
-  tenis:    ['37', '38', '39', '40', '41', '42', '43', '44'],
-  chinelo:  ['37/38', '39/40', '41/42', '43/44'],
+  tenis:    ['34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'],
+  chinelo:  ['34/35', '36/37', '37/38', '39/40', '41/42', '43/44'],
   outros:   [],
 }
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta',
+  blusa:    'Blusa',
   camisa:   'Camisa',
   regata:   'Regata',
   calca:    'Calça',
@@ -76,6 +78,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
 
 const CAT_COLOR: Record<Produto['categoria'], string> = {
   camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  blusa:    'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
   camisa:   'bg-orange-500/15 text-orange-300 border-orange-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
   calca:    'bg-blue-500/15 text-blue-300 border-blue-500/25',
@@ -84,6 +87,14 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',
   outros:   'bg-zinc-700/50 text-zinc-300 border-zinc-600',
+}
+
+const CATS_BY_GENERO: Record<string, Produto['categoria'][]> = {
+  M: ['camiseta', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
+  F: ['blusa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
+  U: ['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
+  I: ['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
+  '': ['camiseta', 'blusa', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
 }
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
@@ -587,7 +598,16 @@ export default function EstoqueFormPage({
                     <button
                       key={val}
                       type="button"
-                      onClick={() => setForm(f => ({ ...f, genero: f.genero === val ? '' : val }))}
+                      onClick={() => setForm(f => {
+                        const nextGenero = f.genero === val ? '' : val
+                        const cats = CATS_BY_GENERO[nextGenero] ?? CATS_BY_GENERO['']
+                        const catInvalida = f.categoria && !cats.includes(f.categoria as Produto['categoria'])
+                        return {
+                          ...f,
+                          genero: nextGenero,
+                          ...(catInvalida ? { categoria: '', manga: '', tamanhos: [], qtd_outros: '0' } : {}),
+                        }
+                      })}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium border transition cursor-pointer ${
                         form.genero === val
                           ? val === 'M' ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
@@ -601,12 +621,17 @@ export default function EstoqueFormPage({
                     </button>
                   ))}
                 </div>
+                {form.genero && (
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Mostrando categorias para {form.genero === 'M' ? 'masculino' : form.genero === 'F' ? 'feminino' : form.genero === 'U' ? 'unissex' : 'infantil'}
+                  </p>
+                )}
               </Field>
 
               {/* Categoria */}
               <Field label="Categoria *">
                 <div className="grid grid-cols-3 gap-2">
-                  {(['camiseta', 'polo', 'regata', 'camisa', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'] as Produto['categoria'][]).map(cat => (
+                  {(CATS_BY_GENERO[form.genero] ?? CATS_BY_GENERO['']).map(cat => (
                     <button
                       key={cat}
                       type="button"

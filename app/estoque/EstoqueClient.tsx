@@ -18,6 +18,7 @@ type Categoria = Produto['categoria'] | 'todos'
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta',
+  blusa:    'Blusa',
   camisa:   'Camisa',
   regata:   'Regata',
   calca:    'Calça',
@@ -30,6 +31,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
 
 const CAT_COLOR: Record<Produto['categoria'], string> = {
   camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  blusa:    'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
   camisa:   'bg-orange-500/15 text-orange-300 border-orange-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
   calca:    'bg-blue-500/15 text-blue-300 border-blue-500/25',
@@ -144,7 +146,7 @@ export default function EstoqueClient({
 
       if (!rows.length) { showToast('Nenhum dado válido encontrado.', 'error'); return }
 
-      const validCats = ['camiseta', 'camisa', 'regata', 'calca', 'bermuda', 'polo', 'tenis', 'chinelo', 'outros']
+      const validCats = ['camiseta', 'blusa', 'camisa', 'regata', 'calca', 'bermuda', 'polo', 'tenis', 'chinelo', 'outros']
       const { data: { user: authUser } } = await supabase.auth.getUser()
       const inserts = rows.filter(r => validCats.includes(r['categoria'])).map(r => {
         const cat = r['categoria'] as Produto['categoria']
@@ -317,7 +319,7 @@ export default function EstoqueClient({
         {/* Filters + Search */}
         <div className="flex flex-col sm:flex-row gap-3 mb-5">
           <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
-            {(['todos', 'camiseta', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'] as Categoria[]).map(cat => (
+            {(['todos', 'camiseta', 'blusa', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'] as Categoria[]).map(cat => (
               <button
                 key={cat}
                 onClick={() => setCatFiltro(cat)}

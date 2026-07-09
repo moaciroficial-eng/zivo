@@ -69,6 +69,7 @@ function inferCategoria(nome: string): Produto['categoria'] {
   const n = nome.toUpperCase()
   if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                                    return 'polo'
   if (/CAMISETA|T[-\s]?SHIRT/.test(n))                                                      return 'camiseta'
+  if (/(?<![A-Z])BLUSA(?![A-Z])/.test(n))                                                   return 'blusa'
   if (/(?<![A-Z])CAMISA(?![A-Z])/.test(n))                                                  return 'camisa'
   if (/(?<![A-Z])REGATA(?![A-Z])/.test(n))                                                  return 'regata'
   if (/BERMUDA|SHORT/.test(n))                                                               return 'bermuda'
@@ -138,7 +139,7 @@ function parseXML(xml: string): ParsedNFe | { error: string } {
 /* ── Helpers ── */
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
-  camiseta: 'Camiseta', camisa: 'Camisa', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', outros: 'Outros',
+  camiseta: 'Camiseta', blusa: 'Blusa', camisa: 'Camisa', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', outros: 'Outros',
 }
 
 function fBRL(v: number | null) {

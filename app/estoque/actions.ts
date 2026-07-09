@@ -10,7 +10,7 @@ const anthropic = new Anthropic()
 export type ScanData = {
   nome: string | null
   marca: string | null
-  categoria: 'camiseta' | 'camisa' | 'regata' | 'calca' | 'bermuda' | 'polo' | 'tenis' | 'chinelo' | 'outros' | null
+  categoria: 'camiseta' | 'blusa' | 'camisa' | 'regata' | 'calca' | 'bermuda' | 'polo' | 'tenis' | 'chinelo' | 'outros' | null
   tamanho: string | null
   preco_venda: number | null
   preco_custo: number | null
