@@ -329,6 +329,24 @@ export default function ClientesClient({
     if (!form.nome.trim()) { setFormError('Nome é obrigatório.'); return }
     setSaving(true); setFormError('')
 
+    /* Se o mini-form de dependente ainda está aberto com dados válidos, inclui automaticamente */
+    let depsFinal = dependentes
+    if (addingDep && depForm.nome.trim() && depForm.relacao && depForm.genero) {
+      const pendente: Dependente = {
+        id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        nome: depForm.nome.trim(),
+        relacao: depForm.relacao as Dependente['relacao'],
+        genero: depForm.genero as 'M' | 'F',
+        tamanho_camiseta: depForm.tamanho_camiseta || undefined,
+        tamanho_calca: depForm.tamanho_calca || undefined,
+        tamanho_tenis: depForm.tamanho_tenis || undefined,
+        data_nascimento: depForm.data_nascimento || undefined,
+      }
+      depsFinal = [...dependentes, pendente]
+      setDependentes(depsFinal)
+      setAddingDep(false)
+    }
+
     const payload = {
       nome: form.nome.trim(),
       telefone: form.telefone || null,
@@ -340,7 +358,7 @@ export default function ClientesClient({
       data_nascimento: form.data_nascimento || null,
       dia_pagamento: form.dia_pagamento ? Number(form.dia_pagamento) : null,
       observacoes: form.observacoes || null,
-      dependentes: dependentes,
+      dependentes: depsFinal,
     }
 
     if (editing) {
@@ -1245,7 +1263,7 @@ export default function ClientesClient({
                         onClick={() => {
                           if (!depForm.nome.trim() || !depForm.relacao || !depForm.genero) return
                           const newDep: Dependente = {
-                            id: crypto.randomUUID(),
+                            id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
                             nome: depForm.nome.trim(),
                             relacao: depForm.relacao as Dependente['relacao'],
                             genero: depForm.genero as 'M' | 'F',
