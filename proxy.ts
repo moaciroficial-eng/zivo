@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const protectedRoutes = ['/dashboard', '/clientes', '/vendas', '/calendario', '/estoque']
+const protectedRoutes = [
+  '/dashboard', '/clientes', '/vendas', '/calendario', '/estoque',
+  '/compras', '/whatsapp', '/configuracoes', '/agentes', '/inteligencia',
+  '/ia', '/biblioteca',
+]
 const publicRoutes = ['/']
 
 export default async function proxy(req: NextRequest) {
