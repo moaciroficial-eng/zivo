@@ -10,6 +10,7 @@ export type Cliente = {
   nome: string
   telefone: string | null
   email: string | null
+  genero: 'M' | 'F' | null
   tamanho_camiseta: string | null
   tamanho_calca: string | null
   tamanho_tenis: string | null
@@ -23,6 +24,7 @@ type FormState = {
   nome: string
   telefone: string
   email: string
+  genero: string
   tamanho_camiseta: string
   tamanho_calca: string
   tamanho_tenis: string
@@ -66,7 +68,7 @@ type HistoricoCrediario = {
 }
 
 const EMPTY: FormState = {
-  nome: '', telefone: '', email: '',
+  nome: '', telefone: '', email: '', genero: '',
   tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '',
   data_nascimento: '', dia_pagamento: '', observacoes: '',
 }
@@ -212,6 +214,7 @@ export default function ClientesClient({
       email: c.email ?? '',
       tamanho_camiseta: c.tamanho_camiseta ?? '',
       tamanho_calca: c.tamanho_calca ?? '',
+      genero: c.genero ?? '',
       tamanho_tenis: c.tamanho_tenis ?? '',
       data_nascimento: c.data_nascimento ?? '',
       dia_pagamento: c.dia_pagamento?.toString() ?? '',
@@ -311,6 +314,7 @@ export default function ClientesClient({
       nome: form.nome.trim(),
       telefone: form.telefone || null,
       email: form.email || null,
+      genero: (form.genero as 'M' | 'F') || null,
       tamanho_camiseta: form.tamanho_camiseta || null,
       tamanho_calca: form.tamanho_calca || null,
       tamanho_tenis: form.tamanho_tenis || null,
@@ -509,6 +513,11 @@ export default function ClientesClient({
                       <td className="px-4 py-3 font-medium whitespace-nowrap">
                         <button onClick={() => openPerfil(c)} className="hover:text-violet-400 transition cursor-pointer text-left">
                           {c.nome}
+                          {c.genero && (
+                            <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${c.genero === 'M' ? 'bg-blue-500/15 text-blue-400' : 'bg-pink-500/15 text-pink-400'}`}>
+                              {c.genero}
+                            </span>
+                          )}
                         </button>
                       </td>
                       <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{c.telefone ?? <span className="text-zinc-700">—</span>}</td>
@@ -587,7 +596,7 @@ export default function ClientesClient({
         )}
 
         <p className="text-xs text-zinc-700 mt-4 font-mono">
-          CSV: nome, telefone, email, tamanho_camiseta, tamanho_calca, tamanho_tenis, data_nascimento, dia_pagamento, observacoes
+          CSV: nome, telefone, email, genero (M/F), tamanho_camiseta, tamanho_calca, tamanho_tenis, data_nascimento, dia_pagamento, observacoes
         </p>
       </main>
 
@@ -997,6 +1006,25 @@ export default function ClientesClient({
                   placeholder="(11) 99999-9999"
                   className={INPUT}
                 />
+              </Field>
+
+              <Field label="Gênero">
+                <div className="flex gap-2">
+                  {(['M', 'F'] as const).map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, genero: f.genero === g ? '' : g }))}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
+                        form.genero === g
+                          ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                      }`}
+                    >
+                      {g === 'M' ? 'Masculino' : 'Feminino'}
+                    </button>
+                  ))}
+                </div>
               </Field>
 
               {/* Tamanhos */}
