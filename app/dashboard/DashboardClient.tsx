@@ -77,6 +77,8 @@ type Props = {
   vendasPorDia: { day: number; valor: number }[]
 }
 
+const HIDDEN_LABEL = '••••'
+
 /* ── Constants ────────────────────────────────────────────────── */
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -167,6 +169,17 @@ const IconAlertTriangle = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
     <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+)
+const IconEye = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+  </svg>
+)
+const IconEyeOff = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
   </svg>
 )
 
@@ -291,9 +304,13 @@ export default function DashboardClient({
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
   const [isGenerating,   setIsGenerating]   = useState(false)
   const [generateError,  setGenerateError]  = useState<string | null>(null)
-  const [showMetaModal,  setShowMetaModal]  = useState(false)
-  const [showSaudeModal, setShowSaudeModal] = useState(false)
-  const [showNextDays,   setShowNextDays]   = useState(false)
+  const [showMetaModal,    setShowMetaModal]    = useState(false)
+  const [showSaudeModal,   setShowSaudeModal]   = useState(false)
+  const [showNextDays,     setShowNextDays]     = useState(false)
+  const [valoresVisiveis,  setValoresVisiveis]  = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('zivo:valoresVisiveis') === '1'
+  })
 
   const hoje = new Date().toISOString().split('T')[0]
 
@@ -421,19 +438,31 @@ export default function DashboardClient({
     <div className="min-h-screen bg-[#080B10] text-white">
       <div className="max-w-5xl mx-auto px-6 py-8">
 
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">Dashboard</h1>
+          <button
+            onClick={() => setValoresVisiveis(v => {
+              const next = !v
+              localStorage.setItem('zivo:valoresVisiveis', next ? '1' : '0')
+              return next
+            })}
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
+            title={valoresVisiveis ? 'Ocultar valores' : 'Mostrar valores'}
+          >
+            {valoresVisiveis ? <IconEyeOff /> : <IconEye />}
+            {valoresVisiveis ? 'Ocultar' : 'Mostrar'}
+          </button>
         </div>
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <Link href="/vendas" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita Total</p>
-            <p className="text-2xl font-bold mt-1 text-[#3B6FFF]">{fmtNum(totalReceita)}</p>
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Receita do Mês</p>
+            <p className="text-2xl font-bold mt-1 text-[#3B6FFF]">{valoresVisiveis ? fmtNum(vendidoMes) : HIDDEN_LABEL}</p>
           </Link>
           <Link href="/vendas" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas</p>
-            <p className="text-3xl font-bold mt-1">{totalVendas}</p>
+            <p className="text-3xl font-bold mt-1">{valoresVisiveis ? totalVendas : HIDDEN_LABEL}</p>
           </Link>
           <Link href="/whatsapp" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">WhatsApp</p>
@@ -448,7 +477,7 @@ export default function DashboardClient({
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Meta {getMesLabel(mes)}</p>
             {meta ? (
               <>
-                <p className="text-2xl font-bold mt-1 text-[#3B6FFF]">{fmtNum(meta.valor_meta)}</p>
+                <p className="text-2xl font-bold mt-1 text-[#3B6FFF]">{valoresVisiveis ? fmtNum(meta.valor_meta) : HIDDEN_LABEL}</p>
                 <div className="mt-2">
                   <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-[#3B6FFF] to-[#00D4AA] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
@@ -475,11 +504,13 @@ export default function DashboardClient({
                 {lucroParcial && <span className="text-amber-400 normal-case font-normal text-[10px]">parcial</span>}
               </p>
               <p className={`text-2xl font-bold mt-0.5 ${lucroMes >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {fmtNum(lucroMes)}
+                {valoresVisiveis ? fmtNum(lucroMes) : HIDDEN_LABEL}
               </p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                receita {fmtNum(vendidoMes)} − custo {fmtNum(vendidoMes - lucroMes)}
-                {lucroParcial && ' · alguns produtos sem custo cadastrado'}
+                {valoresVisiveis
+                  ? <>receita {fmtNum(vendidoMes)} − custo {fmtNum(vendidoMes - lucroMes)}{lucroParcial && ' · alguns produtos sem custo cadastrado'}</>
+                  : 'clique em mostrar para ver os valores'
+                }
               </p>
             </div>
             <div className={`text-4xl font-bold shrink-0 ${lucroMes >= 0 ? 'text-emerald-500/20' : 'text-red-500/20'}`}>
@@ -553,15 +584,15 @@ export default function DashboardClient({
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-zinc-800/60 rounded-xl p-3">
                       <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Vendido</p>
-                      <p className="text-base font-bold text-emerald-400 mt-0.5 leading-none">{fmtNum(vendidoMes)}</p>
+                      <p className="text-base font-bold text-emerald-400 mt-0.5 leading-none">{valoresVisiveis ? fmtNum(vendidoMes) : HIDDEN_LABEL}</p>
                     </div>
                     <div className="bg-zinc-800/60 rounded-xl p-3">
                       <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Falta</p>
-                      <p className="text-base font-bold mt-0.5 leading-none">{pct >= 100 ? '—' : fmtNum(restanteMes)}</p>
+                      <p className="text-base font-bold mt-0.5 leading-none">{!valoresVisiveis ? HIDDEN_LABEL : pct >= 100 ? '—' : fmtNum(restanteMes)}</p>
                     </div>
                     <div className="bg-zinc-800/60 rounded-xl p-3">
                       <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Meta</p>
-                      <p className="text-base font-bold text-[#3B6FFF] mt-0.5 leading-none">{fmtNum(meta.valor_meta)}</p>
+                      <p className="text-base font-bold text-[#3B6FFF] mt-0.5 leading-none">{valoresVisiveis ? fmtNum(meta.valor_meta) : HIDDEN_LABEL}</p>
                     </div>
                   </div>
 
@@ -581,20 +612,20 @@ export default function DashboardClient({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                     <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
                       <p className="text-zinc-600 mb-0.5">Ritmo atual</p>
-                      <p className="font-semibold text-zinc-200">{fmtNum(mediaDiariaAtual)}<span className="text-zinc-500 font-normal">/dia</span></p>
+                      <p className="font-semibold text-zinc-200">{valoresVisiveis ? <>{fmtNum(mediaDiariaAtual)}<span className="text-zinc-500 font-normal">/dia</span></> : HIDDEN_LABEL}</p>
                     </div>
                     {diasRestantes > 0 && (
                       <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
                         <p className="text-zinc-600 mb-0.5">Precisa</p>
                         <p className={`font-semibold ${mediaDiariaAtual >= mediaDiariaNec ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          {fmtNum(mediaDiariaNec)}<span className="text-zinc-500 font-normal">/dia</span>
+                          {valoresVisiveis ? <>{fmtNum(mediaDiariaNec)}<span className="text-zinc-500 font-normal">/dia</span></> : HIDDEN_LABEL}
                         </p>
                       </div>
                     )}
                     <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
                       <p className="text-zinc-600 mb-0.5">Projeção</p>
                       <p className={`font-semibold ${projecaoMensal >= meta.valor_meta ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {fmtNum(projecaoMensal)}
+                        {valoresVisiveis ? fmtNum(projecaoMensal) : HIDDEN_LABEL}
                       </p>
                     </div>
                     <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
@@ -604,19 +635,19 @@ export default function DashboardClient({
                   </div>
 
                   {/* Insight dinâmico */}
-                  {statusPace === 'risco' && diasRestantes > 0 && (
+                  {valoresVisiveis && statusPace === 'risco' && diasRestantes > 0 && (
                     <p className="text-xs text-red-400/80 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                       Ritmo atual projeta {fmtNum(projecaoMensal)} — {fmtNum(meta.valor_meta - projecaoMensal)} abaixo da meta. Intensifique as vendas.
                     </p>
                   )}
-                  {statusPace === 'atencao' && diasRestantes > 0 && (
+                  {valoresVisiveis && statusPace === 'atencao' && diasRestantes > 0 && (
                     <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                       Precisa de {fmtNum(mediaDiariaNec - mediaDiariaAtual)}/dia a mais para bater a meta nos {diasRestantes} dias restantes.
                     </p>
                   )}
                   {(statusPace === 'ok' || statusPace === 'otimo') && (
                     <p className="text-xs text-emerald-400/80 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-                      {pct >= 100 ? 'Parabéns! Meta atingida.' : `Projetando ${fmtNum(projecaoMensal)} — ${Math.round(projecaoMensal / meta.valor_meta * 100)}% da meta ao ritmo atual.`}
+                      {pct >= 100 ? 'Parabéns! Meta atingida.' : valoresVisiveis ? `Projetando ${fmtNum(projecaoMensal)} — ${Math.round(projecaoMensal / meta.valor_meta * 100)}% da meta ao ritmo atual.` : 'No ritmo certo para bater a meta.'}
                     </p>
                   )}
                 </div>
@@ -660,22 +691,22 @@ export default function DashboardClient({
                 {meta?.despesas_fixas_mensais && <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                   <div>
                     <p className="text-xs text-zinc-500 mb-0.5">Ponto de equilíbrio</p>
-                    <p className="text-base font-bold">{fmtNum(pontoEqMensal)}<span className="text-xs text-zinc-500">/mês</span></p>
-                    <p className="text-xs text-zinc-600">{fmtNum(pontoEqDiario)}/dia</p>
+                    <p className="text-base font-bold">{valoresVisiveis ? <>{fmtNum(pontoEqMensal)}<span className="text-xs text-zinc-500">/mês</span></> : HIDDEN_LABEL}</p>
+                    {valoresVisiveis && <p className="text-xs text-zinc-600">{fmtNum(pontoEqDiario)}/dia</p>}
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 mb-0.5">Margem após despesas</p>
                     <p className={`text-base font-bold ${margemLiquida >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtNum(margemLiquida)}
+                      {valoresVisiveis ? fmtNum(margemLiquida) : HIDDEN_LABEL}
                     </p>
-                    {margemLiquida < 0 && (
+                    {valoresVisiveis && margemLiquida < 0 && (
                       <p className="text-xs text-red-400">Meta insuficiente</p>
                     )}
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 mb-0.5">Capital de giro</p>
-                    <p className="text-base font-bold">{fmtNum(capitalGiro)}</p>
-                    {coberturaMeses !== null && (
+                    <p className="text-base font-bold">{valoresVisiveis ? fmtNum(capitalGiro) : HIDDEN_LABEL}</p>
+                    {valoresVisiveis && coberturaMeses !== null && (
                       <p className={`text-xs ${coberturaMeses >= 2 ? 'text-emerald-400' : coberturaMeses >= 1 ? 'text-amber-400' : 'text-red-400'}`}>
                         {coberturaMeses.toFixed(1)} meses de cobertura
                       </p>
@@ -684,9 +715,9 @@ export default function DashboardClient({
                   <div>
                     <p className="text-xs text-zinc-500 mb-0.5">Dívidas</p>
                     <p className={`text-base font-bold ${dividas === 0 ? 'text-emerald-400' : dividas > capitalGiro ? 'text-red-400' : 'text-amber-400'}`}>
-                      {fmtNum(dividas)}
+                      {valoresVisiveis ? fmtNum(dividas) : HIDDEN_LABEL}
                     </p>
-                    {dividas > 0 && capitalGiro > 0 && (
+                    {valoresVisiveis && dividas > 0 && capitalGiro > 0 && (
                       <p className="text-xs text-zinc-500">
                         {((dividas / capitalGiro) * 100).toFixed(0)}% do capital
                       </p>
@@ -776,8 +807,8 @@ export default function DashboardClient({
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-zinc-500">Meta do dia</p>
-                        <p className="text-lg font-bold text-[#3B6FFF]">{fmtNum(diaHoje.meta_dia)}</p>
-                        {pontoEqDiario > 0 && (
+                        <p className="text-lg font-bold text-[#3B6FFF]">{valoresVisiveis ? fmtNum(diaHoje.meta_dia) : HIDDEN_LABEL}</p>
+                        {valoresVisiveis && pontoEqDiario > 0 && (
                           <p className={`text-xs mt-0.5 ${diaHoje.meta_dia >= pontoEqDiario ? 'text-emerald-400' : 'text-amber-400'}`}>
                             {diaHoje.meta_dia >= pontoEqDiario ? '✓ cobre despesas' : `⚠ eq: ${fmtNum(pontoEqDiario)}`}
                           </p>
