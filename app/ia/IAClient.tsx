@@ -147,10 +147,13 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
   }
 
   /* ── Gerente ───────────────────────────────────────────── */
-  const [gerenteMsgs, setGerenteMsgs] = useState<Array<{ papel: string; conteudo: string; tarefa?: Record<string, unknown> | null }>>([])
+  type OperacaoItem = { id: string; nome: string; marca?: string; genero_sugerido?: string; genero_novo?: string; genero_atual?: string }
+  type Operacao = { tipo: string; marcas?: string[]; genero?: string; preview?: OperacaoItem[] }
+  const [gerenteMsgs, setGerenteMsgs] = useState<Array<{ papel: string; conteudo: string; tarefa?: Record<string, unknown> | null; operacao?: Operacao | null }>>([])
   const [gerenteInput, setGerenteInput] = useState('')
   const [gerentePensando, setGerentePensando] = useState(false)
   const [tarefaPendente, setTarefaPendente] = useState<Record<string, unknown> | null>(null)
+  const [operacaoPendente, setOperacaoPendente] = useState<Operacao | null>(null)
   const [previewContatos, setPreviewContatos] = useState<{ id: string; nome: string }[]>([])
   const [confirmando, setConfirmando] = useState(false)
   const gerenteBottomRef = useRef<HTMLDivElement>(null)
@@ -169,8 +172,9 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
         body: JSON.stringify({ mensagem: texto, historico: gerenteMsgs }),
       })
       const data = await res.json()
-      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: data.resposta, tarefa: data.tarefa }])
+      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: data.resposta, tarefa: data.tarefa, operacao: data.operacao }])
       if (data.tarefa) { setTarefaPendente(data.tarefa); setPreviewContatos(data.previewContatos ?? []) }
+      if (data.operacao) { setOperacaoPendente(data.operacao) }
     } finally { setGerentePensando(false) }
   }
 
@@ -187,6 +191,22 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
       setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: `✅ Tarefa iniciada! Enviando mensagens para ${data.total} contatos.` }])
       setTarefaPendente(null)
       router.refresh()
+    } finally { setConfirmando(false) }
+  }
+
+  async function confirmarOperacao() {
+    if (!operacaoPendente) return
+    setConfirmando(true)
+    try {
+      const res = await fetch('/api/gerente', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operacao: operacaoPendente }),
+      })
+      const data = await res.json()
+      const msg = data.resposta ?? `✅ ${data.total ?? 0} registro(s) atualizado(s)!`
+      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: msg }])
+      setOperacaoPendente(null)
     } finally { setConfirmando(false) }
   }
 
@@ -425,9 +445,10 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
                 <p className="text-zinc-500 text-sm mt-1 max-w-xs mx-auto">Coordena os agentes para executar ações em massa.</p>
                 <div className="flex flex-col gap-2 mt-4 max-w-xs mx-auto">
                   {[
-                    'Atualiza o cadastro dos clientes — perguntar nome e tamanho',
+                    'Atualiza o gênero de todos os clientes pelo nome',
+                    'Coloca Masculino em todos os produtos da Aramis e Reserva',
                     'Campanha pra clientes que compraram Aramis',
-                    'Manda mensagem pra todos sem cadastro completo',
+                    'Atualiza o cadastro dos clientes — perguntar nome e tamanho',
                   ].map(ex => (
                     <button key={ex} onClick={() => setGerenteInput(ex)}
                       className="text-left text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/60 text-zinc-400 px-3 py-2 rounded-lg transition cursor-pointer">
@@ -439,12 +460,14 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
             )}
             {gerenteMsgs.map((m, i) => (
               <div key={i} className={`flex ${m.papel === 'supervisor' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
+                <div className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
                   m.papel === 'supervisor'
                     ? 'bg-zinc-700 text-white rounded-br-sm'
                     : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                 }`}>
                   <p>{m.conteudo}</p>
+
+                  {/* Confirmação de TAREFA (WhatsApp) */}
                   {m.tarefa && tarefaPendente && (
                     <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
                       {previewContatos.length > 0 && (
@@ -458,9 +481,45 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
                       <div className="flex gap-2">
                         <button onClick={confirmarTarefa} disabled={confirmando}
                           className="px-3 py-1.5 bg-[#00D4AA] hover:bg-[#00B894] disabled:opacity-50 text-[#080B10] text-xs font-bold rounded-lg transition cursor-pointer">
-                          {confirmando ? 'Iniciando...' : `✓ Confirmar`}
+                          {confirmando ? 'Iniciando...' : '✓ Confirmar'}
                         </button>
                         <button onClick={() => { setTarefaPendente(null); setPreviewContatos([]) }}
+                          className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-xs rounded-lg transition cursor-pointer">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Confirmação de OPERAÇÃO (banco de dados) */}
+                  {m.operacao && operacaoPendente && (
+                    <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+                      {/* Preview da operação */}
+                      {m.operacao.preview && m.operacao.preview.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg bg-zinc-900/60 p-2">
+                          {m.operacao.preview.slice(0, 20).map((item) => (
+                            <div key={item.id} className="flex items-center justify-between text-[11px] px-1">
+                              <span className="text-zinc-300 truncate flex-1">{item.marca ? `[${item.marca}] ` : ''}{item.nome}</span>
+                              <span className={`ml-2 font-bold shrink-0 ${
+                                (item.genero_sugerido ?? item.genero_novo) === 'M' ? 'text-blue-400'
+                                : (item.genero_sugerido ?? item.genero_novo) === 'F' ? 'text-pink-400'
+                                : 'text-zinc-400'
+                              }`}>
+                                → {item.genero_sugerido ?? item.genero_novo ?? '?'}
+                              </span>
+                            </div>
+                          ))}
+                          {m.operacao.preview.length > 20 && (
+                            <p className="text-[10px] text-zinc-500 px-1">...e mais {m.operacao.preview.length - 20}</p>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button onClick={confirmarOperacao} disabled={confirmando}
+                          className="px-3 py-1.5 bg-[#00D4AA] hover:bg-[#00B894] disabled:opacity-50 text-[#080B10] text-xs font-bold rounded-lg transition cursor-pointer">
+                          {confirmando ? 'Atualizando...' : `✓ Confirmar ${m.operacao.preview?.length ?? ''} registro(s)`}
+                        </button>
+                        <button onClick={() => setOperacaoPendente(null)}
                           className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-xs rounded-lg transition cursor-pointer">
                           Cancelar
                         </button>

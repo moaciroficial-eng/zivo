@@ -35,12 +35,13 @@ export async function POST(request: NextRequest) {
     { data: estoque },
   ] = await Promise.all([
     admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
-    admin.from('clientes').select('id, nome, telefone, data_nascimento').eq('user_id', user.id).limit(1000),
+    admin.from('clientes').select('id, nome, telefone, data_nascimento, genero').eq('user_id', user.id).limit(1000),
     admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
     admin.from('estoque').select('id, marca').eq('user_id', user.id).limit(2000),
   ])
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
+  const semGenero = clientes?.filter(c => !c.genero).length ?? 0
 
   /* Lista unificada: WhatsApp contacts + clientes do cadastro sem WhatsApp ainda */
   const contatosIds = new Set((contatos ?? []).map((c: { cliente_id: string | null }) => c.cliente_id).filter(Boolean))
@@ -135,15 +136,18 @@ ${listaTodos || '(nenhum cadastrado ainda)'}
 
 DADOS DA LOJA:
 - Clientes sem data de nascimento: ${semCadastroCompleto}
+- Clientes sem gênero cadastrado: ${semGenero}
+- Marcas no estoque: ${linhasEstoque}
 
 Responda SEMPRE em JSON válido com este formato:
 {
   "resposta": "texto amigável para o supervisor",
   "tarefa": null,
+  "operacao": null,
   "consultar_agente": null
 }
 
-Para TAREFAS de mensagem automática, inclua o campo "tarefa":
+Para TAREFAS de mensagem automática via WhatsApp, inclua o campo "tarefa":
 {
   "resposta": "confirmando exatamente quem vai receber e pedindo confirmação",
   "tarefa": {
@@ -154,13 +158,40 @@ Para TAREFAS de mensagem automática, inclua o campo "tarefa":
     "contatos_especificos": [],
     "clientes_especificos": []
   },
+  "operacao": null,
   "consultar_agente": null
 }
+
+Para OPERAÇÕES EM MASSA no banco de dados (atualizar cadastro diretamente, sem WhatsApp), use "operacao":
+{
+  "resposta": "Descrevendo o que vai fazer e pedindo confirmação",
+  "tarefa": null,
+  "operacao": {
+    "tipo": "atualizar_genero_clientes",
+    "descricao": "Inferir e atualizar gênero de todos os clientes sem gênero"
+  }
+}
+Ou para produtos de marcas específicas:
+{
+  "resposta": "Descrevendo o que vai fazer e pedindo confirmação",
+  "tarefa": null,
+  "operacao": {
+    "tipo": "atualizar_genero_produtos",
+    "marcas": ["Aramis", "Reserva"],
+    "genero": "M",
+    "descricao": "Definir gênero Masculino para todos os produtos Aramis e Reserva"
+  }
+}
+
+Tipos de operação disponíveis:
+- "atualizar_genero_clientes" → infere gênero (M/F) dos clientes pelo nome usando IA
+- "atualizar_genero_produtos" → define gênero (M/F/U/I) nos produtos de marcas específicas. Use "genero": "M" para Masculino, "F" para Feminino, "U" para Unissex, "I" para Infantil.
 
 Para CONSULTAR CLIENTES POR MARCA (lista completa e confiável):
 {
   "resposta": "Consultando quem comprou [marca]...",
   "tarefa": null,
+  "operacao": null,
   "consultar_agente": "vendas_marca",
   "filtro_busca": "nome da marca exato"
 }
@@ -170,6 +201,7 @@ Para estoque detalhado: "consultar_agente": "estoque"
 Para diagnóstico geral: "consultar_agente": "diagnostico"
 
 REGRAS:
+- Atualizar dados diretamente no banco → USE "operacao" (não tarefa, não consultar_agente)
 - Perguntou quem comprou uma marca → SEMPRE use consultar_agente: "vendas_marca". Não tente adivinhar pela lista resumida.
 - [WA] → whatsapp_id em "contatos_especificos"
 - [CAD] → cliente_id em "clientes_especificos"
@@ -216,6 +248,79 @@ REGRAS:
     }
   }
 
+  /* Se o Gerente quer executar uma operação em massa no banco, pré-calcula o preview */
+  type OperacaoItem = { id: string; nome: string; marca?: string; genero_sugerido?: string; genero_novo?: string; genero_atual?: string }
+  let operacaoPreview: OperacaoItem[] | null = null
+
+  if (parsed.operacao && !parsed.tarefa) {
+    const op = parsed.operacao
+
+    if (op.tipo === 'atualizar_genero_clientes') {
+      const { data: semGeneroClientes } = await admin
+        .from('clientes').select('id, nome')
+        .eq('user_id', user.id).is('genero', null).limit(200)
+
+      if (!semGeneroClientes?.length) {
+        parsed.resposta = 'Todos os clientes já têm gênero cadastrado!'
+        parsed.operacao = null
+      } else {
+        try {
+          const inferRes = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2000,
+            messages: [{
+              role: 'user',
+              content: `Você é especialista em nomes brasileiros. Para cada nome abaixo, determine o gênero (M=masculino, F=feminino). Responda SOMENTE um JSON array sem explicações. Formato exato: [{"i":0,"g":"M"},{"i":1,"g":"F"},...]\n\nNomes:\n${semGeneroClientes.map((c, i) => `${i}:${c.nome}`).join('\n')}`,
+            }],
+          })
+          const inferText = (inferRes.content[0] as { text: string }).text
+          const match = inferText.match(/\[[\s\S]*\]/)
+          const inferJson: { i: number; g: string }[] = match ? JSON.parse(match[0]) : []
+          operacaoPreview = semGeneroClientes.map((c, i) => {
+            const found = inferJson.find(x => x.i === i)
+            return { id: c.id, nome: c.nome, genero_sugerido: found?.g ?? 'M' }
+          })
+          const total = semGeneroClientes.length
+          const resumo = operacaoPreview.slice(0, 8).map(p => `• ${p.nome}: ${p.genero_sugerido === 'M' ? '♂ M' : '♀ F'}`).join('\n')
+          parsed.resposta = `Encontrei ${total} cliente(s) sem gênero. A IA inferiu pelos nomes:\n${resumo}${total > 8 ? `\n...e mais ${total - 8}` : ''}\n\nConfirma a atualização?`
+        } catch {
+          operacaoPreview = semGeneroClientes.map(c => ({ id: c.id, nome: c.nome, genero_sugerido: 'M' }))
+          parsed.resposta = `Encontrei ${semGeneroClientes.length} cliente(s) sem gênero. Confirma a atualização pelos nomes?`
+        }
+      }
+    } else if (op.tipo === 'atualizar_genero_produtos') {
+      const marcas: string[] = op.marcas ?? []
+      const genero: string = op.genero ?? 'M'
+      const generoLabel: Record<string, string> = { M: 'Masculino', F: 'Feminino', U: 'Unissex', I: 'Infantil' }
+
+      if (!marcas.length) {
+        parsed.resposta = 'Por favor, especifique quais marcas quer atualizar.'
+        parsed.operacao = null
+      } else {
+        const { data: prodMarcas } = await admin.from('estoque')
+          .select('id, nome, marca, genero')
+          .eq('user_id', user.id)
+          .in('marca', marcas)
+
+        const produtos = prodMarcas ?? []
+        if (!produtos.length) {
+          parsed.resposta = `Não encontrei produtos das marcas: ${marcas.join(', ')}. Verifique os nomes exatos no estoque.`
+          parsed.operacao = null
+        } else {
+          operacaoPreview = produtos.map(p => ({
+            id: p.id,
+            nome: p.nome,
+            marca: p.marca,
+            genero_atual: p.genero ?? '—',
+            genero_novo: genero,
+          }))
+          const byMarca = marcas.map(m => `${m}: ${produtos.filter(p => p.marca === m).length} produto(s)`).join(', ')
+          parsed.resposta = `Encontrei ${produtos.length} produto(s) (${byMarca}). Vou definir gênero como **${generoLabel[genero] ?? genero}** em todos.\n\nConfirma a atualização?`
+        }
+      }
+    }
+  }
+
   /* Salva resposta do gerente */
   const { data: msgGerente } = await admin.from('gerente_mensagens').insert({
     user_id: user.id, papel: 'gerente', conteudo: parsed.resposta,
@@ -255,23 +360,78 @@ REGRAS:
     ok: true,
     resposta: parsed.resposta,
     tarefa: parsed.tarefa ?? null,
+    operacao: parsed.operacao ? { ...parsed.operacao, preview: operacaoPreview } : null,
     previewContatos,
     msgId: msgGerente?.id,
   })
 }
 
-/* Confirmar e executar uma tarefa */
+/* Confirmar e executar uma tarefa ou operação em massa */
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { tarefa } = await request.json()
+  const body = await request.json()
+  const { tarefa, operacao } = body
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  /* ── Operação em massa (sem WhatsApp) ── */
+  if (operacao) {
+    type PreviewItem = { id: string; nome: string; genero_sugerido?: string; genero_novo?: string }
+    const preview: PreviewItem[] = operacao.preview ?? []
+
+    if (operacao.tipo === 'atualizar_genero_clientes') {
+      let itens = preview
+      /* Se preview chegou sem genero inferido, infere agora */
+      const semGeneroInferido = itens.filter(u => !u.genero_sugerido)
+      if (semGeneroInferido.length > 0) {
+        try {
+          const anthropicLocal = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+          const inferRes = await anthropicLocal.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2000,
+            messages: [{
+              role: 'user',
+              content: `Para cada nome brasileiro abaixo, determine o gênero (M ou F). Responda SOMENTE JSON: [{"i":0,"g":"M"},...]\n${semGeneroInferido.map((c, i) => `${i}:${c.nome}`).join('\n')}`,
+            }],
+          })
+          const t = (inferRes.content[0] as { text: string }).text
+          const m = t.match(/\[[\s\S]*\]/)
+          const j: { i: number; g: string }[] = m ? JSON.parse(m[0]) : []
+          semGeneroInferido.forEach((c, i) => { c.genero_sugerido = j.find(x => x.i === i)?.g ?? 'M' })
+        } catch { semGeneroInferido.forEach(c => { c.genero_sugerido = 'M' }) }
+      }
+
+      let updated = 0
+      for (const u of itens) {
+        if (!u.genero_sugerido) continue
+        const { error } = await admin.from('clientes')
+          .update({ genero: u.genero_sugerido })
+          .eq('id', u.id).eq('user_id', user.id)
+        if (!error) updated++
+      }
+      return NextResponse.json({ ok: true, total: updated, resposta: `✅ ${updated} cliente(s) atualizados com sucesso!` })
+    }
+
+    if (operacao.tipo === 'atualizar_genero_produtos') {
+      let updated = 0
+      for (const u of preview) {
+        if (!u.genero_novo) continue
+        const { error } = await admin.from('estoque')
+          .update({ genero: u.genero_novo })
+          .eq('id', u.id).eq('user_id', user.id)
+        if (!error) updated++
+      }
+      return NextResponse.json({ ok: true, total: updated, resposta: `✅ ${updated} produto(s) atualizados com sucesso!` })
+    }
+
+    return NextResponse.json({ ok: false, error: 'Operação desconhecida' }, { status: 400 })
+  }
 
   /* Seleciona contatos com base no filtro ou lista específica */
   let contatosList: { id: string; nome: string; phone: string }[] = []
