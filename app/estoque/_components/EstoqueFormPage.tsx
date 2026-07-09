@@ -32,6 +32,7 @@ type FormState = {
   marca: string
   codigo_produto: string
   cor: string
+  genero: 'M' | 'F' | 'U' | 'I' | ''
   categoria: Produto['categoria'] | ''
   tamanhos: TamanhoQtd[]
   qtd_outros: string
@@ -94,12 +95,13 @@ function totalQtd(tamanhos: TamanhoQtd[]) {
 const EMPTY_TRIBUTOS = { ncm: '', cfop: '', icms: '', pis: '', cofins: '', cest: '' }
 
 function toFormState(p?: Produto): FormState {
-  if (!p) return { nome: '', marca: '', codigo_produto: '', cor: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
+  if (!p) return { nome: '', marca: '', codigo_produto: '', cor: '', genero: '', categoria: '', tamanhos: [], qtd_outros: '0', preco_custo: '', preco_venda: '', ...EMPTY_TRIBUTOS }
   return {
     nome: p.nome,
     marca: p.marca ?? '',
     codigo_produto: p.codigo_produto ?? '',
     cor: p.cor ?? '',
+    genero: (p.genero as FormState['genero']) ?? '',
     categoria: p.categoria,
     tamanhos: p.categoria !== 'outros' ? (p.tamanhos ?? []) : [],
     qtd_outros: p.categoria === 'outros' ? String(p.tamanhos.reduce((s, t) => s + t.qtd, 0)) : '0',
@@ -400,6 +402,7 @@ export default function EstoqueFormPage({
       marca: form.marca.trim() || null,
       codigo_produto: form.codigo_produto.trim() || null,
       cor: form.cor.trim() || null,
+      genero: form.genero || null,
       categoria: form.categoria,
       tamanhos: tamanhosFinal,
       preco_custo: form.preco_custo ? Number(form.preco_custo) : null,
@@ -567,6 +570,29 @@ export default function EstoqueFormPage({
                   <input type="text" value={form.cor} onChange={e => setForm(f => ({...f, cor: e.target.value}))} placeholder="Preto, Branco, Azul..." className={INPUT} />
                 </Field>
               </div>
+
+              {/* Gênero */}
+              <Field label="Gênero">
+                <div className="flex gap-2">
+                  {([['M', 'Masculino'], ['F', 'Feminino'], ['U', 'Unissex'], ['I', 'Infantil']] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, genero: f.genero === val ? '' : val }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                        form.genero === val
+                          ? val === 'M' ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                          : val === 'F' ? 'bg-pink-500/20 border-pink-500/50 text-pink-300'
+                          : val === 'I' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                          : 'bg-zinc-600/40 border-zinc-500/50 text-zinc-200'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
 
               {/* Categoria */}
               <Field label="Categoria *">
