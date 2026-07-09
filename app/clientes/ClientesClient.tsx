@@ -206,6 +206,7 @@ export default function ClientesClient({
 
   const [dependentes, setDependentes] = useState<Dependente[]>([])
   const [addingDep, setAddingDep] = useState(false)
+  const [editingDepId, setEditingDepId] = useState<string | null>(null)
   const [depForm, setDepForm] = useState({ nome: '', relacao: '' as Dependente['relacao'] | '', genero: '' as 'M' | 'F' | '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' })
 
   function field(key: keyof FormState) {
@@ -237,7 +238,7 @@ export default function ClientesClient({
       observacoes: c.observacoes ?? '',
     })
     setDependentes(c.dependentes ?? [])
-    setAddingDep(false)
+    setAddingDep(false); setEditingDepId(null)
     setFormError(''); setDrawerTab('dados'); setDrawer(true)
     loadHistorico(c)
   }
@@ -250,7 +251,7 @@ export default function ClientesClient({
   function closeDrawer() {
     setDrawer(false); setEditing(null); setFormError('')
     setHistoricoVendas([]); setHistoricoCrediarios([]); setInsightCliente(null)
-    setDependentes([]); setAddingDep(false)
+    setDependentes([]); setAddingDep(false); setEditingDepId(null)
   }
 
   async function loadHistorico(c: Cliente) {
@@ -331,7 +332,20 @@ export default function ClientesClient({
 
     /* Se o mini-form de dependente ainda está aberto com dados válidos, inclui automaticamente */
     let depsFinal = dependentes
-    if (addingDep && depForm.nome.trim() && depForm.relacao && depForm.genero) {
+    if (editingDepId && depForm.nome.trim() && depForm.relacao && depForm.genero) {
+      depsFinal = dependentes.map(d => d.id === editingDepId ? {
+        ...d,
+        nome: depForm.nome.trim(),
+        relacao: depForm.relacao as Dependente['relacao'],
+        genero: depForm.genero as 'M' | 'F',
+        tamanho_camiseta: depForm.tamanho_camiseta || undefined,
+        tamanho_calca: depForm.tamanho_calca || undefined,
+        tamanho_tenis: depForm.tamanho_tenis || undefined,
+        data_nascimento: depForm.data_nascimento || undefined,
+      } : d)
+      setDependentes(depsFinal)
+      setEditingDepId(null)
+    } else if (addingDep && depForm.nome.trim() && depForm.relacao && depForm.genero) {
       const pendente: Dependente = {
         id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         nome: depForm.nome.trim(),
@@ -1136,7 +1150,7 @@ export default function ClientesClient({
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-zinc-300">Dependentes</p>
-                  {!addingDep && (
+                  {!addingDep && !editingDepId && (
                     <button
                       type="button"
                       onClick={() => { setAddingDep(true); setDepForm({ nome: '', relacao: '', genero: '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' }) }}
@@ -1150,24 +1164,54 @@ export default function ClientesClient({
                 {dependentes.length > 0 && (
                   <div className="flex flex-col gap-2">
                     {dependentes.map(dep => (
-                      <div key={dep.id} className="flex items-center justify-between bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-3 py-2.5">
-                        <div>
-                          <p className="text-sm font-medium text-white">{dep.nome}</p>
-                          <p className="text-xs text-zinc-500 capitalize">{dep.relacao} · {dep.genero === 'M' ? 'Masculino' : 'Feminino'}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDependentes(ds => ds.filter(d => d.id !== dep.id))}
-                          className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer shrink-0"
-                        >
-                          <IconTrash />
-                        </button>
+                      <div key={dep.id}>
+                        {editingDepId === dep.id ? null : (
+                          <div className="flex items-center justify-between bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-3 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white">{dep.nome}</p>
+                              <p className="text-xs text-zinc-500 capitalize">
+                                {dep.relacao} · {dep.genero === 'M' ? 'Masculino' : 'Feminino'}
+                                {dep.tamanho_camiseta && ` · Cam ${dep.tamanho_camiseta}`}
+                                {dep.tamanho_calca && ` · Cal ${dep.tamanho_calca}`}
+                                {dep.tamanho_tenis && ` · Tên ${dep.tamanho_tenis}`}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingDepId(dep.id)
+                                  setAddingDep(false)
+                                  setDepForm({
+                                    nome: dep.nome,
+                                    relacao: dep.relacao,
+                                    genero: dep.genero,
+                                    tamanho_camiseta: dep.tamanho_camiseta ?? '',
+                                    tamanho_calca: dep.tamanho_calca ?? '',
+                                    tamanho_tenis: dep.tamanho_tenis ?? '',
+                                    data_nascimento: dep.data_nascimento ?? '',
+                                  })
+                                }}
+                                className="p-1.5 text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition cursor-pointer"
+                              >
+                                <IconEdit />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDependentes(ds => ds.filter(d => d.id !== dep.id))}
+                                className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"
+                              >
+                                <IconTrash />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {addingDep && (
+                {(addingDep || editingDepId) && (
                   <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-xl p-4 flex flex-col gap-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1">
@@ -1253,7 +1297,11 @@ export default function ClientesClient({
                     <div className="flex gap-2 pt-1">
                       <button
                         type="button"
-                        onClick={() => setAddingDep(false)}
+                        onClick={() => {
+                          setAddingDep(false)
+                          setEditingDepId(null)
+                          setDepForm({ nome: '', relacao: '' as Dependente['relacao'] | '', genero: '' as 'M' | 'F' | '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' })
+                        }}
                         className="flex-1 text-sm text-zinc-400 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg py-2 transition cursor-pointer"
                       >
                         Cancelar
@@ -1262,28 +1310,43 @@ export default function ClientesClient({
                         type="button"
                         onClick={() => {
                           if (!depForm.nome.trim() || !depForm.relacao || !depForm.genero) return
-                          const newDep: Dependente = {
-                            id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                            nome: depForm.nome.trim(),
-                            relacao: depForm.relacao as Dependente['relacao'],
-                            genero: depForm.genero as 'M' | 'F',
-                            tamanho_camiseta: depForm.tamanho_camiseta || undefined,
-                            tamanho_calca: depForm.tamanho_calca || undefined,
-                            tamanho_tenis: depForm.tamanho_tenis || undefined,
-                            data_nascimento: depForm.data_nascimento || undefined,
+                          if (editingDepId) {
+                            setDependentes(ds => ds.map(d => d.id === editingDepId ? {
+                              ...d,
+                              nome: depForm.nome.trim(),
+                              relacao: depForm.relacao as Dependente['relacao'],
+                              genero: depForm.genero as 'M' | 'F',
+                              tamanho_camiseta: depForm.tamanho_camiseta || undefined,
+                              tamanho_calca: depForm.tamanho_calca || undefined,
+                              tamanho_tenis: depForm.tamanho_tenis || undefined,
+                              data_nascimento: depForm.data_nascimento || undefined,
+                            } : d))
+                            setEditingDepId(null)
+                          } else {
+                            const newDep: Dependente = {
+                              id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                              nome: depForm.nome.trim(),
+                              relacao: depForm.relacao as Dependente['relacao'],
+                              genero: depForm.genero as 'M' | 'F',
+                              tamanho_camiseta: depForm.tamanho_camiseta || undefined,
+                              tamanho_calca: depForm.tamanho_calca || undefined,
+                              tamanho_tenis: depForm.tamanho_tenis || undefined,
+                              data_nascimento: depForm.data_nascimento || undefined,
+                            }
+                            setDependentes(ds => [...ds, newDep])
+                            setAddingDep(false)
                           }
-                          setDependentes(ds => [...ds, newDep])
-                          setAddingDep(false)
+                          setDepForm({ nome: '', relacao: '' as Dependente['relacao'] | '', genero: '' as 'M' | 'F' | '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' })
                         }}
                         className="flex-1 text-sm font-semibold bg-violet-600 hover:bg-violet-500 rounded-lg py-2 transition cursor-pointer"
                       >
-                        Adicionar
+                        {editingDepId ? 'Salvar' : 'Adicionar'}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {dependentes.length === 0 && !addingDep && (
+                {dependentes.length === 0 && !addingDep && !editingDepId && (
                   <p className="text-xs text-zinc-600">Nenhum dependente. Ex: marido, pai, filho.</p>
                 )}
               </div>
