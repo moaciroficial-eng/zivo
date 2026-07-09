@@ -13,11 +13,22 @@ interface PublicoData {
   camisa:   { total: number; mc: number; ml: number; sem: number }
 }
 
+interface PublicoByGenero {
+  all: PublicoData
+  M:   PublicoData
+  F:   PublicoData
+}
+
 function r(n: number, t: number) { return t ? Math.round(n / t * 100) : 0 }
 
-function PublicoSection({ p }: { p: PublicoData }) {
+type GeneroFiltro = 'all' | 'M' | 'F'
+
+function PublicoSection({ publico }: { publico: PublicoByGenero }) {
   const [open, setOpen] = useState(true)
-  if (!p.total) return null
+  const [filtro, setFiltro] = useState<GeneroFiltro>('all')
+
+  const p = publico[filtro]
+  if (!publico.all.total) return null
 
   const pF = r(p.genero.F, p.total)
   const pM = r(p.genero.M, p.total)
@@ -31,6 +42,12 @@ function PublicoSection({ p }: { p: PublicoData }) {
     { label: 'Tênis',    items: p.tenis,    color: '#00D4AA' },
   ]
 
+  const FILTROS: { key: GeneroFiltro; label: string; color: string; activeClass: string }[] = [
+    { key: 'all', label: 'Todos',    color: '', activeClass: 'bg-zinc-700 text-white' },
+    { key: 'M',   label: 'Masculino', color: '#3B6FFF', activeClass: 'bg-[#3B6FFF]/20 text-[#7FA8FF] border-[#3B6FFF]/40' },
+    { key: 'F',   label: 'Feminino',  color: '#a855f7', activeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+  ]
+
   return (
     <div className="border border-zinc-800 rounded-2xl overflow-hidden">
       <button
@@ -39,7 +56,7 @@ function PublicoSection({ p }: { p: PublicoData }) {
       >
         <div className="flex items-center gap-2.5">
           <span className="text-sm font-semibold text-white">Perfil do Público</span>
-          <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full font-medium">{p.total} clientes</span>
+          <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full font-medium">{publico.all.total} clientes</span>
         </div>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
           className={`text-zinc-600 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
@@ -50,94 +67,123 @@ function PublicoSection({ p }: { p: PublicoData }) {
       {open && (
         <div className="border-t border-zinc-800 bg-zinc-900/40 p-5 space-y-3">
 
-          {/* Gênero + Faixa etária lado a lado */}
-          <div className="grid sm:grid-cols-2 gap-3">
-
-            {/* Gênero */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-4">Gênero</p>
-              <div className="flex items-center gap-6 mb-4">
-                <div>
-                  <p className="text-3xl font-bold text-purple-400 leading-none">{pF}<span className="text-lg">%</span></p>
-                  <p className="text-xs text-zinc-500 mt-1">Feminino · {p.genero.F}</p>
-                </div>
-                <div className="flex-1 h-px bg-zinc-800" />
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-[#3B6FFF] leading-none">{pM}<span className="text-lg">%</span></p>
-                  <p className="text-xs text-zinc-500 mt-1">{p.genero.M} · Masculino</p>
-                </div>
-              </div>
-              <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
-                {pF > 0 && <div style={{ width: `${pF}%`, backgroundColor: '#a855f7' }} className="rounded-full" />}
-                {pM > 0 && <div style={{ width: `${pM}%`, backgroundColor: '#3B6FFF' }} className="rounded-full" />}
-                {pS > 0 && <div style={{ width: `${pS}%` }} className="bg-zinc-700 rounded-full" />}
-              </div>
-              {p.genero.sem > 0 && (
-                <p className="text-[11px] text-zinc-600 mt-2">{p.genero.sem} sem gênero cadastrado</p>
-              )}
-            </div>
-
-            {/* Faixa etária */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Faixa Etária</p>
-                {p.semNasc > 0 && <span className="text-[11px] text-zinc-600">{p.semNasc} sem data</span>}
-              </div>
-              {faixas.length === 0 ? (
-                <p className="text-sm text-zinc-600">Sem datas cadastradas</p>
-              ) : (
-                <div className="space-y-3">
-                  {faixas.map(f => (
-                    <div key={f.label} className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-400 w-12 shrink-0 text-right font-mono">{f.label}</span>
-                      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#00D4AA] rounded-full"
-                          style={{ width: `${Math.round(f.count / maxFaixa * 100)}%` }} />
-                      </div>
-                      <span className="text-xs font-semibold text-zinc-300 w-7 shrink-0 text-right">{f.count}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Filtro de gênero */}
+          <div className="flex items-center gap-2">
+            {FILTROS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFiltro(f.key)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                  filtro === f.key
+                    ? f.activeClass
+                    : 'border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+                }`}
+              >
+                {f.label}
+                {f.key !== 'all' && (
+                  <span className="ml-1 opacity-60">{publico[f.key].total}</span>
+                )}
+              </button>
+            ))}
+            {!p.total && filtro !== 'all' && (
+              <span className="text-xs text-zinc-600 ml-1">Nenhum cliente {filtro === 'M' ? 'masculino' : 'feminino'} cadastrado</span>
+            )}
           </div>
 
-          {/* Tamanhos */}
-          <div className="grid sm:grid-cols-3 gap-3">
-            {tamanhos.map(({ label, items, color }) => (
-              <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-3">{label}</p>
-                {!items.length ? (
-                  <p className="text-xs text-zinc-600">Sem dados</p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {items.slice(0, 6).map(t => (
-                      <div key={t.tamanho} className="flex items-center gap-2.5">
-                        <span className="text-xs font-mono text-zinc-400 w-9 shrink-0 text-right">{t.tamanho}</span>
-                        <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${Math.max(5, t.pct)}%`, backgroundColor: color }} />
-                        </div>
-                        <span className="text-xs font-semibold text-zinc-300 w-8 shrink-0 text-right">{t.pct}%</span>
+          {p.total > 0 && (
+            <>
+              {/* Gênero + Faixa etária lado a lado */}
+              <div className="grid sm:grid-cols-2 gap-3">
+
+                {/* Gênero — só mostra no filtro "todos" */}
+                {filtro === 'all' && (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+                    <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-4">Gênero</p>
+                    <div className="flex items-center gap-6 mb-4">
+                      <div>
+                        <p className="text-3xl font-bold text-purple-400 leading-none">{pF}<span className="text-lg">%</span></p>
+                        <p className="text-xs text-zinc-500 mt-1">Feminino · {p.genero.F}</p>
                       </div>
-                    ))}
+                      <div className="flex-1 h-px bg-zinc-800" />
+                      <div className="text-right">
+                        <p className="text-3xl font-bold text-[#3B6FFF] leading-none">{pM}<span className="text-lg">%</span></p>
+                        <p className="text-xs text-zinc-500 mt-1">{p.genero.M} · Masculino</p>
+                      </div>
+                    </div>
+                    <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
+                      {pF > 0 && <div style={{ width: `${pF}%`, backgroundColor: '#a855f7' }} className="rounded-full" />}
+                      {pM > 0 && <div style={{ width: `${pM}%`, backgroundColor: '#3B6FFF' }} className="rounded-full" />}
+                      {pS > 0 && <div style={{ width: `${pS}%` }} className="bg-zinc-700 rounded-full" />}
+                    </div>
+                    {p.genero.sem > 0 && (
+                      <p className="text-[11px] text-zinc-600 mt-2">{p.genero.sem} sem gênero cadastrado</p>
+                    )}
                   </div>
                 )}
-              </div>
-            ))}
-          </div>
 
-          {/* Camisa Social — breakdown MC/ML */}
-          {p.camisa.total > 0 && (
+                {/* Faixa etária */}
+                <div className={`bg-zinc-900 border border-zinc-800 rounded-xl p-5 ${filtro !== 'all' ? 'sm:col-span-2' : ''}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Faixa Etária</p>
+                    {p.semNasc > 0 && <span className="text-[11px] text-zinc-600">{p.semNasc} sem data</span>}
+                  </div>
+                  {faixas.length === 0 ? (
+                    <p className="text-sm text-zinc-600">Sem datas cadastradas</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {faixas.map(f => (
+                        <div key={f.label} className="flex items-center gap-3">
+                          <span className="text-xs text-zinc-400 w-12 shrink-0 text-right font-mono">{f.label}</span>
+                          <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#00D4AA] rounded-full"
+                              style={{ width: `${Math.round(f.count / maxFaixa * 100)}%` }} />
+                          </div>
+                          <span className="text-xs font-semibold text-zinc-300 w-7 shrink-0 text-right">{f.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tamanhos */}
+              <div className="grid sm:grid-cols-3 gap-3">
+                {tamanhos.map(({ label, items, color }) => (
+                  <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                    <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-3">{label}</p>
+                    {!items.length ? (
+                      <p className="text-xs text-zinc-600">Sem dados</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {items.slice(0, 6).map(t => (
+                          <div key={t.tamanho} className="flex items-center gap-2.5">
+                            <span className="text-xs font-mono text-zinc-400 w-9 shrink-0 text-right">{t.tamanho}</span>
+                            <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.max(5, t.pct)}%`, backgroundColor: color }} />
+                            </div>
+                            <span className="text-xs font-semibold text-zinc-300 w-8 shrink-0 text-right">{t.pct}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Camisa Social — breakdown MC/ML — sempre do estoque total */}
+          {publico.all.camisa.total > 0 && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Camisa Social no Estoque</p>
-                <span className="text-xs text-zinc-600">{p.camisa.total} peças</span>
+                <span className="text-xs text-zinc-600">{publico.all.camisa.total} peças</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Manga Curta', count: p.camisa.mc, color: '#f97316' },
-                  { label: 'Manga Longa', count: p.camisa.ml, color: '#fb923c' },
-                  { label: 'Sem info',    count: p.camisa.sem, color: '#52525b' },
+                  { label: 'Manga Curta', count: publico.all.camisa.mc,  color: '#f97316' },
+                  { label: 'Manga Longa', count: publico.all.camisa.ml,  color: '#fb923c' },
+                  { label: 'Sem info',    count: publico.all.camisa.sem, color: '#52525b' },
                 ].filter(item => item.count > 0).map(item => (
                   <div key={item.label} className="flex flex-col gap-1.5">
                     <div className="flex items-end justify-between">
@@ -145,9 +191,9 @@ function PublicoSection({ p }: { p: PublicoData }) {
                       <span className="text-sm font-bold text-white">{item.count}</span>
                     </div>
                     <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${r(item.count, p.camisa.total)}%`, backgroundColor: item.color }} />
+                      <div className="h-full rounded-full" style={{ width: `${r(item.count, publico.all.camisa.total)}%`, backgroundColor: item.color }} />
                     </div>
-                    <span className="text-[11px] text-zinc-600">{r(item.count, p.camisa.total)}%</span>
+                    <span className="text-[11px] text-zinc-600">{r(item.count, publico.all.camisa.total)}%</span>
                   </div>
                 ))}
               </div>
@@ -223,7 +269,7 @@ function TamanhosBar({ tamanhos }: { tamanhos: TamanhoItem[] }) {
 
 const PERIODOS = [1, 2, 3, 4, 6]
 
-export default function ComprasClient({ marcas, publico }: { marcas: string[]; publico: PublicoData }) {
+export default function ComprasClient({ marcas, publico }: { marcas: string[]; publico: PublicoByGenero }) {
   const [modo, setModo]         = useState<'pedido' | 'meta'>('pedido')
   const [marca, setMarca]       = useState(marcas[0] ?? '')
   const [marcaCustom, setMarcaCustom] = useState('')
@@ -501,7 +547,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
         )}
 
         {/* Perfil do público */}
-        <PublicoSection p={publico} />
+        <PublicoSection publico={publico} />
 
       </div>
     </div>
