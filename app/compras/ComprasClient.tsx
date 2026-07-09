@@ -12,124 +12,89 @@ interface PublicoData {
   tenis:    Array<{ tamanho: string; count: number; pct: number }>
 }
 
-function pct(n: number, total: number) {
-  return total ? Math.round(n / total * 100) : 0
-}
-
-function MiniBar({ label, count, max, color }: { label: string; count: number; max: number; color: string }) {
-  const w = max ? Math.round(count / max * 100) : 0
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-zinc-400 w-12 shrink-0 text-right">{label}</span>
-      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${w}%`, background: color }} />
-      </div>
-      <span className="text-xs text-zinc-500 w-6 shrink-0">{count}</span>
-    </div>
-  )
-}
-
-function TamCard({ title, items, color }: { title: string; items: Array<{ tamanho: string; count: number; pct: number }>; color: string }) {
-  if (!items.length) return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">{title}</p>
-      <p className="text-xs text-zinc-600">Sem dados</p>
-    </div>
-  )
-  const max = items[0].count
-  return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">{title}</p>
-      <div className="space-y-2">
-        {items.map(t => (
-          <div key={t.tamanho} className="flex items-center gap-2">
-            <span className="text-xs font-mono text-zinc-400 w-10 shrink-0 text-right">{t.tamanho}</span>
-            <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${Math.max(4, t.pct)}%`, background: color }} />
-            </div>
-            <span className="text-xs text-zinc-500 w-10 shrink-0 text-right">{t.pct}% <span className="text-zinc-700">·{t.count}</span></span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+function r(n: number, t: number) { return t ? Math.round(n / t * 100) : 0 }
 
 function PublicoSection({ p }: { p: PublicoData }) {
   const [open, setOpen] = useState(true)
   if (!p.total) return null
 
+  const pF = r(p.genero.F, p.total)
+  const pM = r(p.genero.M, p.total)
+  const pS = 100 - pF - pM
   const maxFaixa = Math.max(...p.faixaEtaria.map(f => f.count), 1)
-  const comNasc  = p.total - p.semNasc
-  const pctGenM  = pct(p.genero.M, p.total)
-  const pctGenF  = pct(p.genero.F, p.total)
-  const pctGenS  = 100 - pctGenM - pctGenF
+  const faixas = p.faixaEtaria.filter(f => f.count > 0)
+
+  const tamanhos = [
+    { label: 'Camiseta', items: p.camiseta, color: '#3B6FFF' },
+    { label: 'Calça',    items: p.calca,    color: '#a855f7' },
+    { label: 'Tênis',    items: p.tenis,    color: '#00D4AA' },
+  ]
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+    <div className="border border-zinc-800 rounded-2xl overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-zinc-800/40 transition"
+        className="w-full flex items-center justify-between px-5 py-4 bg-zinc-900 hover:bg-zinc-800/60 transition cursor-pointer"
       >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-zinc-100">Perfil do Público</span>
-          <span className="text-xs text-zinc-500">{p.total} clientes</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-sm font-semibold text-white">Perfil do Público</span>
+          <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full font-medium">{p.total} clientes</span>
         </div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className={`text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          className={`text-zinc-600 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
           <polyline points="6 9 12 15 18 9"/>
         </svg>
       </button>
 
       {open && (
-        <div className="px-5 pb-5 space-y-4 border-t border-zinc-800 pt-4">
+        <div className="border-t border-zinc-800 bg-zinc-900/40 p-5 space-y-3">
 
-          {/* Gênero + Faixa etária */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Gênero + Faixa etária lado a lado */}
+          <div className="grid sm:grid-cols-2 gap-3">
 
             {/* Gênero */}
-            <div className="bg-zinc-800/40 border border-zinc-700/40 rounded-xl p-4">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Gênero</p>
-              {/* Segmented bar */}
-              <div className="flex h-3 rounded-full overflow-hidden mb-3 gap-px">
-                {p.genero.F > 0 && <div style={{ width: `${pctGenF}%`, background: '#a855f7' }} title={`Feminino ${pctGenF}%`} />}
-                {p.genero.M > 0 && <div style={{ width: `${pctGenM}%`, background: '#3B6FFF' }} title={`Masculino ${pctGenM}%`} />}
-                {p.genero.sem > 0 && <div style={{ width: `${pctGenS}%`, background: '#3f3f46' }} title={`Sem cadastro ${pctGenS}%`} />}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-4">Gênero</p>
+              <div className="flex items-center gap-6 mb-4">
+                <div>
+                  <p className="text-3xl font-bold text-purple-400 leading-none">{pF}<span className="text-lg">%</span></p>
+                  <p className="text-xs text-zinc-500 mt-1">Feminino · {p.genero.F}</p>
+                </div>
+                <div className="flex-1 h-px bg-zinc-800" />
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-[#3B6FFF] leading-none">{pM}<span className="text-lg">%</span></p>
+                  <p className="text-xs text-zinc-500 mt-1">{p.genero.M} · Masculino</p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                {p.genero.F > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />Feminino</div>
-                    <span className="text-zinc-300 font-medium">{pctGenF}% <span className="text-zinc-600">· {p.genero.F}</span></span>
-                  </div>
-                )}
-                {p.genero.M > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#3B6FFF] shrink-0" />Masculino</div>
-                    <span className="text-zinc-300 font-medium">{pctGenM}% <span className="text-zinc-600">· {p.genero.M}</span></span>
-                  </div>
-                )}
-                {p.genero.sem > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-zinc-600 shrink-0" />Não informado</div>
-                    <span className="text-zinc-500">{pctGenS}% <span className="text-zinc-700">· {p.genero.sem}</span></span>
-                  </div>
-                )}
+              <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
+                {pF > 0 && <div style={{ width: `${pF}%`, backgroundColor: '#a855f7' }} className="rounded-full" />}
+                {pM > 0 && <div style={{ width: `${pM}%`, backgroundColor: '#3B6FFF' }} className="rounded-full" />}
+                {pS > 0 && <div style={{ width: `${pS}%` }} className="bg-zinc-700 rounded-full" />}
               </div>
+              {p.genero.sem > 0 && (
+                <p className="text-[11px] text-zinc-600 mt-2">{p.genero.sem} sem gênero cadastrado</p>
+              )}
             </div>
 
             {/* Faixa etária */}
-            <div className="bg-zinc-800/40 border border-zinc-700/40 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Faixa etária</p>
-                {p.semNasc > 0 && <span className="text-xs text-zinc-600">{p.semNasc} sem data</span>}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Faixa Etária</p>
+                {p.semNasc > 0 && <span className="text-[11px] text-zinc-600">{p.semNasc} sem data</span>}
               </div>
-              {comNasc === 0 ? (
-                <p className="text-xs text-zinc-600">Sem datas cadastradas</p>
+              {faixas.length === 0 ? (
+                <p className="text-sm text-zinc-600">Sem datas cadastradas</p>
               ) : (
-                <div className="space-y-2">
-                  {p.faixaEtaria.map(f => (
-                    <MiniBar key={f.label} label={f.label} count={f.count} max={maxFaixa} color="#00D4AA" />
+                <div className="space-y-3">
+                  {faixas.map(f => (
+                    <div key={f.label} className="flex items-center gap-3">
+                      <span className="text-xs text-zinc-400 w-12 shrink-0 text-right font-mono">{f.label}</span>
+                      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#00D4AA] rounded-full"
+                          style={{ width: `${Math.round(f.count / maxFaixa * 100)}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-zinc-300 w-7 shrink-0 text-right">{f.count}</span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -137,10 +102,27 @@ function PublicoSection({ p }: { p: PublicoData }) {
           </div>
 
           {/* Tamanhos */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <TamCard title="Camiseta" items={p.camiseta} color="#3B6FFF" />
-            <TamCard title="Calça"    items={p.calca}    color="#a855f7" />
-            <TamCard title="Tênis"    items={p.tenis}    color="#00D4AA" />
+          <div className="grid sm:grid-cols-3 gap-3">
+            {tamanhos.map(({ label, items, color }) => (
+              <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-3">{label}</p>
+                {!items.length ? (
+                  <p className="text-xs text-zinc-600">Sem dados</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {items.slice(0, 6).map(t => (
+                      <div key={t.tamanho} className="flex items-center gap-2.5">
+                        <span className="text-xs font-mono text-zinc-400 w-9 shrink-0 text-right">{t.tamanho}</span>
+                        <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.max(5, t.pct)}%`, backgroundColor: color }} />
+                        </div>
+                        <span className="text-xs font-semibold text-zinc-300 w-8 shrink-0 text-right">{t.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
         </div>
