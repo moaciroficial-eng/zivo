@@ -35,13 +35,15 @@ export async function POST(request: NextRequest) {
     { data: estoque },
   ] = await Promise.all([
     admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
-    admin.from('clientes').select('id, nome, telefone, data_nascimento, genero').eq('user_id', user.id).limit(1000),
+    admin.from('clientes').select('id, nome, telefone, data_nascimento, genero, dependentes').eq('user_id', user.id).limit(1000),
     admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
     admin.from('estoque').select('id, marca').eq('user_id', user.id).limit(2000),
   ])
 
   const semCadastroCompleto = clientes?.filter(c => !c.data_nascimento).length ?? 0
   const semGenero = clientes?.filter(c => !c.genero).length ?? 0
+  const totalDependentes = clientes?.reduce((acc: number, c: { dependentes?: { id: string }[] | null }) => acc + (c.dependentes?.length ?? 0), 0) ?? 0
+  const clientesComDependentes = clientes?.filter((c: { dependentes?: { id: string }[] | null }) => (c.dependentes?.length ?? 0) > 0).length ?? 0
 
   /* Lista unificada: WhatsApp contacts + clientes do cadastro sem WhatsApp ainda */
   const contatosIds = new Set((contatos ?? []).map((c: { cliente_id: string | null }) => c.cliente_id).filter(Boolean))
@@ -137,6 +139,7 @@ ${listaTodos || '(nenhum cadastrado ainda)'}
 DADOS DA LOJA:
 - Clientes sem data de nascimento: ${semCadastroCompleto}
 - Clientes sem gênero cadastrado: ${semGenero}
+- Clientes com dependentes cadastrados: ${clientesComDependentes} (${totalDependentes} dependentes no total)
 - Marcas no estoque: ${linhasEstoque}
 
 Responda SEMPRE em JSON válido com este formato:
