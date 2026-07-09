@@ -9,7 +9,7 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
   if (sp.nome)     next.nome  = sp.nome
   if (sp.marca)    next.marca = sp.marca
   const cat = sp.categoria as Produto['categoria'] | undefined
-  if (cat && ['camiseta','regata','calca','polo','tenis','chinelo','outros'].includes(cat)) {
+  if (cat && ['camiseta','regata','calca','bermuda','polo','tenis','chinelo','outros'].includes(cat)) {
     next.categoria  = cat
     next.tamanhos   = []
     next.qtd_outros = '0'
@@ -53,6 +53,7 @@ const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
   camiseta: ['P', 'M', 'G', 'GG', 'XGG'],
   regata:   ['P', 'M', 'G', 'GG', 'XGG'],
   calca:    ['38', '40', '42', '44', '46', '48', '50'],
+  bermuda:  ['P', 'M', 'G', 'GG', 'XGG'],
   polo:     ['P', 'M', 'G', 'GG', 'XGG'],
   tenis:    ['37', '38', '39', '40', '41', '42', '43', '44'],
   chinelo:  ['37/38', '39/40', '41/42', '43/44'],
@@ -63,6 +64,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta',
   regata:   'Regata',
   calca:    'Calça',
+  bermuda:  'Bermuda',
   polo:     'Polo',
   tenis:    'Tênis',
   chinelo:  'Chinelos',
@@ -73,6 +75,7 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
   calca:    'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  bermuda:  'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
   polo:     'bg-sky-500/15 text-sky-300 border-sky-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',

@@ -10,7 +10,7 @@ const anthropic = new Anthropic()
 export type ScanData = {
   nome: string | null
   marca: string | null
-  categoria: 'camiseta' | 'regata' | 'calca' | 'polo' | 'tenis' | 'chinelo' | 'outros' | null
+  categoria: 'camiseta' | 'regata' | 'calca' | 'bermuda' | 'polo' | 'tenis' | 'chinelo' | 'outros' | null
   tamanho: string | null
   preco_venda: number | null
   preco_custo: number | null
@@ -54,7 +54,10 @@ Formato exato:
 {"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
 
 Regras gerais:
-- "categoria": exatamente "camiseta", "regata", "calca", "polo", "tenis", "chinelo" ou "outros"
+- "categoria": exatamente "camiseta", "polo", "regata", "calca", "bermuda", "tenis", "chinelo" ou "outros"
+  - Use "polo" para camiseta polo (gola com botões)
+  - Use "bermuda" para bermudas e shorts
+  - Use "calca" apenas para calças longas
 - "tamanho": string (ex: "M", "G", "42") ou null
 - preços: número (ex: 89.90) ou null — sem R$
 - Preencha preços SOMENTE se o valor estiver explicitamente impresso na etiqueta; se não encontrar, use null — nunca estime nem infira preços

@@ -48,9 +48,11 @@ type EstoqueItem = {
   id: string
   nome: string
   marca: string | null
+  cor: string | null
+  codigo_barras: string | null
+  codigo_produto: string | null
   preco_venda: number | null
   preco_custo: number | null
-  codigo_barras: string | null
   tamanhos: TamanhoQtd[] | null
 }
 
@@ -412,18 +414,21 @@ export default function VendasClient({
   const totalFinal = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
 
   const produtosFiltrados: EstoqueFlat[] = (() => {
-    const q = productSearch.toLowerCase()
-    if (q.length < 1) return []
-    const matched = estoqueItems
-      .filter(e => (e.nome + (e.marca ?? '')).toLowerCase().includes(q))
-      .slice(0, 8)
+    if (productSearch.length < 1) return []
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    const q = norm(productSearch)
+    const tokens = q.split(/\s+/).filter(Boolean)
+    const matched = estoqueItems.filter(e => {
+      const haystack = norm([e.nome, e.marca, e.cor, e.codigo_barras, e.codigo_produto].filter(Boolean).join(' '))
+      return tokens.every(t => haystack.includes(t))
+    }).slice(0, 8)
     const result: EstoqueFlat[] = []
     for (const item of matched) {
       const sizes = (item.tamanhos ?? []).filter(t => t.qtd > 0)
       if (sizes.length <= 1) result.push({ ...item, _tamanho: sizes[0]?.tamanho ?? null })
       else for (const t of sizes) result.push({ ...item, _tamanho: t.tamanho })
     }
-    return result.slice(0, 9)
+    return result.slice(0, 12)
   })()
 
   /* ── Toast ── */
@@ -1410,7 +1415,12 @@ export default function VendasClient({
                             onMouseDown={() => addFromSearch(item)}
                             className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
                           >
-                            <span className="text-zinc-200 flex-1 min-w-0 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-zinc-200 text-sm truncate">{item.nome}</p>
+                              {(item.marca || item.cor) && (
+                                <p className="text-xs text-zinc-500 truncate">{[item.marca, item.cor].filter(Boolean).join(' · ')}</p>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {item._tamanho && (
                                 <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold">{item._tamanho}</span>
