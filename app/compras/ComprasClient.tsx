@@ -262,9 +262,6 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
           <p className="text-sm text-zinc-400 mt-1">A IA analisa o ritmo da sua loja e recomenda quanto comprar de cada marca e tamanho.</p>
         </div>
 
-        {/* Perfil do público */}
-        <PublicoSection p={publico} />
-
         {/* Mode toggle */}
         <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl w-fit">
           {(['pedido', 'meta'] as const).map(m => (
@@ -491,6 +488,10 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
 
           </div>
         )}
+
+        {/* Perfil do público */}
+        <PublicoSection p={publico} />
+
       </div>
     </div>
   )
