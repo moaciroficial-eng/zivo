@@ -8,6 +8,18 @@ import { diagnosticoCompleto, clientesPorMarca } from '@/lib/agentes/analitico'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+function inferCategoria(nome: string): string {
+  const n = nome.toUpperCase()
+  if (/(?<![A-Z])POLO(?![A-Z])/.test(n))                                    return 'polo'
+  if (/CAMISETA|(?<![A-Z])CAMISA(?![A-Z])|T[-\s]?SHIRT/.test(n))           return 'camiseta'
+  if (/(?<![A-Z])REGATA(?![A-Z])/.test(n))                                  return 'regata'
+  if (/BERMUDA|SHORT/.test(n))                                               return 'bermuda'
+  if (/CALCA|CAL[CÇ]A|JEANS|SARJA|JOGGER|MOLETOM/.test(n))                 return 'calca'
+  if (/CHINELO/.test(n))                                                     return 'chinelo'
+  if (/TENIS|T[EÊ]NIS|SAPATENIS|(?<![A-Z])BOTA(?![A-Z])|SANDAL/.test(n))  return 'tenis'
+  return 'outros'
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -189,6 +201,7 @@ Ou para produtos de marcas específicas:
 Tipos de operação disponíveis:
 - "atualizar_genero_clientes" → infere gênero (M/F) dos clientes pelo nome usando IA
 - "atualizar_genero_produtos" → define gênero (M/F/U/I) nos produtos de marcas específicas. Use "genero": "M" para Masculino, "F" para Feminino, "U" para Unissex, "I" para Infantil.
+- "corrigir_categorias" → analisa o nome de todos os produtos e corrige a categoria (camiseta, polo, regata, calca, bermuda, tenis, chinelo, outros) onde estiver errada
 
 Para CONSULTAR CLIENTES POR MARCA (lista completa e confiável):
 {
@@ -290,6 +303,31 @@ REGRAS:
           operacaoPreview = semGeneroClientes.map(c => ({ id: c.id, nome: c.nome, genero_sugerido: 'M' }))
           parsed.resposta = `Encontrei ${semGeneroClientes.length} cliente(s) sem gênero. Confirma a atualização pelos nomes?`
         }
+      }
+    } else if (op.tipo === 'corrigir_categorias') {
+      const { data: todosProd } = await admin.from('estoque')
+        .select('id, nome, categoria')
+        .eq('user_id', user.id)
+        .not('nome', 'is', null)
+        .limit(2000)
+
+      const errados = (todosProd ?? []).filter(p => {
+        const sugerida = inferCategoria(p.nome)
+        return sugerida !== 'outros' && sugerida !== p.categoria
+      })
+
+      if (!errados.length) {
+        parsed.resposta = 'Todos os produtos já estão com a categoria correta!'
+        parsed.operacao = null
+      } else {
+        operacaoPreview = errados.map(p => ({
+          id: p.id,
+          nome: p.nome,
+          categoria_atual: p.categoria,
+          categoria_nova: inferCategoria(p.nome),
+        }))
+        const resumo = errados.slice(0, 8).map(p => `• ${p.nome}: ${p.categoria} → ${inferCategoria(p.nome)}`).join('\n')
+        parsed.resposta = `Encontrei ${errados.length} produto(s) com categoria errada:\n${resumo}${errados.length > 8 ? `\n...e mais ${errados.length - 8}` : ''}\n\nConfirma a correção?`
       }
     } else if (op.tipo === 'atualizar_genero_produtos') {
       const marcas: string[] = op.marcas ?? []
@@ -431,6 +469,20 @@ export async function PUT(request: NextRequest) {
         if (!error) updated++
       }
       return NextResponse.json({ ok: true, total: updated, resposta: `✅ ${updated} produto(s) atualizados com sucesso!` })
+    }
+
+    if (operacao.tipo === 'corrigir_categorias') {
+      type CatItem = { id: string; nome: string; categoria_nova?: string }
+      const itens = preview as CatItem[]
+      let updated = 0
+      for (const u of itens) {
+        const cat = u.categoria_nova ?? inferCategoria(u.nome)
+        const { error } = await admin.from('estoque')
+          .update({ categoria: cat })
+          .eq('id', u.id).eq('user_id', user.id)
+        if (!error) updated++
+      }
+      return NextResponse.json({ ok: true, total: updated, resposta: `✅ ${updated} produto(s) com categoria corrigida!` })
     }
 
     return NextResponse.json({ ok: false, error: 'Operação desconhecida' }, { status: 400 })

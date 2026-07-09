@@ -147,7 +147,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
   }
 
   /* ── Gerente ───────────────────────────────────────────── */
-  type OperacaoItem = { id: string; nome: string; marca?: string; genero_sugerido?: string; genero_novo?: string; genero_atual?: string }
+  type OperacaoItem = { id: string; nome: string; marca?: string; genero_sugerido?: string; genero_novo?: string; genero_atual?: string; categoria_atual?: string; categoria_nova?: string }
   type Operacao = { tipo: string; marcas?: string[]; genero?: string; preview?: OperacaoItem[] }
   type GerenteMsg = { papel: string; conteudo: string; tarefa?: Record<string, unknown> | null; operacao?: Operacao | null }
   const GERENTE_STORAGE_KEY = `gerente_msgs_${userId}`
@@ -508,13 +508,21 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
                           {m.operacao.preview.slice(0, 20).map((item) => (
                             <div key={item.id} className="flex items-center justify-between text-[11px] px-1">
                               <span className="text-zinc-300 truncate flex-1">{item.marca ? `[${item.marca}] ` : ''}{item.nome}</span>
-                              <span className={`ml-2 font-bold shrink-0 ${
-                                (item.genero_sugerido ?? item.genero_novo) === 'M' ? 'text-blue-400'
-                                : (item.genero_sugerido ?? item.genero_novo) === 'F' ? 'text-pink-400'
-                                : 'text-zinc-400'
-                              }`}>
-                                → {item.genero_sugerido ?? item.genero_novo ?? '?'}
-                              </span>
+                              {item.categoria_nova ? (
+                                <span className="ml-2 shrink-0 text-zinc-400">
+                                  <span className="text-zinc-600">{item.categoria_atual}</span>
+                                  <span className="text-zinc-500"> → </span>
+                                  <span className="text-[#00D4AA] font-semibold">{item.categoria_nova}</span>
+                                </span>
+                              ) : (
+                                <span className={`ml-2 font-bold shrink-0 ${
+                                  (item.genero_sugerido ?? item.genero_novo) === 'M' ? 'text-blue-400'
+                                  : (item.genero_sugerido ?? item.genero_novo) === 'F' ? 'text-pink-400'
+                                  : 'text-zinc-400'
+                                }`}>
+                                  → {item.genero_sugerido ?? item.genero_novo ?? '?'}
+                                </span>
+                              )}
                             </div>
                           ))}
                           {m.operacao.preview.length > 20 && (
