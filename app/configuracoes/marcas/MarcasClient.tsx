@@ -21,9 +21,11 @@ const IconPlus   = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" heig
 export default function MarcasClient({
   user,
   initialMarcas,
+  marcasEstoque,
 }: {
   user: { id: string; email: string }
   initialMarcas: Marca[]
+  marcasEstoque: string[]
 }) {
   const router = useRouter()
   const supabase = createClient()
@@ -36,6 +38,50 @@ export default function MarcasClient({
   const [newMarkup, setNewMarkup] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [normalizando, setNormalizando] = useState(false)
+
+  function fuzzyMatch(emitente: string, canonical: string) {
+    const e = emitente.toLowerCase()
+    const c = canonical.toLowerCase()
+    return e.includes(c) || c.includes(e)
+  }
+
+  const foraDosPadrao = marcasEstoque
+    .filter(em => !marcas.find(m => m.nome.toLowerCase() === em.toLowerCase()))
+    .map(em => {
+      const match = marcas.find(m => fuzzyMatch(em, m.nome))
+      return match ? { atual: em, canonical: match.nome } : null
+    })
+    .filter(Boolean) as { atual: string; canonical: string }[]
+
+  const semCorrespondencia = marcasEstoque
+    .filter(em =>
+      !marcas.find(m => m.nome.toLowerCase() === em.toLowerCase()) &&
+      !marcas.find(m => fuzzyMatch(em, m.nome))
+    )
+
+  async function normalizarTudo() {
+    if (!foraDosPadrao.length) return
+    setNormalizando(true)
+    for (const { atual, canonical } of foraDosPadrao) {
+      await supabase.from('estoque')
+        .update({ marca: canonical })
+        .eq('user_id', user.id)
+        .eq('marca', atual)
+    }
+    setNormalizando(false)
+    router.refresh()
+  }
+
+  async function normalizarUma(atual: string, canonical: string) {
+    setNormalizando(true)
+    await supabase.from('estoque')
+      .update({ marca: canonical })
+      .eq('user_id', user.id)
+      .eq('marca', atual)
+    setNormalizando(false)
+    router.refresh()
+  }
 
   function startEdit(m: Marca) {
     setEditingId(m.id)
@@ -186,6 +232,57 @@ export default function MarcasClient({
 
         {error && (
           <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2.5">{error}</p>
+        )}
+
+        {/* Marcas fora do padrão */}
+        {(foraDosPadrao.length > 0 || semCorrespondencia.length > 0) && (
+          <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <div>
+                <p className="text-sm font-semibold text-white">Marcas fora do padrão</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Nomes no estoque que diferem do cadastro</p>
+              </div>
+              {foraDosPadrao.length > 1 && (
+                <button
+                  onClick={normalizarTudo}
+                  disabled={normalizando}
+                  className="text-xs font-semibold px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                >
+                  {normalizando ? 'Normalizando...' : `Normalizar tudo (${foraDosPadrao.length})`}
+                </button>
+              )}
+            </div>
+
+            {foraDosPadrao.map(({ atual, canonical }) => (
+              <div key={atual} className="flex items-center gap-3 px-5 py-3.5 border-b border-zinc-800/60 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-zinc-300 font-medium truncate">{atual}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-600 shrink-0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    <span className="text-sm text-emerald-400 font-semibold">{canonical}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => normalizarUma(atual, canonical)}
+                  disabled={normalizando}
+                  className="text-xs text-violet-400 hover:text-violet-300 disabled:opacity-50 px-3 py-1.5 border border-violet-500/30 hover:border-violet-500/60 rounded-lg transition cursor-pointer shrink-0"
+                >
+                  Normalizar
+                </button>
+              </div>
+            ))}
+
+            {semCorrespondencia.length > 0 && (
+              <div className="px-5 py-3 border-t border-zinc-800/60 bg-zinc-800/20">
+                <p className="text-xs text-zinc-500 mb-2">Sem correspondência (cadastre a marca para normalizar):</p>
+                <div className="flex flex-wrap gap-2">
+                  {semCorrespondencia.map(m => (
+                    <span key={m} className="text-xs bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-1 rounded-lg">{m}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Explicação do markup */}

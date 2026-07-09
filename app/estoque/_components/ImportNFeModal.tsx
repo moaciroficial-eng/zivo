@@ -253,12 +253,16 @@ export default function ImportNFeModal({
         if (match && match.markup > 0) markup = match.markup
       }
 
+      const marcaCanonica = marcas && emit
+        ? (marcas.find(m => { const mL = m.nome.toLowerCase(); const eL = emit.toLowerCase(); return eL.includes(mL) || mL.includes(eL) })?.nome ?? emit)
+        : emit
+
       const nfeItems: NFeItem[] = rawItems.map((raw, i) => ({
         ...raw,
         key:       String(i),
         selected:  true,
         categoria: inferCategoria(raw.nome),
-        marca:     emit,
+        marca:     marcaCanonica,
         preco_venda: markup && raw.preco_custo != null
           ? parseFloat((raw.preco_custo * markup).toFixed(2))
           : null,
