@@ -5,6 +5,11 @@ import Anthropic from '@anthropic-ai/sdk'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.WEBHOOK_SECRET
+  if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ ok: false }, { status: 401 })
+  }
+
   const body = await request.json().catch(() => null)
   const contatoId: string | undefined = body?.contatoId
   const userId: string | undefined = body?.userId ?? process.env.WHATSAPP_USER_ID
@@ -221,7 +226,7 @@ Regras:
 
     const estoqueRes = await fetch(`${baseUrl}/api/agentes/estoque`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({
         userId,
         produto: consulta.produto ?? null,

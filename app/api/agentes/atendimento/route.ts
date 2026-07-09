@@ -72,6 +72,11 @@ async function notificarDono(admin: any, userId: string, ownerPhone: string, men
 }
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.WEBHOOK_SECRET
+  if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ ok: false }, { status: 401 })
+  }
+
   const { contatoId, userId, mensagem, instrucaoOwner } = await request.json()
   if (!contatoId || !userId || !mensagem) return NextResponse.json({ ok: false })
 

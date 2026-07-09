@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         }).eq('id', escal.id)
         fetch(`${baseUrl}/api/agentes/atendimento`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ contatoId: escal.contato_id, userId: cleanUserId, mensagem: conteudo, instrucaoOwner: conteudo }),
         }).catch(() => null)
       } else {
@@ -323,13 +323,13 @@ export async function POST(request: NextRequest) {
           /* Atendimento normal: debounce de 3s para agrupar mensagens em sequência */
           fetch(`${baseUrl}/api/agentes/dados`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
             body: JSON.stringify({ contatoId: contato.id, userId }),
           }).catch(() => null)
 
           fetch(`${baseUrl}/api/agentes/processar`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
             body: JSON.stringify({ contatoId: contato.id, userId, timestamp }),
           }).catch(() => null)
         }

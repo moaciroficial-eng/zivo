@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   if (mensagem) {
     fetch(`${baseUrl}/api/agentes/atendimento`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({ contatoId, userId, mensagem }),
     }).catch(() => null)
   }

@@ -20,6 +20,11 @@ async function buscar(supabase: any, userId: string, campo: 'marca' | 'nome', va
 }
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.WEBHOOK_SECRET
+  if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ ok: false }, { status: 401 })
+  }
+
   const body = await request.json().catch(() => null)
   const { userId, marca, produto } = body ?? {}
 
