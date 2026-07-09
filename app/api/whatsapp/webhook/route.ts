@@ -287,8 +287,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      /* Verifica se há conversa automatizada ativa e recente (menos de 4h) para este contato */
-      const limiteEstado = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+      /* Verifica se há conversa automatizada ativa e recente (menos de 48h) para este contato */
+      const limiteEstado = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
       const { data: estadosAtivos } = await supabase
         .from('agente_conversa_estado')
         .select('id, tarefa_id, updated_at')
@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              userId,
+              userId:          cleanUserId,
               tarefaId:        estadoAtivo.tarefa_id,
               contatoId:       contato.id,
               respostaContato: conteudo,
