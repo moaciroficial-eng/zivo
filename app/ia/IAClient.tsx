@@ -149,7 +149,12 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
   /* ── Gerente ───────────────────────────────────────────── */
   type OperacaoItem = { id: string; nome: string; marca?: string; genero_sugerido?: string; genero_novo?: string; genero_atual?: string }
   type Operacao = { tipo: string; marcas?: string[]; genero?: string; preview?: OperacaoItem[] }
-  const [gerenteMsgs, setGerenteMsgs] = useState<Array<{ papel: string; conteudo: string; tarefa?: Record<string, unknown> | null; operacao?: Operacao | null }>>([])
+  type GerenteMsg = { papel: string; conteudo: string; tarefa?: Record<string, unknown> | null; operacao?: Operacao | null }
+  const GERENTE_STORAGE_KEY = `gerente_msgs_${userId}`
+  const [gerenteMsgs, setGerenteMsgs] = useState<GerenteMsg[]>(() => {
+    if (typeof window === 'undefined') return []
+    try { return JSON.parse(localStorage.getItem(GERENTE_STORAGE_KEY) ?? '[]') } catch { return [] }
+  })
   const [gerenteInput, setGerenteInput] = useState('')
   const [gerentePensando, setGerentePensando] = useState(false)
   const [tarefaPendente, setTarefaPendente] = useState<Record<string, unknown> | null>(null)
@@ -158,6 +163,9 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
   const [confirmando, setConfirmando] = useState(false)
   const gerenteBottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => { gerenteBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [gerenteMsgs])
+  useEffect(() => {
+    try { localStorage.setItem(GERENTE_STORAGE_KEY, JSON.stringify(gerenteMsgs)) } catch { /* quota */ }
+  }, [gerenteMsgs])
 
   async function enviarGerente() {
     if (!gerenteInput.trim() || gerentePensando) return
@@ -539,6 +547,17 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
             <div ref={gerenteBottomRef} />
           </div>
           <div className="flex gap-2 border-t border-zinc-800 pt-3 shrink-0">
+            {gerenteMsgs.length > 0 && (
+              <button
+                onClick={() => { setGerenteMsgs([]); setTarefaPendente(null); setOperacaoPendente(null) }}
+                title="Limpar conversa"
+                className="p-2.5 text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 rounded-xl transition cursor-pointer shrink-0"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            )}
             <input
               value={gerenteInput}
               onChange={e => setGerenteInput(e.target.value)}
