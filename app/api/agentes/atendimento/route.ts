@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { carregarConhecimento } from '@/lib/conhecimento'
-import { processarRespostaTarefa } from '@/lib/agentes/tarefa-executor'
+import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
+
+/* Modo tarefa pode esperar trava + debounce (~30s no pior caso) */
+export const maxDuration = 60
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -99,9 +102,9 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
     carregarConhecimento(admin, userId),
     admin.from('agente_conversa_estado')
-      .select('id, tarefa_id, status, historico, dados_coletados, agente_tarefas(id, instrucao, concluidos, total)')
+      .select('id, tarefa_id, status')
       .eq('contato_id', contatoId)
-      .in('status', ['iniciando', 'aguardando'])
+      .in('status', ['iniciando', 'aguardando', 'processando'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -112,31 +115,20 @@ export async function POST(request: NextRequest) {
 
   const mensagensOrdenadas = (mensagens ?? []).reverse()
 
+  /* ── MODO TAREFA: cliente interagiu durante uma missão do Gerente ──
+     Vem ANTES do throttle: executarTurnoTarefa tem trava e agregação
+     próprias, então nunca duplica — e o throttle engoliria respostas
+     que o cliente manda logo depois da pergunta do agente */
+  if (tarefaAtiva) {
+    const resultado = await executarTurnoTarefa(admin, userId, tarefaAtiva.tarefa_id, contatoId)
+    return NextResponse.json({ modo: 'tarefa', ...resultado })
+  }
+
   /* Throttle: evita dupla resposta em janela de 15 segundos */
   const ultimaEnviada = [...(mensagens ?? [])].find(m => m.direcao === 'enviada')
   if (!instrucaoOwner && ultimaEnviada) {
     const delta = Date.now() - new Date(ultimaEnviada.timestamp).getTime()
     if (delta < 15000) return NextResponse.json({ ok: true, skipped: 'throttled' })
-  }
-
-  /* ── MODO TAREFA: cliente interagiu durante uma missão do Gerente ── */
-  if (tarefaAtiva) {
-    const tarefaDados = tarefaAtiva.agente_tarefas as unknown as
-      { id: string; instrucao: string; concluidos: number; total: number } | null
-
-    if (tarefaDados) {
-      const generoCliente = (contato as { clientes?: { genero?: string | null } | null }).clientes?.genero ?? null
-      await processarRespostaTarefa(
-        admin,
-        userId,
-        { id: tarefaAtiva.tarefa_id, instrucao: tarefaDados.instrucao, concluidos: tarefaDados.concluidos, total: tarefaDados.total },
-        { id: tarefaAtiva.id, tarefa_id: tarefaAtiva.tarefa_id, status: tarefaAtiva.status, historico: tarefaAtiva.historico ?? [], dados_coletados: tarefaAtiva.dados_coletados ?? {} },
-        { id: contatoId, nome: contato!.nome, phone: contato!.phone, cliente_id: (contato as { cliente_id?: string | null }).cliente_id ?? null, genero: generoCliente },
-        mensagem,
-      )
-    }
-
-    return NextResponse.json({ ok: true, modo: 'tarefa' })
   }
 
   const horario   = config?.horario   ?? HORARIO_PADRAO

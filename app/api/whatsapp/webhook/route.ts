@@ -293,7 +293,10 @@ export async function POST(request: NextRequest) {
         .from('agente_conversa_estado')
         .select('id, tarefa_id, updated_at')
         .eq('contato_id', contato.id)
-        .eq('status', 'aguardando')
+        /* inclui 'processando': se o cliente responde enquanto o agente ainda
+           está gerando a mensagem anterior, a resposta cai na trava/agregação
+           do executor em vez de vazar pro atendimento normal */
+        .in('status', ['iniciando', 'aguardando', 'processando'])
         .gte('updated_at', limiteEstado)
         .order('updated_at', { ascending: false })
         .limit(1)

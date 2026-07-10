@@ -491,7 +491,8 @@ export async function PUT(request: NextRequest) {
   }
 
   /* Seleciona contatos com base no filtro ou lista específica */
-  let contatosList: { id: string; nome: string; phone: string }[] = []
+  type ContatoTarefa = { id: string; nome: string; phone: string; cliente_id?: string | null }
+  let contatosList: ContatoTarefa[] = []
 
   if (tarefa.clientes_especificos?.length > 0) {
     /* Clientes do cadastro — cria contato no WhatsApp se ainda não existir */
@@ -507,32 +508,32 @@ export async function PUT(request: NextRequest) {
       const phone = raw.startsWith('55') ? raw : `55${raw}`
       const { data: contatoExistente } = await admin
         .from('whatsapp_contatos')
-        .select('id, nome, phone')
+        .select('id, nome, phone, cliente_id')
         .eq('user_id', user.id)
         .eq('phone', phone)
         .maybeSingle()
 
       if (contatoExistente) {
-        contatosList.push(contatoExistente as { id: string; nome: string; phone: string })
+        contatosList.push(contatoExistente as ContatoTarefa)
       } else {
         const { data: novoContato } = await admin
           .from('whatsapp_contatos')
           .insert({ user_id: user.id, phone, nome: cli.nome, cliente_id: cli.id, funil_etapa: 'fundo' })
-          .select('id, nome, phone')
+          .select('id, nome, phone, cliente_id')
           .single()
-        if (novoContato) contatosList.push(novoContato as { id: string; nome: string; phone: string })
+        if (novoContato) contatosList.push(novoContato as ContatoTarefa)
       }
     }
   } else if (tarefa.contatos_especificos?.length > 0) {
     /* Contatos nomeados explicitamente pelo supervisor (já no WhatsApp) */
     const { data } = await admin
       .from('whatsapp_contatos')
-      .select('id, nome, phone')
+      .select('id, nome, phone, cliente_id')
       .eq('user_id', user.id)
       .in('id', tarefa.contatos_especificos)
     contatosList = (data ?? []) as typeof contatosList
   } else {
-    let query = admin.from('whatsapp_contatos').select('id, nome, phone').eq('user_id', user.id)
+    let query = admin.from('whatsapp_contatos').select('id, nome, phone, cliente_id').eq('user_id', user.id)
     if (tarefa.filtro_contatos === 'funil_topo') query = query.eq('funil_etapa', 'topo')
     else if (tarefa.filtro_contatos === 'funil_fundo') query = query.eq('funil_etapa', 'fundo')
     else if (tarefa.filtro_contatos === 'sem_nascimento') {
@@ -544,8 +545,74 @@ export async function PUT(request: NextRequest) {
     contatosList = (data ?? []) as typeof contatosList
   }
 
-  const contatos = contatosList
-  const lista = contatos ?? []
+  /* ── Semeia dados do cadastro: o agente só pergunta o que FALTA ── */
+  type ClienteRow = {
+    id: string; nome: string | null; data_nascimento: string | null; genero: string | null
+    tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
+  }
+  const clienteIds = [...new Set(contatosList.map(c => c.cliente_id).filter(Boolean))] as string[]
+  const clienteMapa = new Map<string, ClienteRow>()
+  if (clienteIds.length > 0) {
+    const { data: clientesRows } = await admin
+      .from('clientes')
+      .select('id, nome, data_nascimento, genero, tamanho_camiseta, tamanho_calca, tamanho_tenis')
+      .eq('user_id', user.id)
+      .in('id', clienteIds)
+    for (const c of (clientesRows ?? []) as ClienteRow[]) clienteMapa.set(c.id, c)
+  }
+
+  const semearDados = (cli: ClienteRow | undefined): Record<string, string> => {
+    const d: Record<string, string> = {}
+    if (!cli) return d
+    /* nome só conta como coletado se for completo (2+ palavras) */
+    if (cli.nome && cli.nome.trim().split(/\s+/).length >= 2) d.nome = cli.nome.trim()
+    if (cli.data_nascimento) {
+      const [a, m, dia] = String(cli.data_nascimento).split('-')
+      if (dia) d.data_nascimento = `${dia}/${m}/${a}`
+    }
+    if (cli.genero) d.genero = cli.genero
+    if (cli.tamanho_camiseta) d.tamanho_camiseta = cli.tamanho_camiseta
+    if (cli.tamanho_calca)    d.tamanho_calca    = cli.tamanho_calca
+    if (cli.tamanho_tenis)    d.tamanho_tenis    = cli.tamanho_tenis
+    return d
+  }
+
+  const cadastroCompleto = (d: Record<string, string>): boolean => {
+    const base = !!(d.nome && d.data_nascimento && d.tamanho_camiseta && d.tamanho_calca)
+    return d.genero === 'F' ? base : base && !!d.tamanho_tenis
+  }
+
+  /* Em tarefas de cadastro, quem já tem tudo não recebe mensagem nenhuma */
+  let jaCompletos = 0
+  const listaComSeed = contatosList.map(c => ({
+    contato: c,
+    seed: semearDados(c.cliente_id ? clienteMapa.get(c.cliente_id) : undefined),
+  })).filter(item => {
+    if (tarefa.tipo === 'atualizar_cadastro' && cadastroCompleto(item.seed)) {
+      jaCompletos++
+      return false
+    }
+    return true
+  })
+
+  const lista = listaComSeed.map(i => i.contato)
+
+  /* Ninguém pra contatar (ex: todos já com cadastro completo) */
+  if (lista.length === 0) {
+    const msgVazia = jaCompletos > 0
+      ? `✅ Nada a fazer: os ${jaCompletos} contato(s) já estão com o cadastro completo. Ninguém recebeu mensagem.`
+      : 'Nenhum contato encontrado para essa tarefa.'
+    await admin.from('gerente_mensagens').insert({ user_id: user.id, papel: 'gerente', conteudo: msgVazia })
+    return NextResponse.json({ ok: true, total: 0, jaCompletos, resposta: msgVazia })
+  }
+
+  /* Cancela conversas de tarefas anteriores desses contatos —
+     evita dois agentes disputando a mesma conversa */
+  await admin.from('agente_conversa_estado')
+    .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .in('contato_id', lista.map(c => c.id))
+    .in('status', ['iniciando', 'aguardando', 'processando'])
 
   /* Cria a tarefa */
   const { data: novaTarefa } = await admin.from('agente_tarefas').insert({
@@ -559,19 +626,19 @@ export async function PUT(request: NextRequest) {
 
   if (!novaTarefa) return NextResponse.json({ ok: false, error: 'Erro ao criar tarefa' }, { status: 500 })
 
-  /* Cria estado inicial para cada contato */
-  if (lista.length > 0) {
-    await admin.from('agente_conversa_estado').insert(
-      lista.map(c => ({
-        user_id:    user.id,
-        tarefa_id:  novaTarefa.id,
-        contato_id: c.id,
-        status:     'iniciando',
-      }))
-    )
-  }
+  /* Cria estado inicial para cada contato, já semeado com o que o cadastro sabe */
+  await admin.from('agente_conversa_estado').insert(
+    listaComSeed.map(({ contato, seed }) => ({
+      user_id:         user.id,
+      tarefa_id:       novaTarefa.id,
+      contato_id:      contato.id,
+      status:          'iniciando',
+      dados_coletados: seed,
+    }))
+  )
 
-  /* Dispara a primeira mensagem para os primeiros 10 contatos imediatamente */
+  /* Dispara a primeira mensagem para os primeiros 10 contatos imediatamente.
+     Os demais são encadeados pelo executor conforme cada envio inicial conclui. */
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
   const primeiros = lista.slice(0, 10)
   for (const contato of primeiros) {
@@ -586,12 +653,13 @@ export async function PUT(request: NextRequest) {
     }).catch(() => null)
   }
 
+  const notaCompletos = jaCompletos > 0 ? ` ${jaCompletos} contato(s) já estavam completos e foram pulados.` : ''
   await admin.from('gerente_mensagens').insert({
     user_id:   user.id,
     papel:     'gerente',
-    conteudo:  `✅ Tarefa "${tarefa.titulo}" criada! Iniciando com ${lista.length} contatos. As mensagens estão sendo enviadas.`,
+    conteudo:  `✅ Tarefa "${tarefa.titulo}" criada! Iniciando com ${lista.length} contatos. As mensagens estão sendo enviadas.${notaCompletos}`,
     tarefa_id: novaTarefa.id,
   })
 
-  return NextResponse.json({ ok: true, tarefaId: novaTarefa.id, total: lista.length })
+  return NextResponse.json({ ok: true, tarefaId: novaTarefa.id, total: lista.length, jaCompletos })
 }

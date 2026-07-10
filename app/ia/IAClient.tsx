@@ -217,7 +217,11 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
         body: JSON.stringify({ tarefa: tarefaPendente }),
       })
       const data = await res.json()
-      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: `✅ Tarefa iniciada! Enviando mensagens para ${data.total} contatos.` }])
+      const nota = data.jaCompletos > 0 ? ` ${data.jaCompletos} já estavam com o cadastro completo e foram pulados.` : ''
+      const conteudo = data.total === 0
+        ? (data.resposta ?? 'Nada a fazer.')
+        : `✅ Tarefa iniciada! Enviando mensagens para ${data.total} contatos.${nota}`
+      setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo }])
       setTarefaPendente(null)
       router.refresh()
     } finally { setConfirmando(false) }
