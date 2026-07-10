@@ -26,18 +26,20 @@ export async function POST(request: NextRequest) {
   if (!contato?.phone) return NextResponse.json({ ok: false, error: 'Contato sem telefone' }, { status: 400 })
 
   /* Envia pelo WhatsApp */
-  await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
 
-  /* Salva mensagem no banco */
+  /* Salva mensagem no banco (origem ia: aprovada pelo dono, enviada pelo sistema) */
   const timestamp = new Date().toISOString()
   await admin.from('whatsapp_mensagens').insert({
     user_id:    user.id,
     contato_id: contatoId,
+    message_id: messageId ?? null,
     direcao:    'enviada',
     tipo:       'texto',
     conteudo:   mensagem,
     status:     'enviada',
     timestamp,
+    raw:        { origem: 'ia' },
   })
   await admin.from('whatsapp_contatos').update({
     ultima_mensagem:    mensagem,

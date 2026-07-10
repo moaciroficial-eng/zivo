@@ -67,8 +67,9 @@ export async function POST(request: NextRequest) {
   ]
   const mensagem = variantes[Math.floor(Math.random() * variantes.length)]
 
+  let messageId: string | undefined
   try {
-    await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
+    messageId = (await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })).messageId
   } catch (err) {
     console.error('[pos-venda] erro ao enviar:', err)
     return NextResponse.json({ ok: false, motivo: String(err) })
@@ -79,9 +80,10 @@ export async function POST(request: NextRequest) {
   if (contatoId) {
     const timestamp = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({
-      user_id: user.id, contato_id: contatoId,
+      user_id: user.id, contato_id: contatoId, message_id: messageId ?? null,
       direcao: 'enviada', tipo: 'texto',
       conteudo: mensagem, status: 'enviada', timestamp,
+      raw: { origem: 'ia' },
     })
     await admin.from('whatsapp_contatos').update({
       ultima_mensagem: mensagem, ultima_mensagem_at: timestamp,

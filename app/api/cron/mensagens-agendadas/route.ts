@@ -55,7 +55,7 @@ export async function GET() {
 
       if (!mensagem) continue
 
-      await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
+      const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
 
       /* Salva mensagem no histórico */
       const { data: contatoCompleto } = await admin
@@ -64,9 +64,10 @@ export async function GET() {
       if (contatoCompleto?.id) {
         const timestamp = new Date().toISOString()
         await admin.from('whatsapp_mensagens').insert({
-          user_id: msg.user_id, contato_id: contatoCompleto.id,
+          user_id: msg.user_id, contato_id: contatoCompleto.id, message_id: messageId ?? null,
           direcao: 'enviada', tipo: 'texto',
           conteudo: mensagem, status: 'enviada', timestamp,
+          raw: { origem: 'ia' },
         })
         await admin.from('whatsapp_contatos').update({
           ultima_mensagem: mensagem, ultima_mensagem_at: timestamp,

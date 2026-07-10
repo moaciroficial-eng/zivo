@@ -25,7 +25,7 @@ async function enviarEHistorico(
   phone: string,
   mensagem: string,
 ) {
-  await sendWhatsAppMessage({ phone, message: mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem })
 
   const { data: contato } = await admin
     .from('whatsapp_contatos').select('id')
@@ -34,9 +34,10 @@ async function enviarEHistorico(
   if (contato?.id) {
     const timestamp = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({
-      user_id: userId, contato_id: contato.id,
+      user_id: userId, contato_id: contato.id, message_id: messageId ?? null,
       direcao: 'enviada', tipo: 'texto',
       conteudo: mensagem, status: 'enviada', timestamp,
+      raw: { origem: 'ia' },
     })
     await admin.from('whatsapp_contatos').update({
       ultima_mensagem: mensagem, ultima_mensagem_at: timestamp,

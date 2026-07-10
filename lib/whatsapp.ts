@@ -37,3 +37,45 @@ export async function sendWhatsAppMessage({ phone, message }: SendOptions): Prom
   const data = await res.json().catch(() => ({}))
   return { messageId: data?.messageId ?? data?.zaapId ?? data?.id ?? undefined }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   CONTROLE DE ORIGEM — IA vs humano
+
+   Toda mensagem enviada pela IA é gravada com raw.origem = 'ia'.
+   Mensagens manuais (UI do Zivo ou celular do dono) não têm esse
+   marcador. Se o dono mandou mensagem manual há pouco, ele ASSUMIU
+   a conversa — a IA não pode responder por cima.
+   ══════════════════════════════════════════════════════════════ */
+
+export const JANELA_HUMANO_MINUTOS = 30
+
+type MsgOrigem = { direcao: string; timestamp: string; raw?: unknown }
+
+/* True se o dono (humano) mandou mensagem manual nessa conversa
+   dentro da janela — a IA deve ficar em silêncio. */
+export function humanoAtivoNaConversa(
+  mensagens: MsgOrigem[],
+  janelaMinutos: number = JANELA_HUMANO_MINUTOS,
+): boolean {
+  const limite = Date.now() - janelaMinutos * 60_000
+  return mensagens.some(m => {
+    if (m.direcao !== 'enviada') return false
+    if (new Date(m.timestamp).getTime() < limite) return false
+    const origem = (m.raw as { origem?: string } | null)?.origem
+    return origem !== 'ia'
+  })
+}
+
+/* Consulta direta ao banco (para quem não tem as mensagens em mãos) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function donoAssumiuConversa(admin: any, contatoId: string): Promise<boolean> {
+  const desde = new Date(Date.now() - JANELA_HUMANO_MINUTOS * 60_000).toISOString()
+  const { data } = await admin
+    .from('whatsapp_mensagens')
+    .select('direcao, timestamp, raw')
+    .eq('contato_id', contatoId)
+    .eq('direcao', 'enviada')
+    .gte('timestamp', desde)
+    .limit(20)
+  return humanoAtivoNaConversa((data ?? []) as MsgOrigem[])
+}

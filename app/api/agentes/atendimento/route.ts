@@ -1,7 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, humanoAtivoNaConversa } from '@/lib/whatsapp'
 import { carregarConhecimento } from '@/lib/conhecimento'
 import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
 
@@ -69,6 +69,7 @@ async function notificarDono(admin: any, userId: string, ownerPhone: string, men
         user_id: userId, contato_id: contato.id,
         direcao: 'enviada', tipo: 'texto',
         conteudo: mensagem, status: 'enviada', timestamp,
+        raw: { origem: 'ia' },
       })
     }
   } catch { /* silencioso — não deixa cair o atendimento */ }
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
     admin.from('whatsapp_contatos').select('nome, phone, cliente_id, clientes(genero)').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
-      .select('direcao, conteudo, timestamp')
+      .select('direcao, conteudo, timestamp, raw')
       .eq('contato_id', contatoId)
       .order('timestamp', { ascending: false })
       .limit(20),
@@ -114,6 +115,13 @@ export async function POST(request: NextRequest) {
   if (config?.ativo === false) return NextResponse.json({ ok: true, skipped: 'inativo' })
 
   const mensagensOrdenadas = (mensagens ?? []).reverse()
+
+  /* ── HUMANO NO COMANDO: se o dono mandou mensagem manual há pouco
+     (pela UI do Zivo ou pelo celular), ele assumiu a conversa — a IA
+     NÃO responde por cima. Exceção: instrução explícita do dono. */
+  if (!instrucaoOwner && humanoAtivoNaConversa(mensagens ?? [])) {
+    return NextResponse.json({ ok: true, skipped: 'dono ativo na conversa — IA em silêncio' })
+  }
 
   /* ── MODO TAREFA: cliente interagiu durante uma missão do Gerente ──
      Vem ANTES do throttle: executarTurnoTarefa tem trava e agregação
@@ -237,10 +245,10 @@ JSON APENAS:
         max_tokens: 100,
         messages: [{
           role: 'user',
-          content: `Atendente da MADS loja de roupas. Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque${contextoMarca}.
+          content: `Atendente da ${config?.nome_loja ?? 'loja'} (loja de roupas). Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque${contextoMarca}.
 Responda em 1-2 frases curtas confirmando que temos e que vai chamar o vendedor pra enviar as fotos.
 ${temMarcaFavorita ? `Mencione que tem a marca favorita dele (${insights!.marca_principal as string}) de forma natural.` : ''}
-Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto.`,
+Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
         }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
@@ -258,8 +266,8 @@ Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto.`,
         max_tokens: 80,
         messages: [{
           role: 'user',
-          content: `Atendente da MADS. Cliente perguntou por "${instrucaoOwner ?? mensagem}" mas NÃO temos em estoque.
-1 frase gentil dizendo que não temos no momento. Ofereça verificar outro produto. Sem listas.`,
+          content: `Atendente da ${config?.nome_loja ?? 'loja'} (loja de roupas). Cliente perguntou por "${instrucaoOwner ?? mensagem}" mas NÃO temos em estoque.
+1 frase gentil dizendo que não temos no momento. Ofereça verificar outro produto. Sem listas, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
         }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
@@ -285,14 +293,40 @@ Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto.`,
   }
 
   if (respostaFinal) {
-    try { await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal }) }
+    /* Sanitiza: remove títulos markdown que o modelo possa ter vazado
+       (ex: "# Resposta ao Cliente") e linhas vazias sobrando */
+    respostaFinal = respostaFinal
+      .replace(/^#{1,6}\s.*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+    if (!respostaFinal) return NextResponse.json({ ok: true, skipped: 'resposta vazia após sanitizar' })
+
+    /* Anti-corrida: outra execução respondeu enquanto esta processava?
+       (duas mensagens do cliente em sequência disparam dois webhooks) */
+    const { data: envRecente } = await admin
+      .from('whatsapp_mensagens')
+      .select('timestamp')
+      .eq('contato_id', contatoId)
+      .eq('direcao', 'enviada')
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const ultimaConhecida = [...(mensagens ?? [])].find(m => m.direcao === 'enviada')?.timestamp ?? null
+    if (envRecente?.timestamp && envRecente.timestamp !== ultimaConhecida) {
+      return NextResponse.json({ ok: true, skipped: 'outra resposta já foi enviada' })
+    }
+
+    let messageId: string | undefined
+    try { messageId = (await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal })).messageId }
     catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
 
     const timestamp = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({
       user_id: userId, contato_id: contatoId,
+      message_id: messageId ?? null,
       direcao: 'enviada', tipo: 'texto',
       conteudo: respostaFinal, status: 'enviada', timestamp,
+      raw: { origem: 'ia' },
     })
     await admin.from('whatsapp_contatos').update({
       ultima_mensagem: respostaFinal, ultima_mensagem_at: timestamp,

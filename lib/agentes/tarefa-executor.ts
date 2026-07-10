@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, donoAssumiuConversa } from '@/lib/whatsapp'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -148,14 +148,16 @@ ${regrasGenero}
 
   /* Envia resposta ao cliente */
   if (acao.proxima_mensagem) {
-    await sendWhatsAppMessage({ phone: contato.phone, message: acao.proxima_mensagem })
+    const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: acao.proxima_mensagem })
     historico.push({ papel: 'agente', texto: acao.proxima_mensagem })
 
     const timestamp = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({
       user_id: userId, contato_id: contato.id,
+      message_id: messageId ?? null,
       direcao: 'enviada', tipo: 'texto',
       conteudo: acao.proxima_mensagem, status: 'enviada', timestamp,
+      raw: { origem: 'ia' },
     })
     await admin.from('whatsapp_contatos').update({
       ultima_mensagem: acao.proxima_mensagem,
@@ -343,6 +345,16 @@ export async function executarTurnoTarefa(
   }
 
   try {
+    /* Dono assumiu a conversa manualmente? IA não fala por cima.
+       Devolve o status original (iniciando/aguardando) pra tarefa não se perder. */
+    if (await donoAssumiuConversa(admin, contatoId)) {
+      await admin.from('agente_conversa_estado')
+        .update({ status: estadoRef.status, updated_at: new Date().toISOString() })
+        .eq('id', estadoTravado.id)
+        .eq('status', 'processando')
+      return { ok: true, skipped: 'dono ativo na conversa — IA em silêncio' }
+    }
+
     const historicoAtual: HistoricoItem[] = Array.isArray(estadoTravado.historico) ? estadoTravado.historico : []
     const dados = (estadoTravado.dados_coletados ?? {}) as Record<string, unknown>
     const primeiroEnvio = historicoAtual.length === 0

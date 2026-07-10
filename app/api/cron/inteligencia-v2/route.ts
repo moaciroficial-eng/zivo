@@ -22,14 +22,15 @@ async function enviarWpp(
   phone: string,
   mensagem: string,
 ) {
-  await sendWhatsAppMessage({ phone, message: mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem })
   const { data: contato } = await admin
     .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
   if (contato?.id) {
     const ts = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({
-      user_id: userId, contato_id: contato.id,
+      user_id: userId, contato_id: contato.id, message_id: messageId ?? null,
       direcao: 'enviada', tipo: 'texto', conteudo: mensagem, status: 'enviada', timestamp: ts,
+      raw: { origem: 'ia' },
     })
     await admin.from('whatsapp_contatos').update({ ultima_mensagem: mensagem, ultima_mensagem_at: ts }).eq('id', contato.id)
   }
