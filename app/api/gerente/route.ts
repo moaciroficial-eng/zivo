@@ -170,7 +170,7 @@ Para TAREFAS de mensagem automática via WhatsApp, inclua o campo "tarefa":
   "tarefa": {
     "titulo": "título curto",
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
-    "instrucao": "instrução para o agente executar. ATUALIZAR CADASTRO: perguntar apenas nome completo, data de nascimento, tamanho camiseta, numeração calça. Ser rápido e encerrar agradecendo.",
+    "instrucao": "instrução para o agente executar. ATUALIZAR CADASTRO: perguntar nome completo, data de nascimento, tamanho de camiseta (para mulheres: tamanho de BLUSA, e sem tênis), numeração de calça (e tênis, só para homens). Ser rápido e encerrar agradecendo.",
     "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo",
     "contatos_especificos": [],
     "clientes_especificos": []
