@@ -10,18 +10,26 @@ export async function GET(request: NextRequest) {
   }
 
   const nome = request.nextUrl.searchParams.get('nome') ?? ''
-  if (!nome) return NextResponse.json({ erro: 'passe ?nome=' })
+  const phone = request.nextUrl.searchParams.get('phone') ?? ''
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: contatos } = await admin
-    .from('whatsapp_contatos')
-    .select('id, nome, phone, cliente_id')
-    .ilike('nome', `%${nome}%`)
-    .limit(3)
+  /* Sem filtro: lista os estados de conversa mais recentes pra localizar a tarefa */
+  if (!nome && !phone) {
+    const { data: estadosRecentes } = await admin
+      .from('agente_conversa_estado')
+      .select('id, tarefa_id, contato_id, status, created_at, updated_at, whatsapp_contatos(nome, phone)')
+      .order('updated_at', { ascending: false })
+      .limit(10)
+    return NextResponse.json({ estados_recentes: estadosRecentes })
+  }
+
+  let query = admin.from('whatsapp_contatos').select('id, nome, phone, cliente_id').limit(5)
+  query = phone ? query.ilike('phone', `%${phone}%`) : query.ilike('nome', `%${nome}%`)
+  const { data: contatos } = await query
 
   const contato = contatos?.[0]
   if (!contato) return NextResponse.json({ erro: 'contato não encontrado', contatos })
