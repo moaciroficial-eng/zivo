@@ -6,6 +6,11 @@ import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  /* Endpoint interno — dispara mensagens; exige o secret quando configurado */
+  if (process.env.WEBHOOK_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   const { userId, tarefaId, contatoId } = await request.json()
   if (!userId || !tarefaId || !contatoId) {
     return NextResponse.json({ ok: false, error: 'params obrigatórios' }, { status: 400 })

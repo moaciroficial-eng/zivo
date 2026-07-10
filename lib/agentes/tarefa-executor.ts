@@ -431,7 +431,7 @@ export async function executarTurnoTarefa(
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
         fetch(`${baseUrl}/api/gerente/executar`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ userId, tarefaId, contatoId: proximo.contato_id }),
         }).catch(() => null)
       }

@@ -1,8 +1,13 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  /* Só a Vercel (cron) pode chamar quando CRON_SECRET está configurado */
+  if (process.env.CRON_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

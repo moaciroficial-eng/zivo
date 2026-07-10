@@ -640,7 +640,7 @@ export async function PUT(request: NextRequest) {
   for (const contato of primeiros) {
     fetch(`${baseUrl}/api/gerente/executar`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({
         userId:    user.id,
         tarefaId:  novaTarefa.id,

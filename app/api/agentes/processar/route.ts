@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 15
 
 export async function POST(request: NextRequest) {
+  /* Endpoint interno — exige o secret quando configurado */
+  if (process.env.WEBHOOK_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   const { contatoId, userId, timestamp, tarefaAtiva } = await request.json()
   if (!contatoId || !userId) return NextResponse.json({ ok: false })
 
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     fetch(`${baseUrl}/api/gerente/executar`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({
         userId,
         tarefaId: tarefaAtiva.tarefa_id,

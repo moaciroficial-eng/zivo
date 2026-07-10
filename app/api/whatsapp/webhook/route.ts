@@ -17,6 +17,15 @@ function extractZapi(body: Record<string, unknown>): { conteudo: string | null; 
 
 export async function POST(request: NextRequest) {
   try {
+    /* Validação de origem: se ZAPI_WEBHOOK_TOKEN estiver configurado, o
+       webhook só aceita chamadas com ?token=<valor> na URL (configure a
+       URL do webhook no painel Z-API como .../api/whatsapp/webhook?token=XXX).
+       Impede que qualquer um forje mensagens recebidas. */
+    const tokenEsperado = process.env.ZAPI_WEBHOOK_TOKEN
+    if (tokenEsperado && request.nextUrl.searchParams.get('token') !== tokenEsperado) {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
+
     let body: unknown
     try {
       const text = await request.text()
@@ -149,7 +158,7 @@ export async function POST(request: NextRequest) {
         }
         fetch(`${baseUrl}/api/owner/comando`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ userId: cleanUserId, mensagem: conteudo, ownerPhone }),
         }).catch(() => null)
       }
@@ -314,7 +323,7 @@ export async function POST(request: NextRequest) {
           /* Tarefa ativa: chama gerente/executar diretamente para evitar cadeia fire-and-forget */
           fetch(`${baseUrl}/api/gerente/executar`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
             body: JSON.stringify({
               userId:          cleanUserId,
               tarefaId:        estadoAtivo.tarefa_id,

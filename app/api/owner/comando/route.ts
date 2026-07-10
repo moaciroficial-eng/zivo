@@ -7,21 +7,49 @@ import { situacaoFinanceira, definirMeta } from '@/lib/agentes/financeiro'
 import { planoSemana, analisarCrescimento } from '@/lib/agentes/estrategista'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { salvarAprendizado, carregarConhecimento } from '@/lib/conhecimento'
+import { buscarSugestaoDigest, aprovarSugestaoDigest } from '@/lib/inteligencia/digest'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
+  /* Endpoint interno — só o webhook (com o secret) pode chamar */
+  if (process.env.WEBHOOK_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   const { userId, mensagem, ownerPhone } = await request.json()
   if (!userId || !mensagem || !ownerPhone) return NextResponse.json({ ok: false })
-  if (mensagem.trim().length <= 2) return NextResponse.json({ ok: true, skipped: 'short' })
 
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  /* Detecta comando "aprende:" antes de passar pela IA */
   const textoLimpo = mensagem.trim()
+
+  /* ── APROVAÇÃO DO RESUMO DIÁRIO: "1", "enviar 2", "detalhes 3" ──
+     Vem ANTES do filtro de mensagem curta (o "1" tem 1 caractere) */
+  const matchAprova  = textoLimpo.match(/^(?:envia[r]?\s*)?([1-9])$/i)
+  const matchDetalhe = textoLimpo.match(/^detalhes?\s*([1-9])$/i)
+
+  if (matchAprova || matchDetalhe) {
+    const num = Number((matchAprova ?? matchDetalhe)![1])
+    const sugestao = await buscarSugestaoDigest(admin, userId, num)
+    let respostaDigest: string
+    if (!sugestao) {
+      respostaDigest = `Não achei a sugestão ${num} de hoje — ela pode já ter sido enviada ou o resumo de hoje ainda não saiu.`
+    } else if (matchDetalhe) {
+      respostaDigest = `📋 *${sugestao.titulo}*\n\n${sugestao.descricao}\n\n💬 Mensagem que vou enviar:\n_"${sugestao.acao?.sugestao_mensagem ?? '—'}"_\n\nResponde *${num}* pra enviar.`
+    } else {
+      respostaDigest = await aprovarSugestaoDigest(admin, userId, sugestao)
+    }
+    await sendWhatsAppMessage({ phone: ownerPhone, message: respostaDigest })
+    return NextResponse.json({ ok: true, acao: matchDetalhe ? 'digest_detalhe' : 'digest_aprovacao' })
+  }
+
+  if (textoLimpo.length <= 2) return NextResponse.json({ ok: true, skipped: 'short' })
+
+  /* Detecta comando "aprende:" antes de passar pela IA */
   if (/^aprende[:\s]/i.test(textoLimpo)) {
     const conteudo = textoLimpo.replace(/^aprende[:\s]*/i, '').trim()
     if (conteudo.length > 3) {
@@ -200,6 +228,7 @@ Exemplos:
           user_id: userId, contato_id: contatoDono.id,
           direcao: 'enviada', tipo: 'texto',
           conteudo: resposta, status: 'enviada', timestamp,
+          raw: { origem: 'ia' },
         })
         await admin.from('whatsapp_contatos').update({
           ultima_mensagem: resposta, ultima_mensagem_at: timestamp,

@@ -1,5 +1,5 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 
 export const maxDuration = 60
@@ -109,7 +109,12 @@ async function jaEnviouRecente(admin: any, userId: string, clienteId: string, di
   return (rows?.length ?? 0) > 0
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  /* Só a Vercel (cron) pode chamar quando CRON_SECRET está configurado */
+  if (process.env.CRON_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   const userId = (process.env.WHATSAPP_USER_ID ?? '').replace(/^﻿/, '').trim()
   if (!userId) return NextResponse.json({ ok: false, error: 'WHATSAPP_USER_ID ausente' })
 
