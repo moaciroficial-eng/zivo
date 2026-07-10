@@ -20,8 +20,13 @@ type Log = { id: string; acao: string; created_at: string; contato_id: string | 
 const TIPO_SUGESTAO: Record<string, { emoji: string; cor: string }> = {
   vip:          { emoji: '👑', cor: 'border-yellow-500/40 bg-yellow-500/5' },
   brinde:       { emoji: '🎁', cor: 'border-yellow-500/40 bg-yellow-500/5' },
+  presente:     { emoji: '🎁', cor: 'border-yellow-500/40 bg-yellow-500/5' },
   reativacao:   { emoji: '🔥', cor: 'border-red-500/40 bg-red-500/5' },
   campanha:     { emoji: '🎯', cor: 'border-[#3B6FFF]/40 bg-[#3B6FFF]/5' },
+  meta:         { emoji: '💰', cor: 'border-[#00D4AA]/40 bg-[#00D4AA]/5' },
+  promo:        { emoji: '🏷️', cor: 'border-orange-500/40 bg-orange-500/5' },
+  novidade:     { emoji: '✨', cor: 'border-[#3B6FFF]/40 bg-[#3B6FFF]/5' },
+  evento:       { emoji: '📅', cor: 'border-purple-500/40 bg-purple-500/5' },
   cross_sell:   { emoji: '🔗', cor: 'border-purple-500/40 bg-purple-500/5' },
   tendencia:    { emoji: '📈', cor: 'border-[#00D4AA]/40 bg-[#00D4AA]/5' },
   oportunidade: { emoji: '💡', cor: 'border-zinc-500/40 bg-zinc-800/40' },
