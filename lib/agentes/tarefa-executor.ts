@@ -55,6 +55,15 @@ export async function processarRespostaTarefa(
     Object.entries(estado.dados_coletados ?? {}).filter(([k]) => !k.startsWith('_'))
   )
 
+  /* Dados vindos do cadastro da loja: podem estar errados/desatualizados,
+     então só valem depois que o contato confirmar. O que já foi
+     confirmado/coletado (está em dadosVisiveis) sai da lista. */
+  const doCadastro = (estado.dados_coletados?._do_cadastro ?? {}) as Record<string, unknown>
+  const aConfirmar = Object.fromEntries(
+    Object.entries(doCadastro).filter(([k, v]) => v != null && dadosVisiveis[k] == null)
+  )
+  const temAConfirmar = Object.keys(aConfirmar).length > 0
+
   const regrasFem = `- Ordem sugerida: nome → data de nascimento → tamanho de blusa (P/M/G/GG/XGG) → tamanho de calça (34 ao 46)
 - Pergunte "tamanho de blusa", NUNCA "tamanho de camiseta" (mas salve a resposta no campo tamanho_camiseta)
 - NÃO pergunte número de tênis para clientes femininas
@@ -83,7 +92,8 @@ ${regrasMasc}`
 TAREFA: ${tarefa.instrucao}
 
 CONTATO: ${contato.nome ?? contato.phone}${generoConhecido ? (isFem ? ' (GÊNERO: FEMININO)' : ' (GÊNERO: MASCULINO)') : ' (gênero não cadastrado — deduza pelo nome)'}
-DADOS JÁ COLETADOS (podem vir do cadastro da loja): ${JSON.stringify(dadosVisiveis)}
+DADOS JÁ CONFIRMADOS/COLETADOS: ${JSON.stringify(dadosVisiveis)}${temAConfirmar ? `
+DADOS DO CADASTRO AINDA NÃO CONFIRMADOS (podem estar errados — confirme com o contato antes de dar como certos): ${JSON.stringify(aConfirmar)}` : ''}
 
 HISTÓRICO:
 ${historico.map(h => `[${h.papel.toUpperCase()}] ${h.texto}`).join('\n') || '(início da conversa)'}
@@ -106,11 +116,14 @@ Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 
 REGRAS:
 - Use "${nomeContato}" para personalizar
-- NUNCA pergunte algo que já está em DADOS JÁ COLETADOS — pergunte APENAS o que falta
-- Se não falta NADA: envie uma única mensagem simpática dizendo que o cadastro está em dia e marque concluido: true
-- Primeira mensagem (histórico vazio): apresente-se como Moca e já pergunte o primeiro dado que FALTA. Exemplo (se falta o nome): "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
+- NUNCA pergunte algo que já está em DADOS JÁ CONFIRMADOS/COLETADOS — pergunte APENAS o que falta
+${temAConfirmar ? `- Há dados do cadastro a CONFIRMAR: na primeira oportunidade, liste-os de forma natural e pergunte se está tudo certo (pode confirmar todos de uma vez). Exemplo: "Aqui no cadastro você está como: nascimento 22/01/1997, blusa M, calça 40. Tá tudo certinho ou mudou algo?"
+- Quando o contato CONFIRMAR, copie os valores confirmados para dados_novos/salvar_no_cliente NESTA resposta; quando ele CORRIGIR algum, use o valor corrigido
+- Dados não confirmados NÃO contam como coletados — não conclua sem confirmar` : ''}
+- Se não falta nada e nada há a confirmar: envie uma única mensagem simpática dizendo que o cadastro está em dia e marque concluido: true
+- Primeira mensagem (histórico vazio): apresente-se como Moca. ${temAConfirmar ? 'Já aproveite para listar os dados a confirmar.' : 'Já pergunte o primeiro dado que FALTA.'} Exemplo de abertura: "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas?"
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
-- Faça UMA pergunta de cada vez
+- Fora a confirmação (que pode ser em bloco), faça UMA pergunta de cada vez
 - O contato pode responder mais de um dado numa mensagem só — capture todos
 ${regrasGenero}
 - Se o contato disser que não usa calça ou tênis, aceite e continue para o próximo campo

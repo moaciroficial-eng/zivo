@@ -577,33 +577,29 @@ export async function PUT(request: NextRequest) {
     return d
   }
 
-  const cadastroCompleto = (d: Record<string, string>): boolean => {
-    const base = !!(d.nome && d.data_nascimento && d.tamanho_camiseta && d.tamanho_calca)
-    return d.genero === 'F' ? base : base && !!d.tamanho_tenis
+  /* Dados do cadastro entram como "a confirmar" — podem estar errados,
+     então o agente lista e pede confirmação antes de dar como certos.
+     Só o gênero fica como conhecido direto (não se pergunta isso ao cliente). */
+  const montarDadosIniciais = (seed: Record<string, string>): Record<string, unknown> => {
+    const { genero, ...confirmaveis } = seed
+    const dados: Record<string, unknown> = {}
+    if (genero) dados.genero = genero
+    if (Object.keys(confirmaveis).length > 0) dados._do_cadastro = confirmaveis
+    return dados
   }
 
-  /* Em tarefas de cadastro, quem já tem tudo não recebe mensagem nenhuma */
-  let jaCompletos = 0
   const listaComSeed = contatosList.map(c => ({
     contato: c,
     seed: semearDados(c.cliente_id ? clienteMapa.get(c.cliente_id) : undefined),
-  })).filter(item => {
-    if (tarefa.tipo === 'atualizar_cadastro' && cadastroCompleto(item.seed)) {
-      jaCompletos++
-      return false
-    }
-    return true
-  })
+  }))
 
   const lista = listaComSeed.map(i => i.contato)
 
-  /* Ninguém pra contatar (ex: todos já com cadastro completo) */
+  /* Ninguém pra contatar */
   if (lista.length === 0) {
-    const msgVazia = jaCompletos > 0
-      ? `✅ Nada a fazer: os ${jaCompletos} contato(s) já estão com o cadastro completo. Ninguém recebeu mensagem.`
-      : 'Nenhum contato encontrado para essa tarefa.'
+    const msgVazia = 'Nenhum contato encontrado para essa tarefa.'
     await admin.from('gerente_mensagens').insert({ user_id: user.id, papel: 'gerente', conteudo: msgVazia })
-    return NextResponse.json({ ok: true, total: 0, jaCompletos, resposta: msgVazia })
+    return NextResponse.json({ ok: true, total: 0, resposta: msgVazia })
   }
 
   /* Cancela conversas de tarefas anteriores desses contatos —
@@ -626,14 +622,14 @@ export async function PUT(request: NextRequest) {
 
   if (!novaTarefa) return NextResponse.json({ ok: false, error: 'Erro ao criar tarefa' }, { status: 500 })
 
-  /* Cria estado inicial para cada contato, já semeado com o que o cadastro sabe */
+  /* Cria estado inicial para cada contato, com os dados do cadastro "a confirmar" */
   await admin.from('agente_conversa_estado').insert(
     listaComSeed.map(({ contato, seed }) => ({
       user_id:         user.id,
       tarefa_id:       novaTarefa.id,
       contato_id:      contato.id,
       status:          'iniciando',
-      dados_coletados: seed,
+      dados_coletados: montarDadosIniciais(seed),
     }))
   )
 
@@ -653,13 +649,12 @@ export async function PUT(request: NextRequest) {
     }).catch(() => null)
   }
 
-  const notaCompletos = jaCompletos > 0 ? ` ${jaCompletos} contato(s) já estavam completos e foram pulados.` : ''
   await admin.from('gerente_mensagens').insert({
     user_id:   user.id,
     papel:     'gerente',
-    conteudo:  `✅ Tarefa "${tarefa.titulo}" criada! Iniciando com ${lista.length} contatos. As mensagens estão sendo enviadas.${notaCompletos}`,
+    conteudo:  `✅ Tarefa "${tarefa.titulo}" criada! Iniciando com ${lista.length} contatos. Dados que já existem no cadastro serão confirmados com o cliente, e só o que falta será perguntado.`,
     tarefa_id: novaTarefa.id,
   })
 
-  return NextResponse.json({ ok: true, tarefaId: novaTarefa.id, total: lista.length, jaCompletos })
+  return NextResponse.json({ ok: true, tarefaId: novaTarefa.id, total: lista.length })
 }
