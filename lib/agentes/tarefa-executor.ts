@@ -83,7 +83,7 @@ ${historico.map(h => `[${h.papel.toUpperCase()}] ${h.texto}`).join('\n') || '(in
 
 Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 {
-  "proxima_mensagem": "mensagem para o contato (null se concluído)",
+  "proxima_mensagem": "mensagem para o contato — ao concluir, envie um agradecimento curto de encerramento (nunca null quando o contato acabou de responder o último dado)",
   "dados_novos": {
     "tamanho_camiseta": "${isFem ? 'P/M/G/GG/XGG (blusa) se coletou' : 'P/M/G/GG/XGG se coletou'} (null se não coletou NESTA resposta)",
     "tamanho_calca": "numeração se coletou (null se não coletou NESTA resposta)",
@@ -104,6 +104,8 @@ REGRAS:
 - Faça UMA pergunta de cada vez
 ${regrasGenero}
 - Se o contato disser que não usa calça ou tênis, aceite e continue para o próximo campo
+- Ao coletar o ÚLTIMO dado: marque concluido: true E envie proxima_mensagem agradecendo e encerrando. Exemplo: "Perfeito, ${nomeContato}! Anotei tudo aqui, cadastro atualizado ✅ Obrigado pela atenção! Qualquer coisa é só chamar 😊"
+- Depois de concluído (histórico já tem o agradecimento final), se o contato mandar mais alguma mensagem: responda educadamente sem fazer novas perguntas
 - Nos campos "dados_novos" e "salvar_no_cliente": inclua APENAS o que foi coletado NESTA resposta, null nos demais`,
     }],
   })
