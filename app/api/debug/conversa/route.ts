@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ estados_recentes: estadosRecentes })
   }
 
-  let query = admin.from('whatsapp_contatos').select('id, nome, phone, cliente_id').limit(5)
+  let query = admin.from('whatsapp_contatos').select('id, nome, phone, cliente_id, user_id').limit(5)
   query = phone ? query.ilike('phone', `%${phone}%`) : query.ilike('nome', `%${nome}%`)
   const { data: contatos } = await query
 
