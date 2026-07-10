@@ -10,7 +10,7 @@ type Message = { role: 'user' | 'assistant'; content: string }
 type Sugestao = {
   id: string; tipo: string; titulo: string; descricao: string
   prioridade: number; status: string
-  acao: { tipo: string; clientes?: string[]; sugestao_mensagem?: string } | null
+  acao: { tipo: string; clientes?: string[]; sugestao_mensagem?: string; contato_id?: string; cliente_id?: string } | null
   created_at: string
 }
 type Agente = { id: string; tipo: string; nome: string; ativo: boolean; ultima_execucao: string | null; total_execucoes: number }
@@ -134,6 +134,27 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
 
   const [rodando, setRodando] = useState(false)
   const [expandida, setExpandida] = useState<string | null>(null)
+  const [enviandoId, setEnviandoId] = useState<string | null>(null)
+
+  /* Aprova a sugestão e envia a mensagem pelo WhatsApp — nada sai sem esse clique */
+  async function aprovarEnviar(s: Sugestao) {
+    if (!s.acao?.contato_id || !s.acao.sugestao_mensagem || enviandoId) return
+    setEnviandoId(s.id)
+    try {
+      const res = await fetch('/api/agentes/enviar-sugestao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contatoId:  s.acao.contato_id,
+          mensagem:   s.acao.sugestao_mensagem,
+          clienteId:  s.acao.cliente_id,
+          sugestaoId: s.id,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) setSugestoes(prev => prev.filter(x => x.id !== s.id))
+    } finally { setEnviandoId(null) }
+  }
 
   async function rodarInteligencia() {
     setRodando(true)
@@ -387,10 +408,17 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
                         </p>
                       )}
                       <div className="flex gap-2 pt-1">
-                        <button onClick={() => resolverSugestao(s.id, 'resolvida')}
-                          className="flex-1 py-2 bg-[#00D4AA] hover:bg-[#00B894] text-[#080B10] rounded-lg text-xs font-bold transition">
-                          ✓ Feito
-                        </button>
+                        {s.acao?.tipo === 'enviar_mensagem' && s.acao.contato_id && s.acao.sugestao_mensagem ? (
+                          <button onClick={() => aprovarEnviar(s)} disabled={enviandoId === s.id}
+                            className="flex-1 py-2 bg-[#3B6FFF] hover:bg-[#5585FF] disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer">
+                            {enviandoId === s.id ? 'Enviando...' : '📤 Aprovar e enviar'}
+                          </button>
+                        ) : (
+                          <button onClick={() => resolverSugestao(s.id, 'resolvida')}
+                            className="flex-1 py-2 bg-[#00D4AA] hover:bg-[#00B894] text-[#080B10] rounded-lg text-xs font-bold transition">
+                            ✓ Feito
+                          </button>
+                        )}
                         <button onClick={() => resolverSugestao(s.id, 'ignorada')}
                           className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs text-zinc-400 transition">
                           Ignorar
@@ -426,7 +454,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-zinc-300">Inteligência v2</p>
-                  <p className="text-[10px] text-zinc-600">Reativação, presentes, estoque — 9h diário</p>
+                  <p className="text-[10px] text-zinc-600">Sugere reativação, presentes e ofertas — você aprova antes de enviar</p>
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#00D4AA]/15 text-[#00D4AA]">● ativo</span>
               </div>

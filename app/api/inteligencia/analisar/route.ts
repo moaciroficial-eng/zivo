@@ -142,7 +142,11 @@ JSON:
 
   const { sugestoes } = JSON.parse(jsonMatch[0])
 
-  await admin.from('agente_sugestoes').delete().eq('user_id', userId).eq('status', 'pendente')
+  /* Limpa sugestões antigas da análise, mas preserva as de envio de mensagem
+     criadas pelo cron (acao.tipo = 'enviar_mensagem') que aguardam aprovação do dono */
+  await admin.from('agente_sugestoes').delete()
+    .eq('user_id', userId).eq('status', 'pendente')
+    .or('acao.is.null,acao->>tipo.neq.enviar_mensagem')
 
   const rows = (sugestoes ?? []).map((s: { tipo: string; titulo: string; descricao: string; prioridade: number; acao: unknown }) => ({
     user_id: userId, tipo: s.tipo, titulo: s.titulo, descricao: s.descricao,

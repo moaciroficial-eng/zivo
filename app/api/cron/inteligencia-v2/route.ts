@@ -39,16 +39,59 @@ async function enviarWpp(
   } catch { /* ignora */ }
 }
 
+/* Cria SUGESTÃO pendente na aba Ações — o dono aprova antes de enviar.
+   Nenhuma mensagem proativa sai sem autorização (exceto aniversários). */
+async function criarSugestao(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  userId: string,
+  cliente: { id: string; nome: string | null },
+  contatoId: string,
+  tipo: string,
+  titulo: string,
+  descricao: string,
+  mensagem: string,
+): Promise<boolean> {
+  /* Dedupe: já sugeriu pra esse cliente nos últimos 14 dias (qualquer status)? */
+  const desde = new Date()
+  desde.setDate(desde.getDate() - 14)
+  const { data: existentes } = await admin
+    .from('agente_sugestoes')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('acao->>cliente_id', cliente.id)
+    .gte('created_at', desde.toISOString())
+    .limit(1)
+  if ((existentes?.length ?? 0) > 0) return false
+
+  const { error } = await admin.from('agente_sugestoes').insert({
+    user_id: userId,
+    tipo,
+    titulo,
+    descricao,
+    prioridade: 2,
+    status: 'pendente',
+    acao: {
+      tipo: 'enviar_mensagem',
+      cliente_id: cliente.id,
+      contato_id: contatoId,
+      clientes: [cliente.nome ?? 'Cliente'],
+      sugestao_mensagem: mensagem,
+    },
+  })
+  return !error
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function buscarPhone(admin: any, userId: string, clienteId: string, telefone?: string | null) {
-  const r1 = await admin.from('whatsapp_contatos').select('phone').eq('user_id', userId).eq('cliente_id', clienteId).maybeSingle()
-  const wa = r1.data as { phone: string } | null
-  if (wa?.phone) return wa.phone
+async function buscarContato(admin: any, userId: string, clienteId: string, telefone?: string | null) {
+  const r1 = await admin.from('whatsapp_contatos').select('id, phone').eq('user_id', userId).eq('cliente_id', clienteId).maybeSingle()
+  const wa = r1.data as { id: string; phone: string } | null
+  if (wa?.phone) return wa
   if (telefone) {
     const last = telefone.replace(/\D/g, '').slice(-8)
-    const r2 = await admin.from('whatsapp_contatos').select('phone').eq('user_id', userId).ilike('phone', `%${last}`).maybeSingle()
-    const wa2 = r2.data as { phone: string } | null
-    if (wa2?.phone) return wa2.phone
+    const r2 = await admin.from('whatsapp_contatos').select('id, phone').eq('user_id', userId).ilike('phone', `%${last}`).maybeSingle()
+    const wa2 = r2.data as { id: string; phone: string } | null
+    if (wa2?.phone) return wa2
   }
   return null
 }
@@ -106,14 +149,16 @@ export async function GET() {
     vendasPorCliente.get(v.cliente_id)!.push(v)
   }
 
-  let enviadas = 0
-  const MAX_ENVIOS = 5 /* Limite por rodada pra não spammar */
+  let enviadas = 0   /* apenas aniversários (único envio automático permitido) */
+  let sugeridas = 0  /* demais categorias viram sugestões pra aprovação do dono */
+  const MAX_ENVIOS = 5     /* Limite por rodada pra não spammar */
+  const MAX_SUGESTOES = 10 /* Limite de sugestões novas por rodada */
 
   /* ════════════════════════════════════════════════════════
-     1. REATIVAÇÃO POR RITMO INDIVIDUAL
+     1. REATIVAÇÃO POR RITMO INDIVIDUAL → SUGESTÃO
      ════════════════════════════════════════════════════════ */
   for (const cliente of clientes) {
-    if (enviadas >= MAX_ENVIOS) break
+    if (sugeridas >= MAX_SUGESTOES) break
 
     const vcList = (vendasPorCliente.get(cliente.id) ?? [])
       .filter(v => !v.presente) /* ignora presentes no ritmo */
@@ -136,24 +181,30 @@ export async function GET() {
     const limiteAlerta = Math.round(ritmoMedio * 1.4)
     if (diasSemComprar < limiteAlerta) continue
 
-    const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
-    if (!phone) continue
+    const contato = await buscarContato(admin, userId, cliente.id, cliente.telefone)
+    if (!contato) continue
     if (await jaEnviouRecente(admin, userId, cliente.id, 14)) continue
 
     const nome = cliente.nome?.split(' ')[0] ?? 'você'
     const msg = `Oi ${nome}! Faz um tempo que não te vemos por aqui 😊 Chegaram novidades que combinam com o seu estilo. Quer dar uma olhada?\n\n${nomeLoja}`
-    await enviarWpp(admin, userId, cliente.id, phone, msg)
-    enviadas++
+    const criada = await criarSugestao(
+      admin, userId, cliente, contato.id,
+      'reativacao',
+      `Reativar ${cliente.nome ?? 'cliente'}`,
+      `${cliente.nome ?? 'Cliente'} costuma comprar a cada ${ritmoMedio} dias e está há ${diasSemComprar} dias sem comprar. Sugiro enviar uma mensagem de reativação.`,
+      msg,
+    )
+    if (criada) sugeridas++
   }
 
   /* ════════════════════════════════════════════════════════
-     2. PADRÃO DE PRESENTES ANUAL
+     2. PADRÃO DE PRESENTES ANUAL → SUGESTÃO
      ════════════════════════════════════════════════════════ */
   const mesAtual = hoje.getMonth() + 1
   const anoAnterior = hoje.getFullYear() - 1
 
   for (const cliente of clientes) {
-    if (enviadas >= MAX_ENVIOS) break
+    if (sugeridas >= MAX_SUGESTOES) break
 
     const presentes = (vendasPorCliente.get(cliente.id) ?? []).filter(v => v.presente)
     if (presentes.length === 0) continue
@@ -172,8 +223,8 @@ export async function GET() {
     })
     if (jaComprou) continue
 
-    const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
-    if (!phone) continue
+    const contato = await buscarContato(admin, userId, cliente.id, cliente.telefone)
+    if (!contato) continue
     if (await jaEnviouRecente(admin, userId, cliente.id, 20)) continue
 
     const nome = cliente.nome?.split(' ')[0] ?? 'você'
@@ -182,8 +233,14 @@ export async function GET() {
     const valor = Number(presenteAnoPassado.valor).toFixed(0)
 
     const msg = `Oi ${nome}! No ano passado nessa época você comprou um presente${tipo ? ` de ${tipo}` : ''}${tam ? ` (tamanho ${tam})` : ''} aqui na loja por R$${valor}. Já pensou no presente esse ano? Temos opções lindas 😊\n\n${nomeLoja}`
-    await enviarWpp(admin, userId, cliente.id, phone, msg)
-    enviadas++
+    const criada = await criarSugestao(
+      admin, userId, cliente, contato.id,
+      'brinde',
+      `Presente anual — ${cliente.nome ?? 'cliente'}`,
+      `${cliente.nome ?? 'Cliente'} comprou um presente${tipo ? ` de ${tipo}` : ''} nesse mesmo mês no ano passado (R$${valor}) e ainda não comprou esse ano. Sugiro lembrar do presente.`,
+      msg,
+    )
+    if (criada) sugeridas++
   }
 
   /* ════════════════════════════════════════════════════════
@@ -206,7 +263,7 @@ export async function GET() {
     : 60
 
   for (const item of estoque) {
-    if (enviadas >= MAX_ENVIOS) break
+    if (sugeridas >= MAX_SUGESTOES) break
     if (!item.data_entrada) continue
 
     const diasNoEstoque = diasEntre(item.data_entrada, hojeStr)
@@ -226,9 +283,9 @@ export async function GET() {
 
     /* Pega um cliente alvo que não recebeu mensagem recente */
     for (const cliente of clientesAlvo) {
-      if (enviadas >= MAX_ENVIOS) break
-      const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
-      if (!phone) continue
+      if (sugeridas >= MAX_SUGESTOES) break
+      const contato = await buscarContato(admin, userId, cliente.id, cliente.telefone)
+      if (!contato) continue
       if (await jaEnviouRecente(admin, userId, cliente.id, 10)) continue
 
       const nome = cliente.nome?.split(' ')[0] ?? 'você'
@@ -236,8 +293,14 @@ export async function GET() {
       const preco = item.preco_venda ? `R$${Number(item.preco_venda).toFixed(0)}` : ''
 
       const msg = `Oi ${nome}! Temos ${item.nome}${item.marca ? ` da ${item.marca}` : ''} no tamanho ${tamStr} que combina com você${preco ? ` por ${preco}` : ''} 🛍️ Quer saber mais?\n\n${nomeLoja}`
-      await enviarWpp(admin, userId, cliente.id, phone, msg)
-      enviadas++
+      const criada = await criarSugestao(
+        admin, userId, cliente, contato.id,
+        'oportunidade',
+        `Oferta de ${item.nome} para ${cliente.nome ?? 'cliente'}`,
+        `${item.nome}${item.marca ? ` (${item.marca})` : ''} está há ${diasNoEstoque} dias no estoque (giro médio: ${giroMedio} dias) e tem o tamanho de ${cliente.nome ?? 'cliente'}. Sugiro oferecer.`,
+        msg,
+      )
+      if (criada) sugeridas++
       break /* Um cliente por produto encalhado por rodada */
     }
   }
@@ -257,7 +320,7 @@ export async function GET() {
   )
 
   for (const item of estoque) {
-    if (enviadas >= MAX_ENVIOS) break
+    if (sugeridas >= MAX_SUGESTOES) break
     if (!item.marca) continue
 
     const tams = ((item.tamanhos as TamanhoItem[]) ?? []).filter(t => t.qtd > 0)
@@ -278,9 +341,9 @@ export async function GET() {
     })
 
     for (const cliente of clientesAlvo) {
-      if (enviadas >= MAX_ENVIOS) break
-      const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
-      if (!phone) continue
+      if (sugeridas >= MAX_SUGESTOES) break
+      const contato = await buscarContato(admin, userId, cliente.id, cliente.telefone)
+      if (!contato) continue
       if (await jaEnviouRecente(admin, userId, cliente.id, 14)) continue
 
       const nome   = cliente.nome?.split(' ')[0] ?? 'você'
@@ -288,8 +351,14 @@ export async function GET() {
       const preco  = item.preco_venda ? ` por R$${Number(item.preco_venda).toFixed(0)}` : ''
       const msg    = `Oi ${nome}! Chegou uma peça nova da ${item.marca} aqui na ${nomeLoja}${tamStr}${preco} — sei que você curte essa marca 🔥 Quer dar uma olhada?`
 
-      await enviarWpp(admin, userId, cliente.id, phone, msg)
-      enviadas++
+      const criada = await criarSugestao(
+        admin, userId, cliente, contato.id,
+        'cross_sell',
+        `${item.marca} nova para ${cliente.nome ?? 'cliente'}`,
+        `${cliente.nome ?? 'Cliente'} tem afinidade com a marca ${item.marca} e chegou ${item.nome} no tamanho dele(a). Sugiro avisar.`,
+        msg,
+      )
+      if (criada) sugeridas++
       break
     }
   }
@@ -351,8 +420,8 @@ export async function GET() {
 
     if (diasAniv < 0 || diasAniv > 7) continue
 
-    const phone = await buscarPhone(admin, userId, cliente.id, cliente.telefone)
-    if (!phone) continue
+    const contato = await buscarContato(admin, userId, cliente.id, cliente.telefone)
+    if (!contato) continue
     if (await jaEnviouRecente(admin, userId, cliente.id, 30)) continue
 
     const nome = cliente.nome?.split(' ')[0] ?? 'você'
@@ -360,9 +429,9 @@ export async function GET() {
       ? `Oi ${nome}! Feliz aniversário! 🎂 Você tem ${descAniv} especial hoje aqui na ${nomeLoja}. Aproveite!`
       : `Oi ${nome}! Seu aniversário tá chegando em ${diasAniv} ${diasAniv === 1 ? 'dia' : 'dias'} 🎉 Passa aqui na ${nomeLoja} e garante ${descAniv} especial pra você.`
 
-    await enviarWpp(admin, userId, cliente.id, phone, msg)
+    await enviarWpp(admin, userId, cliente.id, contato.phone, msg)
     enviadas++
   }
 
-  return NextResponse.json({ ok: true, enviadas, giroMedio })
+  return NextResponse.json({ ok: true, enviadas, sugeridas, giroMedio })
 }

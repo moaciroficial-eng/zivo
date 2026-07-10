@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { contatoId, mensagem, logId } = await request.json()
+  const { contatoId, mensagem, logId, clienteId, sugestaoId } = await request.json()
   if (!contatoId || !mensagem) return NextResponse.json({ ok: false }, { status: 400 })
 
   const admin = createAdmin(
@@ -47,6 +47,21 @@ export async function POST(request: NextRequest) {
   /* Marca log como executado */
   if (logId) {
     await admin.from('agente_logs').update({ acao: `✓ ENVIADO — ${mensagem}` }).eq('id', logId)
+  }
+
+  /* Registra ação pra cadência (evita nova sugestão/envio pro mesmo cliente em poucos dias) */
+  if (clienteId) {
+    try {
+      await admin.from('inteligencia_acoes').insert({
+        user_id: user.id, cliente_id: clienteId, mensagem, enviada_em: timestamp,
+      })
+    } catch { /* ignora */ }
+  }
+
+  /* Resolve a sugestão aprovada */
+  if (sugestaoId) {
+    await admin.from('agente_sugestoes').update({ status: 'resolvida' })
+      .eq('id', sugestaoId).eq('user_id', user.id)
   }
 
   return NextResponse.json({ ok: true })
