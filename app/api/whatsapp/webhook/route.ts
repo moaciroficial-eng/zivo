@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+
+/* after(): garante que os disparos internos completem DEPOIS da resposta.
+   fetch fire-and-forget morre quando a função serverless congela — era a
+   causa de mensagens de clientes ficarem sem resposta aleatoriamente. */
 
 function extractZapi(body: Record<string, unknown>): { conteudo: string | null; tipo: string } {
   if (body.text)     return { conteudo: (body.text as Record<string,unknown>).message as string ?? null, tipo: 'texto' }
@@ -147,20 +151,20 @@ export async function POST(request: NextRequest) {
         await supabase.from('atendimento_escalacoes').update({
           status: 'respondida', resposta_owner: conteudo, updated_at: new Date().toISOString(),
         }).eq('id', escal.id)
-        fetch(`${baseUrl}/api/agentes/atendimento`, {
+        after(fetch(`${baseUrl}/api/agentes/atendimento`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ contatoId: escal.contato_id, userId: cleanUserId, mensagem: conteudo, instrucaoOwner: conteudo }),
-        }).catch(() => null)
+        }).catch(() => null))
       } else {
         if (conteudo && conteudo.trim().length > 3) {
           sendWhatsAppMessage({ phone: ownerPhone, message: '⏳' }).catch(() => null)
         }
-        fetch(`${baseUrl}/api/owner/comando`, {
+        after(fetch(`${baseUrl}/api/owner/comando`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ userId: cleanUserId, mensagem: conteudo, ownerPhone }),
-        }).catch(() => null)
+        }).catch(() => null))
       }
       return NextResponse.json({ ok: true })
     }
@@ -288,11 +292,11 @@ export async function POST(request: NextRequest) {
           ultimoRun.getMonth()    === hoje.getMonth()    &&
           ultimoRun.getDate()     === hoje.getDate()
         if (!jaRodouHoje) {
-          fetch(`${baseUrl}/api/agentes/proativo`, {
+          after(fetch(`${baseUrl}/api/agentes/proativo`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: cleanUserId, ownerPhone }),
-          }).catch(() => null)
+          }).catch(() => null))
         }
       }
 
@@ -321,7 +325,7 @@ export async function POST(request: NextRequest) {
       } else if (tipo === 'texto' && conteudo) {
         if (estadoAtivo) {
           /* Tarefa ativa: chama gerente/executar diretamente para evitar cadeia fire-and-forget */
-          fetch(`${baseUrl}/api/gerente/executar`, {
+          after(fetch(`${baseUrl}/api/gerente/executar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
             body: JSON.stringify({
@@ -330,20 +334,20 @@ export async function POST(request: NextRequest) {
               contatoId:       contato.id,
               respostaContato: conteudo,
             }),
-          }).catch(() => null)
+          }).catch(() => null))
         } else {
           /* Atendimento normal: debounce de 3s para agrupar mensagens em sequência */
-          fetch(`${baseUrl}/api/agentes/dados`, {
+          after(fetch(`${baseUrl}/api/agentes/dados`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
             body: JSON.stringify({ contatoId: contato.id, userId }),
-          }).catch(() => null)
+          }).catch(() => null))
 
-          fetch(`${baseUrl}/api/agentes/processar`, {
+          after(fetch(`${baseUrl}/api/agentes/processar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
             body: JSON.stringify({ contatoId: contato.id, userId, timestamp }),
-          }).catch(() => null)
+          }).catch(() => null))
         }
       }
     }

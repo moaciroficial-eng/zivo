@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { situacaoFinanceira } from '@/lib/agentes/financeiro'
@@ -638,7 +638,7 @@ export async function PUT(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
   const primeiros = lista.slice(0, 10)
   for (const contato of primeiros) {
-    fetch(`${baseUrl}/api/gerente/executar`, {
+    after(fetch(`${baseUrl}/api/gerente/executar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({
@@ -646,7 +646,7 @@ export async function PUT(request: NextRequest) {
         tarefaId:  novaTarefa.id,
         contatoId: contato.id,
       }),
-    }).catch(() => null)
+    }).catch(() => null))
   }
 
   await admin.from('gerente_mensagens').insert({

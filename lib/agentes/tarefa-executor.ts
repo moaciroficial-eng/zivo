@@ -1,9 +1,28 @@
+import { after } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { sendWhatsAppMessage, donoAssumiuConversa } from '@/lib/whatsapp'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/* Valor utilizável: existe, não é vazio e não é recusa */
+const util = (v: unknown) => v != null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'recusado'
+/* Preenchido para fins de conclusão: recusa também conta como "resolvido" */
+const preenchido = (v: unknown) => v != null && String(v).trim() !== ''
+
+/* Pergunta padrão do campo faltante — usada quando o modelo tenta concluir
+   sem ter tudo (checklist rejeita e força a pergunta certa) */
+function perguntaCampo(campo: string, isFem: boolean): string {
+  switch (campo) {
+    case 'nome':             return 'Só me confirma: qual é seu nome completo?'
+    case 'data_nascimento':  return 'E qual é sua data de nascimento? (formato DD/MM/AAAA)'
+    case 'tamanho_camiseta': return isFem ? 'E qual é seu tamanho de blusa? (P, M, G, GG ou XGG)' : 'E qual é seu tamanho de camiseta? (P, M, G, GG ou XGG)'
+    case 'tamanho_calca':    return isFem ? 'E qual é sua numeração de calça? (34, 36, 38, 40, 42, 44 ou 46)' : 'E qual é sua numeração de calça? (38 ao 50)'
+    case 'tamanho_tenis':    return 'E qual é seu número de tênis? (37 ao 44)'
+    default:                 return 'Só falta um detalhe pra fechar seu cadastro 😊'
+  }
+}
 
 type HistoricoItem = { papel: string; texto: string }
 
@@ -83,7 +102,9 @@ ${regrasFem}
 ${regrasMasc}`
 
   const res = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    /* Sonnet: o Haiku deslizava (concluía sem calça, re-copiava data com
+       dia/mês trocado). Conversa curta — custo por turno segue baixo. */
+    model: 'claude-sonnet-4-6',
     max_tokens: 500,
     messages: [{
       role: 'user',
@@ -126,7 +147,7 @@ ${temAConfirmar ? `- Há dados do cadastro a CONFIRMAR: na primeira oportunidade
 - Fora a confirmação (que pode ser em bloco), faça UMA pergunta de cada vez
 - O contato pode responder mais de um dado numa mensagem só — capture todos
 ${regrasGenero}
-- Se o contato disser que não usa calça ou tênis, aceite e continue para o próximo campo
+- Se o contato disser que não usa ou não quer informar um campo (calça, tênis...), preencha esse campo com "recusado" em dados_novos e siga pro próximo
 - Ao coletar o ÚLTIMO dado: marque concluido: true E envie proxima_mensagem agradecendo e encerrando. Exemplo: "Perfeito, ${nomeContato}! Anotei tudo aqui, cadastro atualizado ✅ Obrigado pela atenção! Qualquer coisa é só chamar 😊"
 - Depois de concluído (histórico já tem o agradecimento final), se o contato mandar mais alguma mensagem: responda educadamente sem fazer novas perguntas
 - Nos campos "dados_novos" e "salvar_no_cliente": inclua APENAS o que foi coletado NESTA resposta, null nos demais`,
@@ -144,6 +165,53 @@ ${regrasGenero}
       .update({ status: 'aguardando', updated_at: new Date().toISOString() })
       .eq('id', estado.id)
     return { respondeu: false, concluido: false }
+  }
+
+  /* ── Merge do turno (ANTES do envio, pra validar a conclusão) ── */
+  const dadosNovosLimpos = Object.fromEntries(
+    Object.entries(acao.dados_novos ?? {}).filter(([, v]) => v != null)
+  )
+  const salvarLimpo = Object.fromEntries(
+    Object.entries(acao.salvar_no_cliente ?? {}).filter(([, v]) => v != null)
+  )
+
+  /* Guard anti-alucinação de DATA: o modelo às vezes "re-copia" a data com
+     dia/mês trocado e corrompe o cadastro. Data só é aceita se:
+     (a) o contato escreveu uma data NESTE turno, ou
+     (b) é cópia exata do cadastro (confirmação), ou
+     (c) é igual à que já estava coletada. */
+  const dataJaColetada = (estado.dados_coletados ?? {}).data_nascimento as string | undefined
+  const dataDoCadastro = doCadastro.data_nascimento as string | undefined
+  const contatoEscreveuData = !!respostaContato && /\d{1,2}[\/\-.]\d{1,2}([\/\-.]\d{2,4})?/.test(respostaContato)
+  for (const bag of [dadosNovosLimpos, salvarLimpo] as Record<string, unknown>[]) {
+    const d = bag.data_nascimento as string | undefined
+    if (d && !contatoEscreveuData && d !== dataDoCadastro && d !== dataJaColetada) {
+      delete bag.data_nascimento
+    }
+  }
+
+  const dadosAtualizados: Record<string, unknown> = {
+    ...(estado.dados_coletados ?? {}),
+    ...dadosNovosLimpos,
+    ...salvarLimpo,
+  }
+
+  /* ── Checklist determinístico: o modelo NÃO decide sozinho que acabou.
+     Faltando campo obrigatório (sem recusa registrada), a conclusão é
+     rejeitada e a pergunta do campo faltante é enviada. ── */
+  const camposObrigatorios = isFem
+    ? ['nome', 'data_nascimento', 'tamanho_camiseta', 'tamanho_calca']
+    : ['nome', 'data_nascimento', 'tamanho_camiseta', 'tamanho_calca', 'tamanho_tenis']
+  const faltantes = camposObrigatorios.filter(c => !preenchido(dadosAtualizados[c]))
+
+  if (acao.concluido && faltantes.length > 0) {
+    acao.concluido = false
+    const proxima = String(acao.proxima_mensagem ?? '')
+    const pareceEncerramento = !proxima ||
+      /anotei tudo|cadastro atualizado|tudo certinho no meu cadastro|obrigado pela atenção|qualquer coisa é só chamar/i.test(proxima)
+    if (pareceEncerramento) {
+      acao.proxima_mensagem = perguntaCampo(faltantes[0], isFem)
+    }
   }
 
   /* Envia resposta ao cliente */
@@ -165,19 +233,6 @@ ${regrasGenero}
     }).eq('id', contato.id)
   }
 
-  /* Merge de dados coletados — filtra nulls para não sobrescrever dados já coletados */
-  const dadosNovosLimpos = Object.fromEntries(
-    Object.entries(acao.dados_novos ?? {}).filter(([, v]) => v != null)
-  )
-  const salvarLimpo = Object.fromEntries(
-    Object.entries(acao.salvar_no_cliente ?? {}).filter(([, v]) => v != null)
-  )
-  const dadosAtualizados = {
-    ...(estado.dados_coletados ?? {}),
-    ...dadosNovosLimpos,
-    ...salvarLimpo, // mantém no dados_coletados para a IA saber o que já foi coletado
-  }
-
   /* Resolve cliente_id (fallback: busca por telefone) */
   let clienteAlvoId = contato.cliente_id
   if (!clienteAlvoId && contato.phone) {
@@ -191,21 +246,20 @@ ${regrasGenero}
     }
   }
 
-  /* Atualiza cadastro do cliente */
+  /* Atualiza cadastro do cliente — sempre a partir dos dados PÓS-GUARD
+     (dadosAtualizados na conclusão; só o coletado neste turno no meio).
+     Valores "recusado" nunca vão pro cadastro. */
   if (clienteAlvoId) {
-    /* Usa dados do turno atual + dados acumulados quando concluído */
-    const fontes = acao.concluido
-      ? [acao.salvar_no_cliente ?? {}, dadosAtualizados]
-      : [acao.salvar_no_cliente ?? {}]
+    const fontes = acao.concluido ? [dadosAtualizados] : [salvarLimpo, dadosNovosLimpos]
 
     const update: Record<string, string> = {}
-    for (const fonte of fontes) {
-      if (fonte.nome && !update.nome) update.nome = String(fonte.nome)
-      if (fonte.data_nascimento && !update.data_nascimento) {
+    for (const fonte of fontes as Record<string, unknown>[]) {
+      if (util(fonte.nome) && !update.nome) update.nome = String(fonte.nome)
+      if (util(fonte.data_nascimento) && !update.data_nascimento) {
         const partes = String(fonte.data_nascimento).split('/')
         if (partes.length === 3) update.data_nascimento = `${partes[2]}-${partes[1]}-${partes[0]}`
       }
-      if (fonte.telefone && !update.telefone) update.telefone = String(fonte.telefone)
+      if (util(fonte.telefone) && !update.telefone) update.telefone = String(fonte.telefone)
       /* Gênero deduzido pelo nome (só quando não estava no cadastro) */
       if (!generoConhecido && (fonte.genero === 'M' || fonte.genero === 'F') && !update.genero) {
         update.genero = String(fonte.genero)
@@ -213,9 +267,9 @@ ${regrasGenero}
       const camposCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta', 'tam_camiseta', 'tamanho_roupa']
       const camposCalca = ['tamanho_calca', 'numeracao_calca', 'calca', 'numeracao', 'tam_calca']
       const camposTenis = ['tamanho_tenis', 'numero_tenis', 'tenis', 'numeracao_tenis', 'tam_tenis']
-      const tc = camposCamiseta.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
-      const tca = camposCalca.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
-      const tte = camposTenis.map(c => (fonte as Record<string, unknown>)[c]).find(v => v != null)
+      const tc = camposCamiseta.map(c => fonte[c]).find(v => util(v))
+      const tca = camposCalca.map(c => fonte[c]).find(v => util(v))
+      const tte = camposTenis.map(c => fonte[c]).find(v => util(v))
       if (tc && !update.tamanho_camiseta) update.tamanho_camiseta = String(tc)
       if (tca && !update.tamanho_calca) update.tamanho_calca = String(tca)
       if (tte && !update.tamanho_tenis) update.tamanho_tenis = String(tte)
@@ -225,10 +279,10 @@ ${regrasGenero}
     }
   }
 
-  /* Salva tamanhos nos insights */
-  const tamCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta'].map(c => dadosAtualizados[c]).find(v => v != null)
-  const tamCalca = ['tamanho_calca', 'numeracao_calca', 'calca'].map(c => dadosAtualizados[c]).find(v => v != null)
-  const tamTenis = ['tamanho_tenis', 'numero_tenis', 'tenis'].map(c => dadosAtualizados[c]).find(v => v != null)
+  /* Salva tamanhos nos insights (recusas não entram) */
+  const tamCamiseta = ['tamanho_camiseta', 'tamanho', 'camiseta'].map(c => dadosAtualizados[c]).find(v => util(v))
+  const tamCalca = ['tamanho_calca', 'numeracao_calca', 'calca'].map(c => dadosAtualizados[c]).find(v => util(v))
+  const tamTenis = ['tamanho_tenis', 'numero_tenis', 'tenis'].map(c => dadosAtualizados[c]).find(v => util(v))
 
   if (tamCamiseta || tamCalca || tamTenis) {
     const tamanhos: string[] = []
@@ -429,11 +483,11 @@ export async function executarTurnoTarefa(
       const proximo = proximos?.[0] as { contato_id: string } | undefined
       if (proximo) {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
-        fetch(`${baseUrl}/api/gerente/executar`, {
+        after(fetch(`${baseUrl}/api/gerente/executar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ userId, tarefaId, contatoId: proximo.contato_id }),
-        }).catch(() => null)
+        }).catch(() => null))
       }
     }
 

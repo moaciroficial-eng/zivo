@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 
 export const maxDuration = 15
 
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single()
 
-    fetch(`${baseUrl}/api/gerente/executar`, {
+    after(fetch(`${baseUrl}/api/gerente/executar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         contatoId,
         respostaContato: newest?.conteudo ?? null,
       }),
-    }).catch(() => null)
+    }).catch(() => null))
 
     return NextResponse.json({ ok: true, processou: true, modo: 'tarefa' })
   }
@@ -66,11 +66,11 @@ export async function POST(request: NextRequest) {
 
   const mensagem = newest?.conteudo ?? ''
   if (mensagem) {
-    fetch(`${baseUrl}/api/agentes/atendimento`, {
+    after(fetch(`${baseUrl}/api/agentes/atendimento`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({ contatoId, userId, mensagem }),
-    }).catch(() => null)
+    }).catch(() => null))
   }
 
   return NextResponse.json({ ok: true, processou: true })
