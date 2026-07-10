@@ -44,6 +44,27 @@ function diasEntre(a: string | Date, b: string | Date) {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
 }
 
+/* ── Calendário de varejo BR: janelas de compra por data comemorativa.
+   Compra dentro da janela pode ser sazonal — não conta como ritmo pessoal. */
+const JANELAS_COMEMORATIVAS: { nome: string; inicio: [number, number]; fim: [number, number] }[] = [
+  { nome: 'Dia das Mães',      inicio: [5, 1],   fim: [5, 14] },
+  { nome: 'Dia dos Namorados', inicio: [6, 1],   fim: [6, 12] },
+  { nome: 'Dia dos Pais',      inicio: [8, 1],   fim: [8, 14] },
+  { nome: 'Dia das Crianças',  inicio: [10, 1],  fim: [10, 12] },
+  { nome: 'Black Friday',      inicio: [11, 20], fim: [11, 30] },
+  { nome: 'Natal',             inicio: [12, 10], fim: [12, 24] },
+]
+
+export function janelaComemorativa(dataVenda: string): string | null {
+  const partes = String(dataVenda).split('-').map(Number)
+  const mes = partes[1], dia = partes[2]
+  if (!mes || !dia) return null
+  for (const j of JANELAS_COMEMORATIVAS) {
+    if (mes === j.inicio[0] && dia >= j.inicio[1] && dia <= j.fim[1]) return j.nome
+  }
+  return null
+}
+
 /* ── Perfil comportamental de um cliente ── */
 export type PerfilCliente = {
   codigo: string
@@ -60,7 +81,11 @@ export type PerfilCliente = {
   mediaDiasNovidade: number | null
   cacaNovidades: boolean
   tendenciaTicket: 'subindo' | 'caindo' | 'estavel' | null
-  marcasTop: { marca: string; pct: number }[]
+  marcasTop: { marca: string; pct: number; n: number }[]
+  /* Confiança estatística: com poucos dados o Zivo OBSERVA, não afirma */
+  historicoCurto: boolean          // <= 2 compras: nada de padrão ainda
+  ritmoConfiavel: boolean          // 3+ intervalos regulares e não-sazonais
+  pctComprasSazonais: number       // % das compras dentro de janelas de data comemorativa
   categoriasTop: string[]
   tamanhos: string[]
   pagamentoDominante: string | null
@@ -105,16 +130,32 @@ export function calcularPerfis(
     const ultima = vs[vs.length - 1].data_venda
     const diasSemComprar = Math.max(0, diasEntre(ultima, hoje))
 
-    /* Ritmo de compra e atraso */
+    /* Sazonalidade: compras dentro de janelas de data comemorativa não
+       formam ritmo pessoal — podem ser presente de Dia dos Namorados etc. */
+    const comprasSazonais = compras.filter(v => janelaComemorativa(v.data_venda) !== null).length
+    const pctComprasSazonais = compras.length > 0
+      ? Math.round((comprasSazonais / compras.length) * 100)
+      : 0
+
+    /* Ritmo de compra: só é CONFIÁVEL com 3+ intervalos, regularidade
+       razoável (desvio baixo) e sem dominância sazonal. Duas compras no
+       mesmo mês podem ser data específica ou novidade — não é ritmo. */
     let ritmoMedioDias: number | null = null
+    let ritmoConfiavel = false
     if (compras.length >= 2) {
       const intervalos: number[] = []
       for (let i = 1; i < compras.length; i++) {
         intervalos.push(diasEntre(compras[i - 1].data_venda, compras[i].data_venda))
       }
-      ritmoMedioDias = Math.round(intervalos.reduce((s, v) => s + v, 0) / intervalos.length)
+      const media = intervalos.reduce((s, v) => s + v, 0) / intervalos.length
+      ritmoMedioDias = Math.round(media)
+      if (intervalos.length >= 3 && media > 0) {
+        const desvio = Math.sqrt(intervalos.reduce((s, v) => s + (v - media) ** 2, 0) / intervalos.length)
+        const coefVariacao = desvio / media
+        ritmoConfiavel = coefVariacao <= 0.8 && pctComprasSazonais < 60
+      }
     }
-    const atrasado = ritmoMedioDias != null && ritmoMedioDias >= 7 && diasSemComprar > ritmoMedioDias * 1.4
+    const atrasado = ritmoConfiavel && ritmoMedioDias != null && ritmoMedioDias >= 7 && diasSemComprar > ritmoMedioDias * 1.4
 
     /* Promoção: item com desconto explícito OU vendido abaixo do preço de tabela */
     let itensTotal = 0
@@ -150,12 +191,14 @@ export function calcularPerfis(
     }
 
     const pctItensDesconto = itensTotal >= 2 ? Math.round((itensDesconto / itensTotal) * 100) : null
-    const perfilPromo = pctItensDesconto != null && pctItensDesconto >= 60 && itensTotal >= 3
+    /* Promo confirmado só com amostra decente: 60%+ em 4+ itens */
+    const perfilPromo = pctItensDesconto != null && pctItensDesconto >= 60 && itensTotal >= 4
 
+    /* Caça-novidades confirmado exige 3+ compras rápidas de peça recém-chegada */
     const mediaDiasNovidade = diasNovidade.length >= 2
       ? Math.round(diasNovidade.reduce((s, v) => s + v, 0) / diasNovidade.length)
       : null
-    const cacaNovidades = mediaDiasNovidade != null && mediaDiasNovidade <= 21
+    const cacaNovidades = mediaDiasNovidade != null && mediaDiasNovidade <= 21 && diasNovidade.length >= 3
 
     /* Tendência do ticket: últimas 3 compras vs histórico */
     let tendenciaTicket: PerfilCliente['tendenciaTicket'] = null
@@ -168,7 +211,7 @@ export function calcularPerfis(
 
     const marcasTop = [...marcaCount.entries()]
       .sort((a, b) => b[1] - a[1]).slice(0, 3)
-      .map(([marca, n]) => ({ marca, pct: Math.round((n / Math.max(1, itensTotal)) * 100) }))
+      .map(([marca, n]) => ({ marca, pct: Math.round((n / Math.max(1, itensTotal)) * 100), n }))
     const categoriasTop = [...categoriaCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0])
     const tamanhos = [...tamanhoCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(e => e[0])
     /* Tamanhos do cadastro complementam os observados nas vendas */
@@ -239,18 +282,24 @@ export function calcularPerfis(
       classificacao,
       temperatura,
       funil,
+      historicoCurto: vs.length <= 2,
+      ritmoConfiavel,
+      pctComprasSazonais,
     })
   }
 
   return perfis
 }
 
-/* Fidelidade de marca: concentração das compras numa marca só */
-export function fidelidadeMarca(p: PerfilCliente): { nivel: 'exclusiva' | 'forte' | 'variada' | 'sem_historico'; marca: string | null } {
+/* Fidelidade de marca: concentração das compras numa marca só.
+   2 itens Tommy NÃO é fidelidade — é indício a observar.
+   'exclusiva' exige 80%+ em 4+ itens; 'indicio' é hipótese, nunca ação. */
+export function fidelidadeMarca(p: PerfilCliente): { nivel: 'exclusiva' | 'forte' | 'indicio' | 'variada' | 'sem_historico'; marca: string | null } {
   const top = p.marcasTop[0]
   if (!top || p.qtdCompras < 2) return { nivel: 'sem_historico', marca: top?.marca ?? null }
-  if (top.pct >= 80 && p.qtdCompras >= 3) return { nivel: 'exclusiva', marca: top.marca }
-  if (top.pct >= 60) return { nivel: 'forte', marca: top.marca }
+  if (top.pct >= 80 && top.n >= 4) return { nivel: 'exclusiva', marca: top.marca }
+  if (top.pct >= 60 && top.n >= 3) return { nivel: 'forte', marca: top.marca }
+  if (top.pct >= 70 && top.n >= 2) return { nivel: 'indicio', marca: top.marca }
   return { nivel: 'variada', marca: top.marca }
 }
 
@@ -306,24 +355,40 @@ export function calcularVendabilidade(vendas: VendaRow[], estoque: EstoqueRow[])
     .sort((a, b) => b.unidades - a.unidades)
 }
 
-/* ── Linha compacta do perfil para o prompt ── */
+/* ── Linha compacta do perfil para o prompt ──
+   ⚑ = padrão CONFIRMADO (dados suficientes, pode virar ação)
+   ？ = INDÍCIO (poucos dados — observar, NUNCA afirmar nem agir) */
 function linhaPerfil(p: PerfilCliente): string {
   const flags: string[] = []
+  const indicios: string[] = []
+
   const fid = fidelidadeMarca(p)
-  if (fid.nivel === 'exclusiva') flags.push(`FIEL-À-MARCA(${fid.marca} ${p.marcasTop[0]?.pct}% — só oferecer essa marca)`)
+  if (fid.nivel === 'exclusiva') flags.push(`FIEL-À-MARCA(${fid.marca} ${p.marcasTop[0]?.pct}% em ${p.marcasTop[0]?.n} itens — só oferecer essa marca)`)
   else if (fid.nivel === 'forte') flags.push(`PREFERE-MARCA(${fid.marca} ${p.marcasTop[0]?.pct}%)`)
+  else if (fid.nivel === 'indicio') indicios.push(`marca ${fid.marca} (só ${p.marcasTop[0]?.n} itens — aguardar mais compras)`)
+
   if (p.perfilPromo) flags.push(`SÓ-PROMOÇÃO(${p.pctItensDesconto}% dos itens com desconto)`)
-  else if (p.pctItensDesconto != null && p.pctItensDesconto <= 15 && p.qtdCompras >= 3) flags.push('PAGA-PREÇO-CHEIO')
+  else if (p.pctItensDesconto != null && p.pctItensDesconto >= 60) indicios.push('compra com desconto (amostra pequena)')
+  else if (p.pctItensDesconto != null && p.pctItensDesconto <= 15 && p.qtdCompras >= 4) flags.push('PAGA-PREÇO-CHEIO')
+
   if (p.cacaNovidades) flags.push(`CAÇA-NOVIDADES(compra em média ${p.mediaDiasNovidade}d após chegada)`)
+  else if (p.mediaDiasNovidade != null && p.mediaDiasNovidade <= 21) indicios.push('gosta de novidade (poucas ocorrências)')
+
   if (p.atrasado) flags.push(`ATRASADO(ritmo ${p.ritmoMedioDias}d, parado há ${p.diasSemComprar}d)`)
+  if (p.pctComprasSazonais >= 60 && p.qtdCompras >= 2) flags.push(`COMPRA-EM-DATAS(${p.pctComprasSazonais}% das compras em janela de data comemorativa — sazonal, NÃO é cliente frequente)`)
   if (p.tendenciaTicket === 'subindo') flags.push('TICKET-SUBINDO')
   if (p.tendenciaTicket === 'caindo') flags.push('TICKET-CAINDO')
   if (p.usaCrediario) flags.push('USA-CREDIÁRIO')
   if (p.mesesPresente.length > 0) flags.push(`PRESENTE-MÊS(${p.mesesPresente.join(',')})`)
   if (p.diaSemanaTop) flags.push(`COMPRA-${p.diaSemanaTop.toUpperCase()}`)
 
+  const ritmoStr = p.ritmoMedioDias
+    ? ` (ritmo ${p.ritmoMedioDias}d${p.ritmoConfiavel ? '' : ' — IRREGULAR, não usar como ritmo'})`
+    : ''
+  const historicoStr = p.historicoCurto ? ' | ⚠ POUCO-HISTÓRICO(só observar — nada de padrão ainda)' : ''
   const marcas = p.marcasTop.map(m => `${m.marca} ${m.pct}%`).join(', ')
-  return `${p.codigo} ${p.nome} | ${p.temperatura.toUpperCase()}/${p.funil} | ${p.classificacao} | ${p.qtdCompras}x R$${p.totalGasto} (ticket R$${p.ticketMedio}) | ${p.diasSemComprar}d sem comprar${p.ritmoMedioDias ? ` (ritmo ${p.ritmoMedioDias}d)` : ''} | marcas: ${marcas || '—'} | cat: ${p.categoriasTop.join(',') || '—'} | tam: ${p.tamanhos.join(',') || '—'}${flags.length ? ` | ⚑ ${flags.join(' ')}` : ''}`
+
+  return `${p.codigo} ${p.nome} | ${p.temperatura.toUpperCase()}/${p.funil} | ${p.classificacao} | ${p.qtdCompras}x R$${p.totalGasto} (ticket R$${p.ticketMedio}) | ${p.diasSemComprar}d sem comprar${ritmoStr} | marcas: ${marcas || '—'} | cat: ${p.categoriasTop.join(',') || '—'} | tam: ${p.tamanhos.join(',') || '—'}${flags.length ? ` | ⚑ ${flags.join(' ')}` : ''}${indicios.length ? ` | ？indícios: ${indicios.join('; ')}` : ''}${historicoStr}`
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -395,6 +460,9 @@ export async function rodarInteligencia(admin: any, userId: string): Promise<{ o
         meses_presente: p.mesesPresente,
         dia_semana_top: p.diaSemanaTop,
         ritmo_medio_dias: p.ritmoMedioDias,
+        ritmo_confiavel: p.ritmoConfiavel,
+        pct_compras_sazonais: p.pctComprasSazonais,
+        historico_curto: p.historicoCurto,
         atrasado: p.atrasado,
         funil: p.funil,
       },
@@ -493,8 +561,15 @@ Os COMPORTAMENTOS abaixo foram CALCULADOS a partir do histórico real de vendas 
 - PAGA-PREÇO-CHEIO: nunca precisa de desconto → ofereça novidade/lançamento, NUNCA promoção (queima margem à toa)
 - CAÇA-NOVIDADES: compra rápido o que chega → avise de novidades em primeira mão
 - ATRASADO: passou do ritmo próprio de compra → reativação com contexto
+- COMPRA-EM-DATAS: as compras se concentram em datas comemorativas → cliente SAZONAL; a ação certa é antecipar a próxima data, nunca tratar como frequente
 - TICKET-CAINDO/SUBINDO: mudança recente | USA-CREDIÁRIO: sensível a parcelamento
 - PRESENTE-MÊS(n): compra presente nesses meses → antecipe | COMPRA-DIA: dia da semana preferido
+
+NÍVEIS DE CONFIANÇA (respeite RIGOROSAMENTE):
+- Flags ⚑ = padrões CONFIRMADOS com dados suficientes → podem virar ação
+- "？indícios" = hipóteses com POUCOS dados (ex: 2 itens Tommy ≠ fiel à Tommy) → NUNCA afirme o padrão nem crie ação baseada nele; o Zivo está aguardando mais compras pra confirmar
+- ⚠ POUCO-HISTÓRICO = 1-2 compras → sem padrão nenhum; só valem ações de calendário (aniversário, data comemorativa) ou atualização de cadastro
+- "ritmo IRREGULAR" = intervalos inconsistentes ou sazonais → NÃO use como ritmo de recompra; 2 compras no mesmo mês podem ter sido uma data específica ou novidade, não frequência
 
 ${contextoMeta}
 
@@ -518,9 +593,9 @@ ANIVERSARIANTES (30 dias): ${aniversariantes.join(' | ') || '(nenhum)'}
 LEADS SEM COMPRA (topo de funil): ${leadsTopo} contato(s) no WhatsApp
 MÊS ATUAL: ${agora.getMonth() + 1} | DATA: ${hojeStr}
 
-Gere de 5 a 8 AÇÕES DE VENDA cruzando comportamento × estoque × meta × calendário. REGRAS:
+Gere de 3 a 8 AÇÕES DE VENDA cruzando comportamento × estoque × meta × calendário — SÓ as que os dados sustentam; 3 ações sólidas valem mais que 8 fracas. REGRAS:
 1. PROIBIDO genérico ("faça uma promoção", "entre em contato"). Toda ação nomeia CLIENTES (pelo código) e PRODUTOS específicos.
-2. Toda ação traz a EVIDÊNCIA numérica que a sustenta (os números estão acima).
+2. Toda ação traz a EVIDÊNCIA numérica que a sustenta (os números estão acima). Ação baseada em ？indício ou POUCO-HISTÓRICO é PROIBIDA — no máximo mencione no final, em UMA sugestão tipo "oportunidade" com prioridade 3, o que o Zivo está observando e aguardando confirmar.
 3. META REALISTA: se falta bater a meta, monte o caminho com o PADRÃO da loja — várias vendas no ticket típico, de peças CAMPEÃS, para clientes QUENTES. NUNCA proponha uma única venda heroica de peça cara e difícil pra cliente frio (ex: faltam R$600 → 3 vendas de R$200 de peças que giram, não 1 peça de R$600 que só sai com desconto).
 4. Priorize cruzamentos que o dono NÃO veria sozinho: promo-buyer × encalhado do tamanho dele; caça-novidades × peça que chegou essa semana; PRESENTE-MÊS(${agora.getMonth() + 1}) agora; paga-preço-cheio × novidade premium; crediário × peça cara parcelada; atrasado × marca favorita em estoque.
 5. Respeite o perfil: fiel à marca recebe SÓ a marca dele; PAGA-PREÇO-CHEIO nunca recebe desconto; SÓ-PROMOÇÃO nunca recebe preço cheio; cliente FRIO não é alvo de meta urgente.
