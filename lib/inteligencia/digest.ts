@@ -72,7 +72,16 @@ export async function enviarResumoDiario(admin: any, userId: string): Promise<{ 
       .update({ acao: { ...s.acao, digest_num: num, digest_data: hojeStr } })
       .eq('id', s.id)
     const alvo = s.acao?.clientes?.[0] ?? 'cliente'
-    linhas.push(`*${num}️⃣ ${s.titulo}*\n${s.descricao.split('\n')[0]}\n_→ mensagem pronta pra ${alvo}_`)
+    /* O PORQUÊ vai junto: a análise (primeira linha) + a evidência numérica (📊) */
+    const partes = s.descricao.split('\n').map(l => l.trim()).filter(Boolean)
+    const analise = partes[0] ?? ''
+    const evidencia = partes.find(l => l.startsWith('📊')) ?? ''
+    linhas.push([
+      `*${num}️⃣ ${s.titulo}*`,
+      analise,
+      evidencia,
+      `_→ mensagem pronta pra ${alvo}_`,
+    ].filter(Boolean).join('\n'))
   }
 
   const extras = informativas.map(s => `💡 ${s.titulo}`).join('\n')

@@ -604,7 +604,7 @@ Gere de 3 a 8 AÇÕES DE VENDA cruzando comportamento × estoque × meta × cale
 8. Confira tamanho: só sugira peça se existe no tamanho do cliente.
 
 Responda SOMENTE JSON:
-{"sugestoes":[{"tipo":"meta|promo|novidade|reativacao|vip|cross_sell|presente|evento|oportunidade","titulo":"curto e específico","descricao":"a ação e o porquê","evidencia":"números que sustentam","prioridade":1,"acao":{"tipo":"enviar_mensagem|campanha|alerta","clientes":["C1"],"sugestao_mensagem":"..."}}]}`
+{"sugestoes":[{"tipo":"meta|promo|novidade|reativacao|vip|cross_sell|presente|evento|oportunidade","titulo":"curto e específico","descricao":"POR QUE este cliente vai querer isto — nomeie o comportamento analisado, ex: 'Samir compra Aramis em 83% dos itens e veste M; chegou polo Aramis M essa semana'","evidencia":"números que sustentam (compras, %, dias, valores)","prioridade":1,"acao":{"tipo":"enviar_mensagem|campanha|alerta","clientes":["C1"],"sugestao_mensagem":"..."}}]}`
 
   const res = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
