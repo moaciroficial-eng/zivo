@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import { NextResponse, after } from 'next/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { varrerConversasPendentes } from '@/lib/agentes/varredura'
 
 /* after(): garante que os disparos internos completem DEPOIS da resposta.
    fetch fire-and-forget morre quando a função serverless congela — era a
@@ -280,6 +281,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (direcao === 'recebida') {
+
+      /* Vigia: reprocessa conversas de tarefa que ficaram pendentes
+         (rede de segurança — se algum disparo falhou, se cura aqui) */
+      after(varrerConversasPendentes(supabase, cleanUserId).catch(() => null))
 
       /* Dispara agente proativo uma vez por dia (primeira mensagem do dia) */
       const { data: cfgProativo } = await supabase
