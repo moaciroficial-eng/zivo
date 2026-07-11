@@ -84,7 +84,7 @@ export async function enviarResumoDiario(admin: any, userId: string): Promise<{ 
     extras ? `\n${extras}` : '',
     '',
     acionaveis.length > 0
-      ? `Responde o *número* que eu envio a mensagem pro cliente.\nQuer ver antes? Manda *"detalhes ${acionaveis.length > 1 ? '1, 2...' : '1'}"*.`
+      ? `Responde o *número* que eu envio a mensagem pro cliente.\nPra mudar o texto: *"1: sua mensagem"*. Pra ver antes: *"detalhes 1"*.`
       : 'Abre a aba Ações no app pra ver mais.',
   ].filter(Boolean).join('\n')
 
@@ -121,29 +121,31 @@ export async function buscarSugestaoDigest(admin: any, userId: string, num: numb
   return ((data ?? [])[0] as SugestaoRow) ?? null
 }
 
-/* Envia a mensagem da sugestão aprovada pro cliente e resolve tudo */
+/* Envia a mensagem da sugestão aprovada pro cliente e resolve tudo.
+   textoCustom: o dono pode editar o texto respondendo "1: nova mensagem" */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function aprovarSugestaoDigest(admin: any, userId: string, sugestao: SugestaoRow): Promise<string> {
+export async function aprovarSugestaoDigest(admin: any, userId: string, sugestao: SugestaoRow, textoCustom?: string): Promise<string> {
   const acao = sugestao.acao
   if (!acao?.contato_id || !acao.sugestao_mensagem) {
     return 'Essa sugestão não tem mensagem pronta — abre a aba Ações no app pra resolver por lá.'
   }
+  const mensagem = (textoCustom?.trim() || acao.sugestao_mensagem).trim()
 
   const { data: contato } = await admin
     .from('whatsapp_contatos').select('id, nome, phone')
     .eq('id', acao.contato_id).maybeSingle()
   if (!contato?.phone) return 'Não achei o telefone desse cliente. 😕'
 
-  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: acao.sugestao_mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
 
   const timestamp = new Date().toISOString()
   await admin.from('whatsapp_mensagens').insert({
     user_id: userId, contato_id: contato.id, message_id: messageId ?? null,
-    direcao: 'enviada', tipo: 'texto', conteudo: acao.sugestao_mensagem, status: 'enviada', timestamp,
+    direcao: 'enviada', tipo: 'texto', conteudo: mensagem, status: 'enviada', timestamp,
     raw: { origem: 'ia' },
   })
   await admin.from('whatsapp_contatos').update({
-    ultima_mensagem: acao.sugestao_mensagem, ultima_mensagem_at: timestamp,
+    ultima_mensagem: mensagem, ultima_mensagem_at: timestamp,
   }).eq('id', contato.id)
 
   /* Registra cadência (não abordar de novo em poucos dias) e resolve a sugestão */
@@ -151,12 +153,12 @@ export async function aprovarSugestaoDigest(admin: any, userId: string, sugestao
     try {
       await admin.from('inteligencia_acoes').insert({
         user_id: userId, cliente_id: acao.cliente_id,
-        mensagem: acao.sugestao_mensagem, enviada_em: timestamp,
+        mensagem, enviada_em: timestamp,
       })
     } catch { /* ignora */ }
   }
   await admin.from('agente_sugestoes').update({ status: 'resolvida' }).eq('id', sugestao.id)
 
   const nome = contato.nome ?? 'o cliente'
-  return `✅ Enviado pra *${nome}*:\n\n_"${acao.sugestao_mensagem}"_`
+  return `✅ Enviado pra *${nome}*${textoCustom ? ' (com seu texto)' : ''}:\n\n_"${mensagem}"_`
 }

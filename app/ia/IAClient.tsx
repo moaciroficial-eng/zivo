@@ -140,10 +140,15 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
   const [rodando, setRodando] = useState(false)
   const [expandida, setExpandida] = useState<string | null>(null)
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
+  /* Texto editado pelo dono antes de aprovar (por sugestão) */
+  const [msgEditada, setMsgEditada] = useState<Record<string, string>>({})
 
-  /* Aprova a sugestão e envia a mensagem pelo WhatsApp — nada sai sem esse clique */
+  /* Aprova a sugestão e envia a mensagem pelo WhatsApp — nada sai sem esse clique.
+     Se o dono editou o texto, envia a versão editada. */
   async function aprovarEnviar(s: Sugestao) {
     if (!s.acao?.contato_id || !s.acao.sugestao_mensagem || enviandoId) return
+    const mensagem = (msgEditada[s.id] ?? s.acao.sugestao_mensagem).trim()
+    if (!mensagem) return
     setEnviandoId(s.id)
     try {
       const res = await fetch('/api/agentes/enviar-sugestao', {
@@ -151,7 +156,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contatoId:  s.acao.contato_id,
-          mensagem:   s.acao.sugestao_mensagem,
+          mensagem,
           clienteId:  s.acao.cliente_id,
           sugestaoId: s.id,
         }),
@@ -411,9 +416,29 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
                         </div>
                       )}
                       {s.acao?.sugestao_mensagem && (
-                        <p className="text-sm text-zinc-300 bg-zinc-800/60 rounded-lg px-3 py-2.5 italic border border-zinc-700/40">
-                          &ldquo;{s.acao.sugestao_mensagem}&rdquo;
-                        </p>
+                        s.acao.tipo === 'enviar_mensagem' && s.acao.contato_id ? (
+                          <div>
+                            <p className="text-[11px] text-zinc-500 mb-1">💬 Mensagem (edite à vontade antes de aprovar):</p>
+                            <textarea
+                              value={msgEditada[s.id] ?? s.acao.sugestao_mensagem}
+                              onChange={e => setMsgEditada(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              rows={3}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#3B6FFF] [color-scheme:dark]"
+                            />
+                            {msgEditada[s.id] != null && msgEditada[s.id] !== s.acao.sugestao_mensagem && (
+                              <button
+                                onClick={() => setMsgEditada(prev => ({ ...prev, [s.id]: s.acao!.sugestao_mensagem! }))}
+                                className="mt-1 text-[11px] text-zinc-500 hover:text-zinc-300 underline cursor-pointer"
+                              >
+                                ↺ voltar pro texto original
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-zinc-300 bg-zinc-800/60 rounded-lg px-3 py-2.5 italic border border-zinc-700/40">
+                            &ldquo;{s.acao.sugestao_mensagem}&rdquo;
+                          </p>
+                        )
                       )}
                       <div className="flex gap-2 pt-1">
                         {s.acao?.tipo === 'enviar_mensagem' && s.acao.contato_id && s.acao.sugestao_mensagem ? (

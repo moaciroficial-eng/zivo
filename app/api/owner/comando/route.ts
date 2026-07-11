@@ -27,21 +27,25 @@ export async function POST(request: NextRequest) {
 
   const textoLimpo = mensagem.trim()
 
-  /* ── APROVAÇÃO DO RESUMO DIÁRIO: "1", "enviar 2", "detalhes 3" ──
+  /* ── APROVAÇÃO DO RESUMO DIÁRIO ──
+     "1" / "enviar 2"       → envia como está
+     "1: novo texto..."     → envia com o texto editado pelo dono
+     "detalhes 3"           → mostra a mensagem antes
      Vem ANTES do filtro de mensagem curta (o "1" tem 1 caractere) */
   const matchAprova  = textoLimpo.match(/^(?:envia[r]?\s*)?([1-9])$/i)
+  const matchEditada = textoLimpo.match(/^(?:envia[r]?\s*)?([1-9])\s*[:\-–—]\s*(\S[\s\S]{4,})$/i)
   const matchDetalhe = textoLimpo.match(/^detalhes?\s*([1-9])$/i)
 
-  if (matchAprova || matchDetalhe) {
-    const num = Number((matchAprova ?? matchDetalhe)![1])
+  if (matchAprova || matchEditada || matchDetalhe) {
+    const num = Number((matchAprova ?? matchEditada ?? matchDetalhe)![1])
     const sugestao = await buscarSugestaoDigest(admin, userId, num)
     let respostaDigest: string
     if (!sugestao) {
       respostaDigest = `Não achei a sugestão ${num} de hoje — ela pode já ter sido enviada ou o resumo de hoje ainda não saiu.`
     } else if (matchDetalhe) {
-      respostaDigest = `📋 *${sugestao.titulo}*\n\n${sugestao.descricao}\n\n💬 Mensagem que vou enviar:\n_"${sugestao.acao?.sugestao_mensagem ?? '—'}"_\n\nResponde *${num}* pra enviar.`
+      respostaDigest = `📋 *${sugestao.titulo}*\n\n${sugestao.descricao}\n\n💬 Mensagem que vou enviar:\n_"${sugestao.acao?.sugestao_mensagem ?? '—'}"_\n\nResponde *${num}* pra enviar assim, ou *${num}: seu texto* pra enviar do seu jeito.`
     } else {
-      respostaDigest = await aprovarSugestaoDigest(admin, userId, sugestao)
+      respostaDigest = await aprovarSugestaoDigest(admin, userId, sugestao, matchEditada?.[2])
     }
     await sendWhatsAppMessage({ phone: ownerPhone, message: respostaDigest })
     return NextResponse.json({ ok: true, acao: matchDetalhe ? 'digest_detalhe' : 'digest_aprovacao' })
