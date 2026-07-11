@@ -645,6 +645,30 @@ export default function VendasClient({
     }
   }
 
+  /* ── Baixa/devolução de estoque ──
+     sinal -1 = venda (baixa) | sinal +1 = exclusão/edição (devolve).
+     Sem isso a IA oferecia produto já vendido. */
+  async function ajustarEstoque(produtos: Produto[], sinal: 1 | -1) {
+    for (const p of produtos) {
+      if (!p.estoque_id) continue
+      const delta = (Number(p.qtd) || 1) * sinal
+      const { data: item } = await supabase
+        .from('estoque').select('tamanhos').eq('id', p.estoque_id).maybeSingle()
+      if (!item?.tamanhos) continue
+      const tamanhos = [...(item.tamanhos as { tamanho: string; qtd: number }[])]
+      let idx = p.tamanho
+        ? tamanhos.findIndex(t => String(t.tamanho).toLowerCase() === String(p.tamanho).toLowerCase())
+        : -1
+      if (idx < 0) {
+        /* venda sem tamanho definido: baixa no primeiro tamanho com saldo */
+        idx = sinal < 0 ? tamanhos.findIndex(t => (Number(t.qtd) || 0) > 0) : 0
+      }
+      if (idx < 0 || !tamanhos[idx]) continue
+      tamanhos[idx] = { ...tamanhos[idx], qtd: Math.max(0, (Number(tamanhos[idx].qtd) || 0) + delta) }
+      await supabase.from('estoque').update({ tamanhos }).eq('id', p.estoque_id)
+    }
+  }
+
   /* ── Save with payment (new venda) ── */
 
   async function handleSaveWithPayment() {
@@ -681,6 +705,9 @@ export default function VendasClient({
     const { data, error } = await supabase.from('vendas').insert(payload).select().single()
     if (error) { setFormError(error.message); setSaving(false); setShowPayment(false); return }
     setVendas(vs => [data, ...vs])
+
+    /* Baixa no estoque dos itens vendidos */
+    await ajustarEstoque(payload.produtos as Produto[], -1)
 
     if (fp === 'crediario' && data) {
       const entrada = parseFloat(crEntrada) || 0
@@ -803,6 +830,11 @@ export default function VendasClient({
     if (error) { setFormError(error.message); setSaving(false); return }
     const updated = data?.[0] ?? { ...editing!, ...payload }
     setVendas(vs => vs.map(v => v.id === editing!.id ? updated : v))
+
+    /* Ajusta estoque: devolve os itens antigos e baixa os novos */
+    await ajustarEstoque((editing!.produtos ?? []) as Produto[], 1)
+    await ajustarEstoque(payload.produtos as Produto[], -1)
+
     showToast('Venda atualizada.')
     setSaving(false); closeDrawer()
   }
@@ -860,8 +892,14 @@ export default function VendasClient({
 
   async function handleDelete(id: string) {
     setDeleting(id)
+    const vendaExcluida = vendas.find(v => v.id === id)
     const { error } = await supabase.from('vendas').delete().eq('id', id)
-    if (!error) { setVendas(vs => vs.filter(v => v.id !== id)); showToast('Venda removida.') }
+    if (!error) {
+      setVendas(vs => vs.filter(v => v.id !== id))
+      /* Devolve os itens da venda excluída pro estoque */
+      await ajustarEstoque((vendaExcluida?.produtos ?? []) as Produto[], 1)
+      showToast('Venda removida.')
+    }
     else showToast(error.message, 'error')
     setDeleting(null); setConfirmDelete(null)
   }
