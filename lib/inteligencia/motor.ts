@@ -97,6 +97,8 @@ export type PerfilCliente = {
   temperatura: 'quente' | 'morno' | 'frio'
   /* Funil: profundidade do relacionamento (compras acumuladas) */
   funil: 'fundo' | 'meio' | 'topo'
+  /* Recompra provável: categoria cujo ciclo típico DA LOJA está vencendo */
+  recompras: { categoria: string; diasDesde: number; ciclo: number }[]
 }
 
 export function calcularPerfis(
@@ -112,6 +114,40 @@ export function calcularPerfis(
     if (!v.cliente_id) continue
     if (!vendasPorCliente.has(v.cliente_id)) vendasPorCliente.set(v.cliente_id, [])
     vendasPorCliente.get(v.cliente_id)!.push(v)
+  }
+
+  /* ── Ciclo de recompra por categoria, calculado do histórico DA LOJA ──
+     Ex: clientes recompram tênis a cada ~270 dias. Cliente com tênis de
+     280 dias = recompra provável. Exige 4+ intervalos pra confiar. */
+  const datasClienteCategoria = new Map<string, string[]>() // `${clienteId}|${cat}` → datas
+  for (const v of vendas) {
+    if (!v.cliente_id || v.presente || !v.data_venda) continue
+    for (const p of (Array.isArray(v.produtos) ? v.produtos : [])) {
+      const cat = p.estoque_id ? estoquePorId.get(p.estoque_id)?.categoria : null
+      if (!cat || cat === 'outros') continue
+      const chave = `${v.cliente_id}|${cat}`
+      if (!datasClienteCategoria.has(chave)) datasClienteCategoria.set(chave, [])
+      datasClienteCategoria.get(chave)!.push(v.data_venda)
+    }
+  }
+  const intervalosCategoria = new Map<string, number[]>()
+  for (const [chave, datas] of datasClienteCategoria) {
+    const cat = chave.split('|')[1]
+    const unicas = [...new Set(datas)].sort()
+    for (let i = 1; i < unicas.length; i++) {
+      const d = diasEntre(unicas[i - 1], unicas[i])
+      if (d >= 15) { // recompras no mesmo dia/semana não contam como ciclo
+        if (!intervalosCategoria.has(cat)) intervalosCategoria.set(cat, [])
+        intervalosCategoria.get(cat)!.push(d)
+      }
+    }
+  }
+  const cicloCategoria = new Map<string, number>()
+  for (const [cat, ints] of intervalosCategoria) {
+    if (ints.length < 4) continue // amostra pequena = não afirmar
+    const ordenado = [...ints].sort((a, b) => a - b)
+    const mediana = ordenado[Math.floor(ordenado.length / 2)]
+    if (mediana >= 30) cicloCategoria.set(cat, mediana)
   }
 
   const perfis: PerfilCliente[] = []
@@ -257,6 +293,18 @@ export function calcularPerfis(
     /* Funil: fundo = recorrente, meio = comprou 1-2x, topo = lead sem compra */
     const funil: PerfilCliente['funil'] = vs.length >= 3 ? 'fundo' : 'meio'
 
+    /* Recompra provável: última compra da categoria × ciclo típico da loja */
+    const recompras: PerfilCliente['recompras'] = []
+    for (const [cat, ciclo] of cicloCategoria) {
+      const datas = datasClienteCategoria.get(`${cliente.id}|${cat}`)
+      if (!datas?.length) continue
+      const ultimaCat = [...datas].sort().pop()!
+      const diasDesde = diasEntre(ultimaCat, hoje)
+      if (diasDesde >= ciclo * 0.9 && diasDesde <= ciclo * 3) {
+        recompras.push({ categoria: cat, diasDesde, ciclo })
+      }
+    }
+
     perfis.push({
       codigo: `C${idx}`,
       clienteId: cliente.id,
@@ -285,6 +333,7 @@ export function calcularPerfis(
       historicoCurto: vs.length <= 2,
       ritmoConfiavel,
       pctComprasSazonais,
+      recompras,
     })
   }
 
@@ -375,6 +424,9 @@ function linhaPerfil(p: PerfilCliente): string {
   else if (p.mediaDiasNovidade != null && p.mediaDiasNovidade <= 21) indicios.push('gosta de novidade (poucas ocorrências)')
 
   if (p.atrasado) flags.push(`ATRASADO(ritmo ${p.ritmoMedioDias}d, parado há ${p.diasSemComprar}d)`)
+  for (const r of p.recompras) {
+    flags.push(`RECOMPRA-PROVÁVEL(${r.categoria}: comprou há ${r.diasDesde}d, ciclo típico da loja ~${r.ciclo}d)`)
+  }
   if (p.pctComprasSazonais >= 60 && p.qtdCompras >= 2) flags.push(`COMPRA-EM-DATAS(${p.pctComprasSazonais}% das compras em janela de data comemorativa — sazonal, NÃO é cliente frequente)`)
   if (p.tendenciaTicket === 'subindo') flags.push('TICKET-SUBINDO')
   if (p.tendenciaTicket === 'caindo') flags.push('TICKET-CAINDO')
@@ -530,6 +582,37 @@ PADRÃO REAL DA LOJA: ticket mediano R$${ticketMediano}, ~${vendasPorDia.toFixed
   const leadsTopo = ((contatos ?? []) as { id: string; cliente_id: string | null }[])
     .filter(c => !c.cliente_id || !clientesComCompra.has(c.cliente_id)).length
 
+  /* ── Datas comemorativas nos próximos 35 dias × quem comprou na
+     mesma janela ANO PASSADO (antecipação, não reação) ── */
+  const vendasDatasPorCliente = new Map<string, string[]>()
+  for (const v of vendasRows) {
+    if (!v.cliente_id || !v.data_venda) continue
+    if (!vendasDatasPorCliente.has(v.cliente_id)) vendasDatasPorCliente.set(v.cliente_id, [])
+    vendasDatasPorCliente.get(v.cliente_id)!.push(v.data_venda)
+  }
+  const datasChegando: string[] = []
+  for (const j of JANELAS_COMEMORATIVAS) {
+    let inicioJanela = new Date(agora.getFullYear(), j.inicio[0] - 1, j.inicio[1])
+    if (inicioJanela < agora) {
+      const fimJanela = new Date(agora.getFullYear(), j.fim[0] - 1, j.fim[1])
+      if (fimJanela < agora) inicioJanela = new Date(agora.getFullYear() + 1, j.inicio[0] - 1, j.inicio[1])
+      else inicioJanela = agora // já estamos dentro da janela
+    }
+    const diasAte = Math.round((inicioJanela.getTime() - agora.getTime()) / 86400000)
+    if (diasAte < 0 || diasAte > 35) continue
+
+    const anoPassado = inicioJanela.getFullYear() - 1
+    const ini = `${anoPassado}-${String(j.inicio[0]).padStart(2, '0')}-${String(j.inicio[1]).padStart(2, '0')}`
+    const fim = `${anoPassado}-${String(j.fim[0]).padStart(2, '0')}-${String(j.fim[1]).padStart(2, '0')}`
+    const compradores = perfis
+      .filter(p => (vendasDatasPorCliente.get(p.clienteId) ?? []).some(d => d >= ini && d <= fim))
+      .slice(0, 15)
+      .map(p => `${p.codigo} ${p.nome}`)
+    datasChegando.push(
+      `${j.nome} ${diasAte === 0 ? 'AGORA (janela aberta)' : `em ${diasAte} dia(s)`} — compraram nessa época ano passado: ${compradores.join(', ') || '(sem registro)'}`
+    )
+  }
+
   /* Aniversariantes dos próximos 30 dias */
   const aniversariantes = ((clientes ?? []) as ClienteRow[])
     .filter(c => c.data_nascimento)
@@ -561,6 +644,7 @@ Os COMPORTAMENTOS abaixo foram CALCULADOS a partir do histórico real de vendas 
 - PAGA-PREÇO-CHEIO: nunca precisa de desconto → ofereça novidade/lançamento, NUNCA promoção (queima margem à toa)
 - CAÇA-NOVIDADES: compra rápido o que chega → avise de novidades em primeira mão
 - ATRASADO: passou do ritmo próprio de compra → reativação com contexto
+- RECOMPRA-PROVÁVEL: o ciclo típico de recompra da categoria NESTA loja está vencendo pra esse cliente (ex: tênis dura ~9 meses, o dele tem 10) → ofereça a categoria
 - COMPRA-EM-DATAS: as compras se concentram em datas comemorativas → cliente SAZONAL; a ação certa é antecipar a próxima data, nunca tratar como frequente
 - TICKET-CAINDO/SUBINDO: mudança recente | USA-CREDIÁRIO: sensível a parcelamento
 - PRESENTE-MÊS(n): compra presente nesses meses → antecipe | COMPRA-DIA: dia da semana preferido
@@ -587,6 +671,9 @@ ${novidades.join('\n') || '(nenhuma)'}
 
 ESTOQUE PARADO (75+ dias):
 ${encalhados.join('\n') || '(nenhum)'}
+
+DATAS COMEMORATIVAS CHEGANDO (antecipe AGORA — não espere a data):
+${datasChegando.join('\n') || '(nenhuma nos próximos 35 dias)'}
 
 EVENTOS PRÓXIMOS (45 dias): ${eventosProximos.join(' | ') || '(nenhum)'}
 ANIVERSARIANTES (30 dias): ${aniversariantes.join(' | ') || '(nenhum)'}

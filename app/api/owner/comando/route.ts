@@ -8,6 +8,7 @@ import { planoSemana, analisarCrescimento } from '@/lib/agentes/estrategista'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { salvarAprendizado, carregarConhecimento } from '@/lib/conhecimento'
 import { buscarSugestaoDigest, aprovarSugestaoDigest } from '@/lib/inteligencia/digest'
+import { resultadoZivo } from '@/lib/inteligencia/resultado'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -80,7 +81,7 @@ Mensagem: "${mensagem}"
 
 Retorne JSON:
 {
-  "acao": "conversa" | "vendas_hoje" | "relatorio_semana" | "relatorio_mes" | "diagnostico" | "financeiro" | "meta" | "plano_semana" | "crescimento" | "estoque_diagnostico" | "estoque_busca" | "clientes" | "pausar" | "ativar",
+  "acao": "conversa" | "vendas_hoje" | "relatorio_semana" | "relatorio_mes" | "diagnostico" | "financeiro" | "meta" | "plano_semana" | "crescimento" | "estoque_diagnostico" | "estoque_busca" | "clientes" | "resultado_zivo" | "pausar" | "ativar",
   "resposta_direta": "se for só conversa, responda aqui naturalmente. Senão deixe null",
   "filtro": "produto ou cliente buscado (se aplicável)",
   "valor": número se for definir meta, senão null
@@ -101,6 +102,7 @@ Exemplos:
 - "quanto vendemos hoje" | "vendas de hoje" | "resumo do dia" → acao: vendas_hoje
 - "quanto vendemos" | "quanto vendemos esse mês" → acao: financeiro
 - "clientes inativos" → acao: clientes
+- "quanto você vendeu" | "resultado do zivo" | "quanto o zivo gerou" | "seu resultado" → acao: resultado_zivo
 - "pausa o atendimento" → acao: pausar
 - "ativa o atendimento" → acao: ativar
 - "aprende algo" ou "salva isso" → acao: conversa (já tratado antes)`,
@@ -194,6 +196,10 @@ Exemplos:
         }
         break
       }
+
+      case 'resultado_zivo':
+        resposta = await resultadoZivo(admin, userId, 30)
+        break
 
       case 'pausar':
         await admin.from('loja_config').upsert(
