@@ -56,6 +56,59 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  /* ?curar=<tarefaId> → destrava conversas presas no "confirmar":
+     promove dados de _do_cadastro, e se o cadastro está completo,
+     salva no cliente e encerra. Conserta o loop de data (Abson). */
+  const curarId = request.nextUrl.searchParams.get('curar')
+  if (curarId) {
+    const { data: estados } = await admin
+      .from('agente_conversa_estado')
+      .select('id, contato_id, tarefa_id, user_id, status, dados_coletados')
+      .eq('tarefa_id', curarId)
+      .eq('status', 'aguardando')
+      .limit(200)
+
+    const preench = (v: unknown) => v != null && String(v).trim() !== ''
+    let curados = 0, concluidos = 0
+    for (const e of (estados ?? []) as { id: string; contato_id: string; user_id: string; dados_coletados: Record<string, unknown> }[]) {
+      const dados = { ...(e.dados_coletados ?? {}) }
+      const doCad = (dados._do_cadastro ?? {}) as Record<string, unknown>
+      let mudou = false
+      for (const [k, v] of Object.entries(doCad)) {
+        if (preench(v) && !preench(dados[k])) { dados[k] = v; mudou = true }
+      }
+      if (!mudou) continue
+      delete dados._do_cadastro
+      await admin.from('agente_conversa_estado').update({ dados_coletados: dados }).eq('id', e.id)
+      curados++
+
+      /* completo? salva cadastro e encerra */
+      const isFem = String(dados.genero ?? '').toUpperCase().startsWith('F')
+      const obrig = isFem
+        ? ['nome', 'data_nascimento', 'tamanho_camiseta', 'tamanho_calca']
+        : ['nome', 'data_nascimento', 'tamanho_camiseta', 'tamanho_calca', 'tamanho_tenis']
+      if (!obrig.every(c => preench(dados[c]))) continue
+
+      const { data: contato } = await admin
+        .from('whatsapp_contatos').select('cliente_id, phone').eq('id', e.contato_id).maybeSingle()
+      if (contato?.cliente_id) {
+        const upd: Record<string, string> = {}
+        if (preench(dados.nome)) upd.nome = String(dados.nome)
+        if (preench(dados.data_nascimento)) {
+          const [dd, mm, yy] = String(dados.data_nascimento).split('/')
+          if (yy) upd.data_nascimento = `${yy}-${mm}-${dd}`
+        }
+        for (const c of ['tamanho_camiseta', 'tamanho_calca', 'tamanho_tenis']) {
+          if (preench(dados[c]) && String(dados[c]).toLowerCase() !== 'recusado') upd[c] = String(dados[c])
+        }
+        if (Object.keys(upd).length) await admin.from('clientes').update(upd).eq('id', contato.cliente_id)
+      }
+      await admin.from('agente_conversa_estado').update({ status: 'concluido' }).eq('id', e.id)
+      concluidos++
+    }
+    return NextResponse.json({ curados, concluidos, total_aguardando: (estados ?? []).length })
+  }
+
   /* ?tarefa=<id> → contagem de estados por status dessa campanha */
   const tarefaId = request.nextUrl.searchParams.get('tarefa')
   if (tarefaId) {
