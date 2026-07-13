@@ -17,6 +17,33 @@ export async function GET(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  /* ?campanha=A → diagnóstico de campanha por letra + últimas tarefas */
+  const letraCampanha = request.nextUrl.searchParams.get('campanha')
+  if (letraCampanha) {
+    const uid = request.nextUrl.searchParams.get('user') // opcional; senão pega do 1º contato
+    let userId = uid
+    if (!userId) {
+      const { data: c1 } = await admin.from('whatsapp_contatos').select('user_id').limit(1).maybeSingle()
+      userId = c1?.user_id ?? null
+    }
+    const { data: clientesLetra } = await admin
+      .from('clientes').select('nome, telefone')
+      .eq('user_id', userId).ilike('nome', `${letraCampanha}%`).limit(500)
+    const arr = (clientesLetra ?? []) as { nome: string; telefone: string | null }[]
+    const comTel = arr.filter(c => c.telefone && String(c.telefone).trim())
+    const { data: tarefas } = await admin
+      .from('agente_tarefas').select('titulo, total, concluidos, status, created_at')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(3)
+    return NextResponse.json({
+      letra: letraCampanha,
+      total_clientes: arr.length,
+      com_telefone: comTel.length,
+      sem_telefone: arr.length - comTel.length,
+      exemplos_sem_telefone: arr.filter(c => !c.telefone || !String(c.telefone).trim()).slice(0, 8).map(c => c.nome),
+      ultimas_tarefas: tarefas,
+    })
+  }
+
   /* Sem filtro: lista os estados de conversa mais recentes pra localizar a tarefa */
   if (!nome && !phone) {
     const { data: estadosRecentes } = await admin
