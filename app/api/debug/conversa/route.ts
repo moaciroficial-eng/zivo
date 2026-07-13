@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const arr = (clientesLetra ?? []) as { nome: string; telefone: string | null }[]
     const comTel = arr.filter(c => c.telefone && String(c.telefone).trim())
     const { data: tarefas } = await admin
-      .from('agente_tarefas').select('titulo, total, concluidos, status, created_at')
+      .from('agente_tarefas').select('id, titulo, total, concluidos, status, created_at')
       .eq('user_id', userId).order('created_at', { ascending: false }).limit(3)
     /* ?limpar=<tarefa_id> → apaga tarefa fantasma (total>0 sem estados) */
     const limpar = request.nextUrl.searchParams.get('limpar')
