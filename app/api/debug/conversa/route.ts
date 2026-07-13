@@ -56,6 +56,29 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  /* ?tarefa=<id> → contagem de estados por status dessa campanha */
+  const tarefaId = request.nextUrl.searchParams.get('tarefa')
+  if (tarefaId) {
+    const { data: estados } = await admin
+      .from('agente_conversa_estado')
+      .select('status, updated_at')
+      .eq('tarefa_id', tarefaId)
+      .limit(500)
+    const arr = (estados ?? []) as { status: string; updated_at: string }[]
+    const porStatus: Record<string, number> = {}
+    for (const e of arr) porStatus[e.status] = (porStatus[e.status] ?? 0) + 1
+    const maisAntigoIniciando = arr
+      .filter(e => e.status === 'iniciando')
+      .sort((a, b) => a.updated_at.localeCompare(b.updated_at))[0]
+    return NextResponse.json({
+      total_estados: arr.length,
+      por_status: porStatus,
+      iniciando_ha: maisAntigoIniciando
+        ? `${Math.round((Date.now() - new Date(maisAntigoIniciando.updated_at).getTime()) / 60000)} min`
+        : null,
+    })
+  }
+
   /* Sem filtro: lista os estados de conversa mais recentes pra localizar a tarefa */
   if (!nome && !phone) {
     const { data: estadosRecentes } = await admin
