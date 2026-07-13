@@ -34,6 +34,18 @@ export async function GET(request: NextRequest) {
     const { data: tarefas } = await admin
       .from('agente_tarefas').select('titulo, total, concluidos, status, created_at')
       .eq('user_id', userId).order('created_at', { ascending: false }).limit(3)
+    /* ?limpar=<tarefa_id> → apaga tarefa fantasma (total>0 sem estados) */
+    const limpar = request.nextUrl.searchParams.get('limpar')
+    if (limpar) {
+      const { count } = await admin.from('agente_conversa_estado')
+        .select('id', { count: 'exact', head: true }).eq('tarefa_id', limpar)
+      if ((count ?? 0) === 0) {
+        await admin.from('agente_tarefas').delete().eq('id', limpar).eq('user_id', userId)
+        return NextResponse.json({ limpou: limpar, estados_que_tinha: count })
+      }
+      return NextResponse.json({ nao_limpou: limpar, tem_estados: count })
+    }
+
     return NextResponse.json({
       letra: letraCampanha,
       total_clientes: arr.length,
