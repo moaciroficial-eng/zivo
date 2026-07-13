@@ -688,7 +688,7 @@ Gere de 3 a 8 AÇÕES DE VENDA cruzando comportamento × estoque × meta × cale
 5. Respeite o perfil: fiel à marca recebe SÓ a marca dele; PAGA-PREÇO-CHEIO nunca recebe desconto; SÓ-PROMOÇÃO nunca recebe preço cheio; cliente FRIO não é alvo de meta urgente.
 6. Para ação individual (1 cliente): "acao.tipo": "enviar_mensagem" com mensagem de WhatsApp pronta, natural, curta, assinada como ${nomeLoja}.
 7. Para grupo (2+ clientes): "acao.tipo": "campanha" com a mensagem modelo.
-8. Confira tamanho: só sugira peça se existe no tamanho do cliente.
+8. Confira tamanho: só sugira peça se existe no tamanho do cliente. Na parte de baixo (calça/bermuda) número e letra se equivalem: 36/38=P, 40/42=M, 44/46=G, 48/50=GG. Então cliente com calça 40 serve bermuda M.
 
 Responda SOMENTE JSON:
 {"sugestoes":[{"tipo":"meta|promo|novidade|reativacao|vip|cross_sell|presente|evento|oportunidade","titulo":"curto e específico","descricao":"POR QUE este cliente vai querer isto — nomeie o comportamento analisado, ex: 'Samir compra Aramis em 83% dos itens e veste M; chegou polo Aramis M essa semana'","evidencia":"números que sustentam (compras, %, dias, valores)","prioridade":1,"acao":{"tipo":"enviar_mensagem|campanha|alerta","clientes":["C1"],"sugestao_mensagem":"..."}}]}`

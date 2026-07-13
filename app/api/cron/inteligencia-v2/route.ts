@@ -1,6 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { clienteServeProduto } from '@/lib/tamanhos'
 
 export const maxDuration = 60
 
@@ -278,14 +279,12 @@ export async function GET(request: NextRequest) {
     const tams = ((item.tamanhos as TamanhoItem[]) ?? []).filter(t => t.qtd > 0)
     if (tams.length === 0) continue
 
-    const tamanhosDisponiveis = tams.map(t => t.tamanho.toLowerCase())
+    const tamanhosDisponiveis = tams.map(t => t.tamanho)
 
-    /* Encontra clientes com esse tamanho */
-    const clientesAlvo = clientes.filter(c => {
-      const tc = c.tamanho_camiseta?.toLowerCase()
-      const tca = c.tamanho_calca?.toLowerCase()
-      return tamanhosDisponiveis.some(t => t === tc || t === tca)
-    })
+    /* Encontra clientes com esse tamanho (equivalência número↔letra) */
+    const clientesAlvo = clientes.filter(c =>
+      clienteServeProduto([c.tamanho_camiseta, c.tamanho_calca], tamanhosDisponiveis)
+    )
 
     /* Pega um cliente alvo que não recebeu mensagem recente */
     for (const cliente of clientesAlvo) {
@@ -330,7 +329,7 @@ export async function GET(request: NextRequest) {
     if (!item.marca) continue
 
     const tams = ((item.tamanhos as TamanhoItem[]) ?? []).filter(t => t.qtd > 0)
-    const tamanhosDisponiveis = tams.map(t => String(t.tamanho).toLowerCase())
+    const tamanhosDisponiveis = tams.map(t => String(t.tamanho))
 
     const clientesAlvo = clientes.filter(c => {
       const ins = insightsPorCliente.get(c.id)
@@ -340,10 +339,8 @@ export async function GET(request: NextRequest) {
       )
       if (!gostaDaMarca) return false
       if (tamanhosDisponiveis.length === 0) return true
-      const tc  = c.tamanho_camiseta?.toLowerCase()
-      const tca = c.tamanho_calca?.toLowerCase()
-      const tte = c.tamanho_tenis?.toLowerCase()
-      return tamanhosDisponiveis.some(t => t === tc || t === tca || t === tte)
+      /* equivalência número↔letra (calça 40 = bermuda M) */
+      return clienteServeProduto([c.tamanho_camiseta, c.tamanho_calca, c.tamanho_tenis], tamanhosDisponiveis)
     })
 
     for (const cliente of clientesAlvo) {
