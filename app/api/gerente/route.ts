@@ -171,7 +171,8 @@ Para TAREFAS de mensagem automática via WhatsApp, inclua o campo "tarefa":
     "titulo": "título curto",
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
     "instrucao": "instrução para o agente executar. ATUALIZAR CADASTRO: perguntar nome completo, data de nascimento, tamanho de camiseta (para mulheres: tamanho de BLUSA, e sem tênis), numeração de calça (e tênis, só para homens). Ser rápido e encerrar agradecendo.",
-    "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo",
+    "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo | nome_letra",
+    "filtro_valor": "quando filtro_contatos = nome_letra, a letra inicial. Ex: A",
     "contatos_especificos": [],
     "clientes_especificos": []
   },
@@ -223,7 +224,9 @@ REGRAS:
 - Perguntou quem comprou uma marca → SEMPRE use consultar_agente: "vendas_marca". Não tente adivinhar pela lista resumida.
 - [WA] → whatsapp_id em "contatos_especificos"
 - [CAD] → cliente_id em "clientes_especificos"
-- Grupos genéricos → "filtro_contatos"`
+- Grupos genéricos → "filtro_contatos"
+- CRÍTICO: "clientes com nome começando com A/B/...", "clientes da letra X" → use filtro_contatos: "nome_letra" + filtro_valor: "A". NUNCA liste os cliente_id um por um nesses casos — o sistema resolve a lista sozinho. Listar dezenas de IDs quebra a resposta.
+- Só use contatos_especificos/clientes_especificos quando o dono citar POUCAS pessoas por nome (até ~5).`
 
   const messages = [
     ...historico.map((h: { papel: string; conteudo: string }) => ({
@@ -235,7 +238,7 @@ REGRAS:
 
   const res = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1000,
+    max_tokens: 1500,
     /* Prompt caching: o contexto (lista de contatos/clientes) é grande e
        igual entre mensagens seguidas — leitura em cache custa ~10% */
     system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
@@ -244,7 +247,19 @@ REGRAS:
 
   const text = (res.content[0] as { text: string }).text.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { resposta: text, tarefa: null, consultar_agente: null }
+  let parsed: { resposta?: string; tarefa?: unknown; operacao?: unknown; consultar_agente?: unknown; [k: string]: unknown }
+  try {
+    parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { resposta: text, tarefa: null, consultar_agente: null }
+  } catch {
+    /* JSON truncado/inválido (ex: modelo tentou listar dezenas de IDs e
+       estourou o limite). Recupera pelo menos a "resposta" e descarta a
+       tarefa quebrada, pra nunca vazar JSON cru no chat nem enviar torto. */
+    const respMatch = text.match(/"resposta"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+    const resposta = respMatch
+      ? respMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n')
+      : 'Tive um problema ao montar essa tarefa (a lista ficou grande demais). Tenta pedir de novo, por exemplo: "atualiza o cadastro dos clientes com nome começando com A".'
+    parsed = { resposta, tarefa: null, operacao: null, consultar_agente: null }
+  }
 
   /* Se o Gerente pediu consulta a agente especialista, executa e reformula */
   if (parsed.consultar_agente && !parsed.tarefa) {
@@ -386,6 +401,12 @@ REGRAS:
         .eq('user_id', user.id)
         .in('id', parsed.tarefa.clientes_especificos)
       previewContatos = (preview ?? []) as { id: string; nome: string }[]
+    } else if (parsed.tarefa.filtro_contatos === 'nome_letra' && parsed.tarefa.filtro_valor) {
+      const letra = String(parsed.tarefa.filtro_valor).trim().charAt(0)
+      const { data: preview } = await admin
+        .from('clientes').select('id, nome')
+        .eq('user_id', user.id).ilike('nome', `${letra}%`).limit(500)
+      previewContatos = (preview ?? []) as { id: string; nome: string }[]
     } else {
       let q = admin.from('whatsapp_contatos').select('id, nome').eq('user_id', user.id)
       if (parsed.tarefa.filtro_contatos === 'funil_topo') q = q.eq('funil_etapa', 'topo')
@@ -496,13 +517,25 @@ export async function PUT(request: NextRequest) {
   type ContatoTarefa = { id: string; nome: string; phone: string; cliente_id?: string | null }
   let contatosList: ContatoTarefa[] = []
 
-  if (tarefa.clientes_especificos?.length > 0) {
+  /* Filtro por letra inicial resolve pra lista de clientes aqui no servidor
+     (o modelo não enumera IDs — evita estourar tokens e quebrar o JSON) */
+  let clientesAlvoIds: string[] | null = null
+  if (tarefa.filtro_contatos === 'nome_letra' && tarefa.filtro_valor) {
+    const letra = String(tarefa.filtro_valor).trim().charAt(0)
+    const { data: porLetra } = await admin
+      .from('clientes').select('id')
+      .eq('user_id', user.id).ilike('nome', `${letra}%`).limit(500)
+    clientesAlvoIds = (porLetra ?? []).map((c: { id: string }) => c.id)
+  }
+
+  if (clientesAlvoIds?.length || tarefa.clientes_especificos?.length > 0) {
     /* Clientes do cadastro — cria contato no WhatsApp se ainda não existir */
+    const alvo = clientesAlvoIds?.length ? clientesAlvoIds : tarefa.clientes_especificos
     const { data: clientesDados } = await admin
       .from('clientes')
       .select('id, nome, telefone')
       .eq('user_id', user.id)
-      .in('id', tarefa.clientes_especificos)
+      .in('id', alvo)
 
     for (const cli of (clientesDados ?? [])) {
       if (!cli.telefone) continue
