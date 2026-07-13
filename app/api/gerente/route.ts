@@ -247,7 +247,8 @@ REGRAS:
 
   const text = (res.content[0] as { text: string }).text.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  let parsed: { resposta?: string; tarefa?: unknown; operacao?: unknown; consultar_agente?: unknown; [k: string]: unknown }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let parsed: any
   try {
     parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { resposta: text, tarefa: null, consultar_agente: null }
   } catch {
