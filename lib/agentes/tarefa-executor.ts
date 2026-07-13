@@ -18,7 +18,9 @@ function perguntaCampo(campo: string, isFem: boolean): string {
     case 'nome':             return 'Só me confirma: qual é seu nome completo?'
     case 'data_nascimento':  return 'E qual é sua data de nascimento? (formato DD/MM/AAAA)'
     case 'tamanho_camiseta': return isFem ? 'E qual é seu tamanho de blusa? (P, M, G, GG ou XGG)' : 'E qual é seu tamanho de camiseta? (P, M, G, GG ou XGG)'
-    case 'tamanho_calca':    return isFem ? 'E qual é sua numeração de calça? (34, 36, 38, 40, 42, 44 ou 46)' : 'E qual é sua numeração de calça? (38 ao 50)'
+    case 'tamanho_calca':    return isFem
+      ? 'E qual é seu tamanho de calça/bermuda? Pode ser a numeração (34 ao 46) ou a letra (P, M, G...), como preferir 😊'
+      : 'E qual é seu tamanho de calça/bermuda? Pode ser a numeração (38 ao 50) ou a letra (P, M, G...), como preferir 😊'
     case 'tamanho_tenis':    return 'E qual é seu número de tênis? (37 ao 44)'
     default:                 return 'Só falta um detalhe pra fechar seu cadastro 😊'
   }
@@ -83,12 +85,14 @@ export async function processarRespostaTarefa(
   )
   const temAConfirmar = Object.keys(aConfirmar).length > 0
 
-  const regrasFem = `- Ordem sugerida: nome → data de nascimento → tamanho de blusa (P/M/G/GG/XGG) → tamanho de calça (34 ao 46)
+  const regrasFem = `- Ordem sugerida: nome → data de nascimento → tamanho de blusa (P/M/G/GG/XGG) → tamanho de calça/bermuda
 - Pergunte "tamanho de blusa", NUNCA "tamanho de camiseta" (mas salve a resposta no campo tamanho_camiseta)
+- Calça/bermuda aceita numeração (34 ao 46) OU letra (P/M/G/GG); registre EXATAMENTE o que o cliente disser (se falar "42", salve "42"; se falar "M", salve "M")
 - NÃO pergunte número de tênis para clientes femininas
 - SÓ marque concluido: true quando tiver: nome, data_nascimento, tamanho_camiseta (blusa), tamanho_calca — OU quando recusar responder algum`
 
-  const regrasMasc = `- Ordem sugerida: nome → data de nascimento → tamanho de camiseta → tamanho de calça (38 ao 50) → número de tênis
+  const regrasMasc = `- Ordem sugerida: nome → data de nascimento → tamanho de camiseta → tamanho de calça/bermuda → número de tênis
+- Calça/bermuda aceita numeração (38 ao 50) OU letra (P/M/G/GG); registre EXATAMENTE o que o cliente disser (se falar "42", salve "42"; se falar "M", salve "M")
 - SÓ marque concluido: true quando tiver coletado TODOS: nome, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis — OU quando recusar responder algum`
 
   const regrasGenero = isFem
