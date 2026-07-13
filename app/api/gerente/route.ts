@@ -624,10 +624,20 @@ export async function PUT(request: NextRequest) {
     return dados
   }
 
-  const listaComSeed = contatosList.map(c => ({
-    contato: c,
-    seed: semearDados(c.cliente_id ? clienteMapa.get(c.cliente_id) : undefined),
-  }))
+  /* Dedupe por contato: dois clientes podem compartilhar o mesmo telefone
+     (ex: casal, mesmo número no cadastro). Sem isso o insert dos estados
+     viola UNIQUE(tarefa_id, contato_id) e falha inteiro — a campanha some. */
+  const vistos = new Set<string>()
+  const listaComSeed = contatosList
+    .filter(c => {
+      if (vistos.has(c.id)) return false
+      vistos.add(c.id)
+      return true
+    })
+    .map(c => ({
+      contato: c,
+      seed: semearDados(c.cliente_id ? clienteMapa.get(c.cliente_id) : undefined),
+    }))
 
   const lista = listaComSeed.map(i => i.contato)
 
@@ -658,16 +668,24 @@ export async function PUT(request: NextRequest) {
 
   if (!novaTarefa) return NextResponse.json({ ok: false, error: 'Erro ao criar tarefa' }, { status: 500 })
 
-  /* Cria estado inicial para cada contato, com os dados do cadastro "a confirmar" */
-  await admin.from('agente_conversa_estado').insert(
+  /* Cria estado inicial para cada contato, com os dados do cadastro "a confirmar".
+     upsert idempotente: se sobrar duplicata de contato, ignora em vez de
+     derrubar o lote inteiro (era o que apagava a campanha). */
+  const { error: estadoErr } = await admin.from('agente_conversa_estado').upsert(
     listaComSeed.map(({ contato, seed }) => ({
       user_id:         user.id,
       tarefa_id:       novaTarefa.id,
       contato_id:      contato.id,
       status:          'iniciando',
       dados_coletados: montarDadosIniciais(seed),
-    }))
+    })),
+    { onConflict: 'tarefa_id,contato_id', ignoreDuplicates: true }
   )
+  if (estadoErr) {
+    /* Não deixa tarefa fantasma (total>0 sem estados) */
+    await admin.from('agente_tarefas').delete().eq('id', novaTarefa.id)
+    return NextResponse.json({ ok: false, error: `Erro ao criar conversas: ${estadoErr.message}` }, { status: 500 })
+  }
 
   /* Dispara a primeira mensagem para os primeiros 10 contatos imediatamente.
      Os demais são encadeados pelo executor conforme cada envio inicial conclui. */
