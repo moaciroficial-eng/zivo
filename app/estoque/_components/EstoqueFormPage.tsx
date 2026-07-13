@@ -55,8 +55,10 @@ const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
   blusa:    ['P', 'M', 'G', 'GG', 'XGG'],
   camisa:   ['P', 'M', 'G', 'GG', 'XGG'],
   regata:   ['P', 'M', 'G', 'GG', 'XGG'],
-  calca:    ['34', '36', '38', '40', '42', '44', '46', '48', '50'],
-  bermuda:  ['P', 'M', 'G', 'GG', 'XGG'],
+  /* Calça e bermuda existem nos dois padrões: numeração (jeans/alfaiataria)
+     e letras (moletom/jogger/elástico) — mostra os dois, escolhe o da peça */
+  calca:    ['34', '36', '38', '40', '42', '44', '46', '48', '50', 'P', 'M', 'G', 'GG', 'XGG'],
+  bermuda:  ['P', 'M', 'G', 'GG', 'XGG', '36', '38', '40', '42', '44', '46', '48'],
   polo:     ['P', 'M', 'G', 'GG', 'XGG'],
   tenis:    ['34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'],
   chinelo:  ['34/35', '36/37', '37/38', '39/40', '41/42', '43/44'],
