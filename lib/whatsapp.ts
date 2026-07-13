@@ -5,6 +5,22 @@ const BASE         = `https://api.z-api.io/instances/${INSTANCE}/token/${TOKEN}`
 
 type SendOptions = { phone: string; message: string }
 
+/* ══════════════════════════════════════════════════════════════
+   NORMALIZAÇÃO ÚNICA DE TELEFONE BR — usar SEMPRE que criar/buscar
+   contato por telefone. Sem isso, a campanha criava o contato sem o
+   9º dígito e a resposta do cliente (que vem COM o 9) caía em outro
+   contato → conversa rachava em dois (caso Adriane).
+   Formato canônico: 55 + DDD + 9 + 8 dígitos (13 dígitos).
+   ══════════════════════════════════════════════════════════════ */
+export function normalizarTelefoneBR(raw: string): string {
+  const d = String(raw ?? '').replace(/\D/g, '')
+  const with55 = d.startsWith('55') ? d : `55${d}`
+  /* 55 + 2 DDD + 8 dígitos começando em 6-9 (celular sem o 9) → insere o 9 */
+  return with55.length === 12 && /^55\d{2}[6-9]/.test(with55)
+    ? `${with55.slice(0, 4)}9${with55.slice(4)}`
+    : with55
+}
+
 export async function sendWhatsAppMessage({ phone, message }: SendOptions): Promise<{ messageId?: string }> {
   if (!INSTANCE || !TOKEN) {
     throw new Error('Z-API não configurada. Verifique ZAPI_INSTANCE_ID e ZAPI_TOKEN.')
@@ -13,12 +29,7 @@ export async function sendWhatsAppMessage({ phone, message }: SendOptions): Prom
     throw new Error('Z-API não configurada. Verifique ZAPI_CLIENT_TOKEN.')
   }
 
-  const normalized = phone.replace(/\D/g, '')
-  const with55 = normalized.startsWith('55') ? normalized : `55${normalized}`
-  /* Garante o 9 do celular brasileiro: 55 + DDD + 8 dígitos começando em 6-9 → adiciona 9 */
-  const number = with55.length === 12 && /^55\d{2}[6-9]/.test(with55)
-    ? `${with55.slice(0, 4)}9${with55.slice(4)}`
-    : with55
+  const number = normalizarTelefoneBR(phone)
 
   const res = await fetch(`${BASE}/send-text`, {
     method: 'POST',

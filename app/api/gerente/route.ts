@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { situacaoFinanceira } from '@/lib/agentes/financeiro'
 import { diagnosticoCompleto, clientesPorMarca } from '@/lib/agentes/analitico'
+import { normalizarTelefoneBR } from '@/lib/whatsapp'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -540,17 +541,24 @@ export async function PUT(request: NextRequest) {
 
     for (const cli of (clientesDados ?? [])) {
       if (!cli.telefone) continue
-      const raw   = cli.telefone.replace(/\D/g, '')
-      const phone = raw.startsWith('55') ? raw : `55${raw}`
-      const { data: contatoExistente } = await admin
+      /* Formato canônico (com 9). Busca também pelos últimos 8 dígitos pra
+         achar um contato já criado pelo WhatsApp mesmo se ele estiver salvo
+         com/sem o 9 — evita duplicar a pessoa (caso Adriane). */
+      const phone = normalizarTelefoneBR(cli.telefone)
+      const last8 = phone.slice(-8)
+      const { data: candidatos } = await admin
         .from('whatsapp_contatos')
         .select('id, nome, phone, cliente_id')
         .eq('user_id', user.id)
-        .eq('phone', phone)
-        .maybeSingle()
+        .ilike('phone', `%${last8}`)
+      const contatoExistente = (candidatos ?? [])[0] as ContatoTarefa | undefined
 
       if (contatoExistente) {
-        contatosList.push(contatoExistente as ContatoTarefa)
+        /* garante vínculo com o cliente e nome do cadastro */
+        if (!contatoExistente.cliente_id) {
+          await admin.from('whatsapp_contatos').update({ cliente_id: cli.id }).eq('id', contatoExistente.id)
+        }
+        contatosList.push(contatoExistente)
       } else {
         const { data: novoContato } = await admin
           .from('whatsapp_contatos')
