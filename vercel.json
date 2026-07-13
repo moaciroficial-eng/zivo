@@ -11,10 +11,6 @@
     {
       "path": "/api/cron/inteligencia-v2",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/drenar-tarefas",
-      "schedule": "* * * * *"
     }
   ]
 }

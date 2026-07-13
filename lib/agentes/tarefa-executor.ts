@@ -474,22 +474,32 @@ export async function executarTurnoTarefa(
       respostaContato,
     )
 
-    /* ── 6. Encadeia o próximo contato pendente da tarefa (após o 1º envio) ── */
+    /* ── 6. Encadeia os próximos contatos pendentes (após o 1º envio) ──
+       Dispara 2 por vez, escolhidos ALEATORIAMENTE de um pool de 8. Isso
+       evita o travamento antigo: com limit(1) fixo, duas execuções
+       paralelas pegavam o MESMO próximo (uma enviava, a outra era
+       descartada pela trava) e a corrente morria. Com pool + 2x, a
+       vazão supera as colisões e a campanha drena até o fim. */
     if (primeiroEnvio) {
-      const { data: proximos } = await admin
+      const { data: pool } = await admin
         .from('agente_conversa_estado')
         .select('contato_id')
         .eq('tarefa_id', tarefaId)
         .eq('status', 'iniciando')
         .neq('contato_id', contatoId)
-        .limit(1)
-      const proximo = proximos?.[0] as { contato_id: string } | undefined
-      if (proximo) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+        .limit(8)
+      const candidatos = (pool ?? []) as { contato_id: string }[]
+      /* embaralha e pega 2 */
+      for (let i = candidatos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[candidatos[i], candidatos[j]] = [candidatos[j], candidatos[i]]
+      }
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+      for (const prox of candidatos.slice(0, 2)) {
         after(fetch(`${baseUrl}/api/gerente/executar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
-          body: JSON.stringify({ userId, tarefaId, contatoId: proximo.contato_id }),
+          body: JSON.stringify({ userId, tarefaId, contatoId: prox.contato_id }),
         }).catch(() => null))
       }
     }
