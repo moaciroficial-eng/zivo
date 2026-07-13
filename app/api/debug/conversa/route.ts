@@ -92,14 +92,17 @@ export async function GET(request: NextRequest) {
 
       const { data: contato } = await admin
         .from('whatsapp_contatos').select('cliente_id, phone').eq('id', e.contato_id).maybeSingle()
-      /* resolve o cliente: vínculo direto ou busca pelo telefone (últimos 8) */
+      /* resolve o cliente: vínculo direto ou por telefone comparando SÓ
+         dígitos (o telefone do cadastro tem hífen/espaço, então ilike falha) */
       let clienteId = contato?.cliente_id as string | null
       if (!clienteId && contato?.phone) {
         const last8 = String(contato.phone).replace(/\D/g, '').slice(-8)
-        const { data: cliMatch } = await admin
-          .from('clientes').select('id').eq('user_id', e.user_id).ilike('telefone', `%${last8}`).maybeSingle()
-        if (cliMatch?.id) {
-          clienteId = cliMatch.id
+        const { data: cands } = await admin
+          .from('clientes').select('id, telefone').eq('user_id', e.user_id).not('telefone', 'is', null).limit(1000)
+        const match = (cands ?? []).find((c: { telefone: string }) =>
+          String(c.telefone).replace(/\D/g, '').endsWith(last8))
+        if (match?.id) {
+          clienteId = match.id
           await admin.from('whatsapp_contatos').update({ cliente_id: clienteId }).eq('id', e.contato_id)
         }
       }

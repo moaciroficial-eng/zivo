@@ -265,13 +265,16 @@ ${regrasGenero}
     }).eq('id', contato.id)
   }
 
-  /* Resolve cliente_id (fallback: busca por telefone) */
+  /* Resolve cliente_id (fallback: busca por telefone comparando SÓ dígitos —
+     o telefone do cadastro tem hífen/espaço, então ilike direto falha) */
   let clienteAlvoId = contato.cliente_id
   if (!clienteAlvoId && contato.phone) {
     const phoneLast = contato.phone.replace(/\D/g, '').slice(-8)
-    const { data: clienteMatch } = await admin
-      .from('clientes').select('id').eq('user_id', userId)
-      .ilike('telefone', `%${phoneLast}`).maybeSingle()
+    const { data: cands } = await admin
+      .from('clientes').select('id, telefone').eq('user_id', userId)
+      .not('telefone', 'is', null).limit(1000)
+    const clienteMatch = (cands ?? []).find((c: { telefone: string }) =>
+      String(c.telefone).replace(/\D/g, '').endsWith(phoneLast))
     if (clienteMatch) {
       clienteAlvoId = clienteMatch.id
       await admin.from('whatsapp_contatos').update({ cliente_id: clienteAlvoId }).eq('id', contato.id)
