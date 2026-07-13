@@ -600,8 +600,8 @@ export async function PUT(request: NextRequest) {
   const semearDados = (cli: ClienteRow | undefined): Record<string, string> => {
     const d: Record<string, string> = {}
     if (!cli) return d
-    /* nome só conta como coletado se for completo (2+ palavras) */
-    if (cli.nome && cli.nome.trim().split(/\s+/).length >= 2) d.nome = cli.nome.trim()
+    /* Nome NÃO é semeado: o cadastro pode estar errado/apelido, então o
+       agente sempre PERGUNTA o nome completo em vez de pedir pra confirmar. */
     if (cli.data_nascimento) {
       const [a, m, dia] = String(cli.data_nascimento).split('-')
       if (dia) d.data_nascimento = `${dia}/${m}/${a}`
