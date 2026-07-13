@@ -236,7 +236,9 @@ REGRAS:
   const res = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1000,
-    system: systemPrompt,
+    /* Prompt caching: o contexto (lista de contatos/clientes) é grande e
+       igual entre mensagens seguidas — leitura em cache custa ~10% */
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages,
   })
 

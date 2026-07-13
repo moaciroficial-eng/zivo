@@ -23,6 +23,21 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  /* Economia de IA: esse agente é disparado a CADA mensagem recebida.
+     Analisar a mesma conversa a cada mensagem gasta à toa — a análise
+     de 15 min atrás ainda vale. Só reanalisa depois do intervalo. */
+  const { data: insightExistente } = await supabase
+    .from('contato_insights')
+    .select('ultima_analise')
+    .eq('contato_id', contatoId)
+    .maybeSingle()
+  if (insightExistente?.ultima_analise) {
+    const idadeMin = (Date.now() - new Date(insightExistente.ultima_analise).getTime()) / 60000
+    if (idadeMin < 15) {
+      return NextResponse.json({ ok: true, skipped: `analisado há ${Math.round(idadeMin)}min` })
+    }
+  }
+
   /* Carrega as últimas 30 mensagens do contato */
   const { data: msgs } = await supabase
     .from('whatsapp_mensagens')

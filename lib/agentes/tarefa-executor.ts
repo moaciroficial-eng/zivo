@@ -102,9 +102,11 @@ ${regrasFem}
 ${regrasMasc}`
 
   const res = await anthropic.messages.create({
-    /* Sonnet: o Haiku deslizava (concluía sem calça, re-copiava data com
-       dia/mês trocado). Conversa curta — custo por turno segue baixo. */
-    model: 'claude-sonnet-4-6',
+    /* Haiku (3x mais barato): os deslizes que ele tinha agora são
+       barrados em código — checklist de conclusão rejeita "concluído"
+       com campo faltando, e o guard de data bloqueia data alucinada.
+       Roda por turno × por cliente em campanhas: aqui o barato compensa. */
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 500,
     messages: [{
       role: 'user',
