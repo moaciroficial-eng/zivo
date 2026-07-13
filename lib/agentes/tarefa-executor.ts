@@ -199,6 +199,28 @@ ${regrasGenero}
     ...salvarLimpo,
   }
 
+  /* ── CAPTURA DETERMINÍSTICA (não depende do modelo) ──
+     O Haiku às vezes não move o valor pro campo certo (ex: data ficava
+     presa em _do_cadastro e ele re-perguntava eternamente). Se o cliente
+     escreveu claramente uma data e o campo falta, captura direto. */
+  if (!preenchido(dadosAtualizados.data_nascimento) && respostaContato) {
+    const m = respostaContato.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/)
+    if (m) {
+      let [, dd, mm, yy] = m
+      if (yy.length === 2) yy = (Number(yy) > 30 ? '19' : '20') + yy
+      dadosAtualizados.data_nascimento = `${dd.padStart(2, '0')}/${mm.padStart(2, '0')}/${yy}`
+    }
+  }
+
+  /* Promove valores do cadastro que o cliente CONFIRMOU ("sim", "ta certo",
+     "isso"...) — sobem de _do_cadastro pro nível principal */
+  const confirmou = !!respostaContato && /\b(sim|isso|certo|ta certo|tá certo|correto|confirmo|pode ser|é isso|exato|perfeito)\b/i.test(respostaContato)
+  if (confirmou) {
+    for (const [k, v] of Object.entries(doCadastro)) {
+      if (!preenchido(dadosAtualizados[k]) && preenchido(v)) dadosAtualizados[k] = v
+    }
+  }
+
   /* ── Checklist determinístico: o modelo NÃO decide sozinho que acabou.
      Faltando campo obrigatório (sem recusa registrada), a conclusão é
      rejeitada e a pergunta do campo faltante é enviada. ── */
@@ -207,14 +229,21 @@ ${regrasGenero}
     : ['nome', 'data_nascimento', 'tamanho_camiseta', 'tamanho_calca', 'tamanho_tenis']
   const faltantes = camposObrigatorios.filter(c => !preenchido(dadosAtualizados[c]))
 
-  if (acao.concluido && faltantes.length > 0) {
+  /* Bloqueia conclusão falsa: se falta campo E (o modelo marcou concluído
+     OU mandou uma mensagem que PARECE encerramento), força a pergunta do
+     campo que falta. Cobre o Haiku mandando "Anotei tudo" no meio. */
+  const proximaMsg = String(acao.proxima_mensagem ?? '')
+  const pareceEncerramento = /anotei tudo|cadastro atualizado|tudo certinho no meu cadastro|obrigado pela aten|qualquer coisa é só chamar/i.test(proximaMsg)
+  if (faltantes.length > 0 && (acao.concluido || pareceEncerramento)) {
     acao.concluido = false
-    const proxima = String(acao.proxima_mensagem ?? '')
-    const pareceEncerramento = !proxima ||
-      /anotei tudo|cadastro atualizado|tudo certinho no meu cadastro|obrigado pela atenção|qualquer coisa é só chamar/i.test(proxima)
-    if (pareceEncerramento) {
-      acao.proxima_mensagem = perguntaCampo(faltantes[0], isFem)
-    }
+    acao.proxima_mensagem = perguntaCampo(faltantes[0], isFem)
+  }
+
+  /* Anti-repetição: se a próxima pergunta é igual à última que já enviamos
+     e o campo já foi capturado, pula pro próximo que falta */
+  if (faltantes.length === 0 && !acao.concluido && !acao.proxima_mensagem) {
+    acao.concluido = true
+    acao.proxima_mensagem = `Perfeito, ${nomeContato}! Anotei tudo aqui, cadastro atualizado ✅ Obrigado pela atenção! Qualquer coisa é só chamar 😊`
   }
 
   /* Envia resposta ao cliente */
