@@ -108,6 +108,38 @@ function sizeConfig(genero: string, lojaConfig: { vende_tenis: boolean | null; v
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
 
+/* Seletor de tamanho com múltipla escolha (até 2). Guarda como "38/40".
+   Cliente que veste dois números seleciona os dois. */
+function SizeChips({ options, value, onChange, max = 2, small = false }: {
+  options: string[]; value: string; onChange: (v: string) => void; max?: number; small?: boolean
+}) {
+  const sel = value ? value.split('/').filter(Boolean) : []
+  const toggle = (s: string) => {
+    let next: string[]
+    if (sel.includes(s)) next = sel.filter(x => x !== s)
+    else if (sel.length >= max) next = [...sel.slice(1), s] // troca o mais antigo
+    else next = [...sel, s]
+    /* mantém a ordem das opções pra ficar "38/40" e não "40/38" */
+    next.sort((a, b) => options.indexOf(a) - options.indexOf(b))
+    onChange(next.join('/'))
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map(s => {
+        const on = sel.includes(s)
+        return (
+          <button key={s} type="button" onClick={() => toggle(s)}
+            className={`${small ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-sm'} rounded-lg border transition cursor-pointer ${
+              on ? 'bg-violet-600 border-violet-500 text-white font-semibold' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'
+            }`}>
+            {s}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -1108,26 +1140,17 @@ export default function ClientesClient({
                 const sc = sizeConfig(form.genero, lojaConfig)
                 return (
                   <div className="flex flex-col gap-2">
-                    <p className="text-sm font-medium text-zinc-300">Tamanhos</p>
-                    <div className={`grid gap-3 ${sc.showTenis ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    <p className="text-sm font-medium text-zinc-300">Tamanhos <span className="text-xs font-normal text-zinc-500">(pode escolher até 2)</span></p>
+                    <div className="flex flex-col gap-3">
                       <Field label={sc.topLabel}>
-                        <select value={form.tamanho_camiseta} onChange={field('tamanho_camiseta')} className={`${INPUT} appearance-none px-3`}>
-                          <option value="">—</option>
-                          {sc.topOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <SizeChips options={sc.topOpts} value={form.tamanho_camiseta} onChange={v => setForm(f => ({ ...f, tamanho_camiseta: v }))} />
                       </Field>
                       <Field label={sc.calcaLabel}>
-                        <select value={form.tamanho_calca} onChange={field('tamanho_calca')} className={`${INPUT} appearance-none px-3`}>
-                          <option value="">—</option>
-                          {sc.calcaOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <SizeChips options={sc.calcaOpts} value={form.tamanho_calca} onChange={v => setForm(f => ({ ...f, tamanho_calca: v }))} />
                       </Field>
                       {sc.showTenis && (
                         <Field label={sc.tenisLabel}>
-                          <select value={form.tamanho_tenis} onChange={field('tamanho_tenis')} className={`${INPUT} appearance-none px-3`}>
-                            <option value="">—</option>
-                            {sc.tenisOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
+                          <SizeChips options={sc.tenisOpts} value={form.tamanho_tenis} onChange={v => setForm(f => ({ ...f, tamanho_tenis: v }))} />
                         </Field>
                       )}
                     </div>
@@ -1302,28 +1325,19 @@ export default function ClientesClient({
                     {(() => {
                       const sc = sizeConfig(depForm.genero, lojaConfig)
                       return (
-                        <div className={`grid gap-2 ${sc.showTenis ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                        <div className="flex flex-col gap-2">
                           <div className="flex flex-col gap-1">
                             <label className="text-xs text-zinc-400">{sc.topLabel}</label>
-                            <select value={depForm.tamanho_camiseta} onChange={e => setDepForm(f => ({ ...f, tamanho_camiseta: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
-                              <option value="">—</option>
-                              {sc.topOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <SizeChips small options={sc.topOpts} value={depForm.tamanho_camiseta} onChange={v => setDepForm(f => ({ ...f, tamanho_camiseta: v }))} />
                           </div>
                           <div className="flex flex-col gap-1">
                             <label className="text-xs text-zinc-400">{sc.calcaLabel}</label>
-                            <select value={depForm.tamanho_calca} onChange={e => setDepForm(f => ({ ...f, tamanho_calca: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
-                              <option value="">—</option>
-                              {sc.calcaOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <SizeChips small options={sc.calcaOpts} value={depForm.tamanho_calca} onChange={v => setDepForm(f => ({ ...f, tamanho_calca: v }))} />
                           </div>
                           {sc.showTenis && (
                             <div className="flex flex-col gap-1">
                               <label className="text-xs text-zinc-400">{sc.tenisLabel}</label>
-                              <select value={depForm.tamanho_tenis} onChange={e => setDepForm(f => ({ ...f, tamanho_tenis: e.target.value }))} className={`${INPUT} appearance-none px-2 text-xs`}>
-                                <option value="">—</option>
-                                {sc.tenisOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                              </select>
+                              <SizeChips small options={sc.tenisOpts} value={depForm.tamanho_tenis} onChange={v => setDepForm(f => ({ ...f, tamanho_tenis: v }))} />
                             </div>
                           )}
                         </div>
