@@ -6,6 +6,7 @@ import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { situacaoFinanceira } from '@/lib/agentes/financeiro'
 import { diagnosticoCompleto, clientesPorMarca } from '@/lib/agentes/analitico'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
+import { previewLembrete, enviarLembretes } from '@/lib/agentes/lembrete'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -206,6 +207,7 @@ Tipos de operação disponíveis:
 - "atualizar_genero_clientes" → infere gênero (M/F) dos clientes pelo nome usando IA
 - "atualizar_genero_produtos" → define gênero (M/F/U/I) nos produtos de marcas específicas. Use "genero": "M" para Masculino, "F" para Feminino, "U" para Unissex, "I" para Infantil.
 - "corrigir_categorias" → analisa o nome de todos os produtos e corrige a categoria (camiseta, blusa, camisa, polo, regata, calca, bermuda, tenis, chinelo, outros) onde estiver errada
+- "lembrete_nao_respondeu" → manda um lembrete gentil SÓ para os clientes da campanha de cadastro que receberam a mensagem mas não responderam. Use quando o dono pedir "lembrete/cobra/reenvia pra quem não respondeu".
 
 Para CONSULTAR CLIENTES POR MARCA (lista completa e confiável):
 {
@@ -292,7 +294,16 @@ REGRAS:
   if (parsed.operacao && !parsed.tarefa) {
     const op = parsed.operacao
 
-    if (op.tipo === 'atualizar_genero_clientes') {
+    if (op.tipo === 'lembrete_nao_respondeu') {
+      const { total, nomes } = await previewLembrete(admin, user.id)
+      if (total === 0) {
+        parsed.resposta = 'Boa notícia: todo mundo da campanha de cadastro já respondeu! Não há ninguém pendente. 🎉'
+        parsed.operacao = null
+      } else {
+        const amostra = nomes.join(', ')
+        parsed.resposta = `Encontrei ${total} cliente(s) que receberam a mensagem mas não responderam: ${amostra}${total > nomes.length ? `... e mais ${total - nomes.length}` : ''}\n\nVou mandar um lembrete gentil pra cada um. Confirma?`
+      }
+    } else if (op.tipo === 'atualizar_genero_clientes') {
       const { data: semGeneroClientes } = await admin
         .from('clientes').select('id, nome')
         .eq('user_id', user.id).is('genero', null).limit(200)
@@ -452,6 +463,11 @@ export async function PUT(request: NextRequest) {
   if (operacao) {
     type PreviewItem = { id: string; nome: string; genero_sugerido?: string; genero_novo?: string }
     const preview: PreviewItem[] = operacao.preview ?? []
+
+    if (operacao.tipo === 'lembrete_nao_respondeu') {
+      const enviados = await enviarLembretes(admin, user.id)
+      return NextResponse.json({ ok: true, total: enviados, resposta: `✅ Lembrete enviado para ${enviados} cliente(s) que não tinham respondido. Quando responderem, o cadastro continua sozinho.` })
+    }
 
     if (operacao.tipo === 'atualizar_genero_clientes') {
       let itens = preview
