@@ -31,14 +31,30 @@ function norm(t: unknown): string {
   return String(t ?? '').trim().toUpperCase().replace(/\s/g, '')
 }
 
-/* Expande um tamanho em TODAS as suas formas equivalentes.
-   "40" → ["40", "M"]  |  "M" → ["M", "40", "42"] */
+/* Quebra um valor que pode conter DOIS tamanhos ("38 e 40", "38/40",
+   "38 ou 40", "38,40") numa lista de tamanhos individuais normalizados. */
+export function separarTamanhos(valor: unknown): string[] {
+  return String(valor ?? '')
+    .replace(/\b(e|ou)\b/gi, '/')
+    .split(/[\/,;\s]+/)
+    .map(p => norm(p))
+    .filter(p => p && p !== 'E' && p !== 'OU')
+}
+
+/* Junta dois tamanhos no formato canônico de armazenamento: "38/40" */
+export function juntarTamanhos(valor: unknown): string {
+  return separarTamanhos(valor).join('/')
+}
+
+/* Expande um tamanho (ou par "38/40") em TODAS as formas equivalentes.
+   "40" → ["40","M"]  |  "M" → ["M","40","42"]  |  "38/40" → ["38","P","40","M"] */
 export function expandirTamanho(tamanho: unknown): string[] {
-  const t = norm(tamanho)
-  if (!t) return []
-  const set = new Set<string>([t])
-  if (NUM_PARA_LETRA[t]) set.add(NUM_PARA_LETRA[t])
-  if (LETRA_PARA_NUMS[t]) for (const n of LETRA_PARA_NUMS[t]) set.add(n)
+  const set = new Set<string>()
+  for (const t of separarTamanhos(tamanho)) {
+    set.add(t)
+    if (NUM_PARA_LETRA[t]) set.add(NUM_PARA_LETRA[t])
+    if (LETRA_PARA_NUMS[t]) for (const n of LETRA_PARA_NUMS[t]) set.add(n)
+  }
   return [...set]
 }
 

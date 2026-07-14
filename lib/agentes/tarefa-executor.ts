@@ -1,6 +1,7 @@
 import { after } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { sendWhatsAppMessage, donoAssumiuConversa } from '@/lib/whatsapp'
+import { juntarTamanhos } from '@/lib/tamanhos'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -150,6 +151,7 @@ ${temAConfirmar ? `- Há dados do cadastro a CONFIRMAR (nascimento/tamanhos). Co
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
 - O contato pode responder mais de um dado numa mensagem só — capture todos
 ${regrasGenero}
+- O contato pode informar DOIS tamanhos (ex: "visto 38 e 40", "M ou G"). Nesse caso capture os dois juntos no formato "38/40" ou "M/G"
 - Se o contato disser que não usa ou não quer informar um campo (calça, tênis...), preencha esse campo com "recusado" em dados_novos e siga pro próximo
 - Ao coletar o ÚLTIMO dado: marque concluido: true E envie proxima_mensagem agradecendo e encerrando, SEMPRE com o primeiro nome do contato (nunca só emoji). Exemplo: "Perfeito, ${nomeContato}! Anotei tudo aqui, cadastro atualizado ✅ Obrigado pela atenção! Qualquer coisa é só chamar 😊"
 - Depois de concluído (histórico já tem o agradecimento final), se o contato mandar mais alguma mensagem: responda educadamente sem fazer novas perguntas
@@ -305,9 +307,10 @@ ${regrasGenero}
       const tc = camposCamiseta.map(c => fonte[c]).find(v => util(v))
       const tca = camposCalca.map(c => fonte[c]).find(v => util(v))
       const tte = camposTenis.map(c => fonte[c]).find(v => util(v))
-      if (tc && !update.tamanho_camiseta) update.tamanho_camiseta = String(tc)
-      if (tca && !update.tamanho_calca) update.tamanho_calca = String(tca)
-      if (tte && !update.tamanho_tenis) update.tamanho_tenis = String(tte)
+      /* juntarTamanhos normaliza "38 e 40" → "38/40" */
+      if (tc && !update.tamanho_camiseta) update.tamanho_camiseta = juntarTamanhos(tc) || String(tc)
+      if (tca && !update.tamanho_calca) update.tamanho_calca = juntarTamanhos(tca) || String(tca)
+      if (tte && !update.tamanho_tenis) update.tamanho_tenis = juntarTamanhos(tte) || String(tte)
     }
     if (Object.keys(update).length > 0) {
       await admin.from('clientes').update(update).eq('id', clienteAlvoId)
