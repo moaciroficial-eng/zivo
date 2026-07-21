@@ -215,6 +215,10 @@ export default function EstoqueFormPage({
   const [photoLoading, setPhotoLoading] = useState(false)
   /* Produto novo ainda não tem id: a foto capturada fica aqui e sobe ao salvar */
   const [pendingFoto, setPendingFoto] = useState<File | null>(null)
+  /* Detecção de duplicado: se o produto já existe no estoque, em vez de
+     criar outro, some o tamanho novo no que já tem. */
+  const [existente, setExistente] = useState<{ id: string; nome: string; tamanhos: TamanhoQtd[] } | null>(null)
+  const [criarNovoMesmo, setCriarNovoMesmo] = useState(false)
   const photoInputRef   = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -224,6 +228,38 @@ export default function EstoqueFormPage({
     })
     if (hasScanParams) showToast('Etiqueta escaneada com sucesso!')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Detecta se esse produto JÁ existe no estoque (só em cadastro novo).
+     Casa por código de barras; senão por modelo + marca + cor. */
+  useEffect(() => {
+    if (produto || criarNovoMesmo) return
+    const nome = form.nome.trim()
+    const codigo = form.codigo_produto.trim()
+    if (!nome && !codigo) { setExistente(null); return }
+
+    const t = setTimeout(async () => {
+      const { data: todos } = await supabase
+        .from('estoque').select('id, nome, marca, cor, codigo_produto, tamanhos').eq('user_id', user.id)
+      const lista = (todos ?? []) as { id: string; nome: string; marca: string | null; cor: string | null; codigo_produto: string | null; tamanhos: TamanhoQtd[] }[]
+
+      let match: typeof lista[number] | undefined
+      if (codigo) {
+        match = lista.find(p => (p.codigo_produto ?? '').trim() === codigo)
+      }
+      if (!match && nome) {
+        const modelo = extractModeloLocal(nome).toLowerCase()
+        const marca = form.marca.trim().toLowerCase()
+        const cor = form.cor.trim().toLowerCase()
+        match = lista.find(p =>
+          extractModeloLocal(p.nome).toLowerCase() === modelo &&
+          (p.marca ?? '').toLowerCase() === marca &&
+          (cor ? (p.cor ?? '').toLowerCase() === cor : true)
+        )
+      }
+      setExistente(match ? { id: match.id, nome: match.nome, tamanhos: (match.tamanhos as TamanhoQtd[]) ?? [] } : null)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [form.nome, form.codigo_produto, form.marca, form.cor, produto, criarNovoMesmo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!produto) return
@@ -446,9 +482,28 @@ export default function EstoqueFormPage({
     }
 
     let prodId = produto?.id ?? null
+    let alvoNome = payload.nome
+
     if (produto) {
       const { error } = await supabase.from('estoque').update(payload).eq('id', produto.id)
       if (error) { setFormError(error.message); setSaving(false); return }
+    } else if (existente && !criarNovoMesmo) {
+      /* Produto já existe: soma os tamanhos deste cadastro no que já tem
+         (não duplica — só deixa o tamanho disponível). */
+      const merge: TamanhoQtd[] = (existente.tamanhos ?? []).map(t => ({ ...t }))
+      for (const nova of tamanhosFinal) {
+        const ix = merge.findIndex(m => String(m.tamanho).toLowerCase() === String(nova.tamanho).toLowerCase())
+        if (ix >= 0) merge[ix].qtd = (Number(merge[ix].qtd) || 0) + (Number(nova.qtd) || 0)
+        else merge.push({ ...nova })
+      }
+      /* atualiza tamanhos; preenche preço se o existente estiver sem */
+      const upd: Record<string, unknown> = { tamanhos: merge }
+      if (payload.preco_venda != null) upd.preco_venda = payload.preco_venda
+      if (payload.preco_custo != null) upd.preco_custo = payload.preco_custo
+      const { error } = await supabase.from('estoque').update(upd).eq('id', existente.id)
+      if (error) { setFormError(error.message); setSaving(false); return }
+      prodId = existente.id
+      alvoNome = existente.nome
     } else {
       const { data: novo, error } = await supabase.from('estoque')
         .insert({ ...payload, user_id: user.id }).select('id').single()
@@ -458,7 +513,7 @@ export default function EstoqueFormPage({
 
     /* Sobe a foto capturada no cadastro novo, já com o id do produto */
     if (pendingFoto && prodId) {
-      try { await uploadFotoParaProduto(pendingFoto, prodId, payload.nome, payload.marca) }
+      try { await uploadFotoParaProduto(pendingFoto, prodId, alvoNome, payload.marca) }
       catch { /* não bloqueia o salvamento do produto */ }
     }
 
@@ -566,6 +621,33 @@ export default function EstoqueFormPage({
               )}
               {!fotoUrl && <p className="text-xs text-zinc-600 text-center">Vinculada automaticamente a todas as variações do modelo</p>}
             </div>
+
+          {/* Produto já existe no estoque → some o tamanho em vez de duplicar */}
+          {!produto && existente && !criarNovoMesmo && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex flex-col gap-2">
+              <div className="flex items-start gap-2">
+                <span className="text-lg">🔁</span>
+                <div className="text-sm text-amber-200/90">
+                  <span className="font-semibold">Esse produto já está no estoque.</span> Em vez de duplicar, vou <span className="font-semibold">adicionar o tamanho</span> que você está cadastrando nele.
+                  {existente.tamanhos.length > 0 && (
+                    <div className="mt-1 text-xs text-amber-200/70">
+                      Hoje tem: {existente.tamanhos.map(t => `${t.tamanho}(${t.qtd})`).join('  ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button type="button" onClick={() => setCriarNovoMesmo(true)}
+                className="self-start text-xs text-zinc-400 hover:text-zinc-200 underline cursor-pointer">
+                É outro produto — criar separado
+              </button>
+            </div>
+          )}
+          {!produto && criarNovoMesmo && (
+            <button type="button" onClick={() => setCriarNovoMesmo(false)}
+              className="text-xs text-amber-400 hover:text-amber-300 underline cursor-pointer self-start">
+              ↩ Voltar a juntar no produto existente
+            </button>
+          )}
 
           {/* Tabs */}
           <div className="flex gap-1 p-1 bg-zinc-800/60 border border-zinc-700/60 rounded-xl">
@@ -801,7 +883,7 @@ export default function EstoqueFormPage({
               disabled={saving}
               className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-3 transition cursor-pointer"
             >
-              {saving ? 'Salvando...' : produto ? 'Salvar Alterações' : 'Adicionar Produto'}
+              {saving ? 'Salvando...' : produto ? 'Salvar Alterações' : (existente && !criarNovoMesmo) ? 'Adicionar tamanho ao existente' : 'Adicionar Produto'}
             </button>
           </div>
 
