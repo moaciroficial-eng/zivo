@@ -300,12 +300,14 @@ export default function EstoqueFormPage({
     if (!variantIds.includes(prodId)) variantIds.push(prodId)
 
     if (fotoId) {
-      await supabase.from('biblioteca_fotos')
+      const { error } = await supabase.from('biblioteca_fotos')
         .update({ url: publicUrl, storage_path: path, estoque_ids: variantIds }).eq('id', fotoId)
+      if (error) throw new Error(error.message)
     } else {
-      const { data: newFoto } = await supabase.from('biblioteca_fotos').insert({
+      const { data: newFoto, error } = await supabase.from('biblioteca_fotos').insert({
         user_id: user.id, url: publicUrl, storage_path: path, modelo, marca: prodMarca, estoque_ids: variantIds,
       }).select('id').maybeSingle()
+      if (error) throw new Error(error.message)
       if (newFoto) setFotoId(newFoto.id)
     }
     setFotoUrl(publicUrl)
@@ -513,8 +515,14 @@ export default function EstoqueFormPage({
 
     /* Sobe a foto capturada no cadastro novo, já com o id do produto */
     if (pendingFoto && prodId) {
-      try { await uploadFotoParaProduto(pendingFoto, prodId, alvoNome, payload.marca) }
-      catch { /* não bloqueia o salvamento do produto */ }
+      try {
+        await uploadFotoParaProduto(pendingFoto, prodId, alvoNome, payload.marca)
+      } catch (e) {
+        /* produto já foi salvo — mostra o erro da foto em vez de sumir com ele */
+        setFormError(`Produto salvo, mas a foto falhou: ${e instanceof Error ? e.message : 'erro'}`)
+        setSaving(false)
+        return
+      }
     }
 
     router.push('/estoque')
