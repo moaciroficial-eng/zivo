@@ -213,6 +213,8 @@ export default function EstoqueFormPage({
   const [fotoId, setFotoId] = useState<string | null>(null)
   const [fotoStoragePath, setFotoStoragePath] = useState<string | null>(null)
   const [photoLoading, setPhotoLoading] = useState(false)
+  /* Produto novo ainda não tem id: a foto capturada fica aqui e sobe ao salvar */
+  const [pendingFoto, setPendingFoto] = useState<File | null>(null)
   const photoInputRef   = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -239,48 +241,54 @@ export default function EstoqueFormPage({
       })
   }, [produto?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* Sobe a foto pro storage e vincula ao produto (e às variações do modelo).
+     Usado tanto na edição (produto já existe) quanto no cadastro novo
+     (chamado depois de salvar, com o id recém-criado). */
+  async function uploadFotoParaProduto(file: File, prodId: string, prodNome: string, prodMarca: string | null) {
+    const compressed = await compressImageLocal(file)
+    const path = `${user.id}/${Date.now()}.jpg`
+
+    if (fotoStoragePath) await supabase.storage.from('biblioteca').remove([fotoStoragePath])
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('biblioteca').upload(path, compressed, { contentType: 'image/jpeg' })
+    if (uploadError) throw new Error(uploadError.message)
+
+    const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(uploadData.path)
+
+    const modelo = extractModeloLocal(prodNome)
+    const { data: allEstoque } = await supabase.from('estoque').select('id, nome').eq('user_id', user.id)
+    const variantIds = (allEstoque ?? [])
+      .filter(v => extractModeloLocal(v.nome).toLowerCase() === modelo.toLowerCase())
+      .map(v => v.id)
+    if (!variantIds.includes(prodId)) variantIds.push(prodId)
+
+    if (fotoId) {
+      await supabase.from('biblioteca_fotos')
+        .update({ url: publicUrl, storage_path: path, estoque_ids: variantIds }).eq('id', fotoId)
+    } else {
+      const { data: newFoto } = await supabase.from('biblioteca_fotos').insert({
+        user_id: user.id, url: publicUrl, storage_path: path, modelo, marca: prodMarca, estoque_ids: variantIds,
+      }).select('id').maybeSingle()
+      if (newFoto) setFotoId(newFoto.id)
+    }
+    setFotoUrl(publicUrl)
+    setFotoStoragePath(path)
+    return variantIds.length
+  }
+
   async function handlePhotoUpload(file: File) {
-    if (!produto) return
+    /* Produto novo: guarda a foto e mostra preview; sobe ao salvar */
+    if (!produto) {
+      setPendingFoto(file)
+      setFotoUrl(URL.createObjectURL(file))
+      showToast('Foto pronta — será salva junto com o produto 📸')
+      return
+    }
     setPhotoLoading(true)
     try {
-      const compressed = await compressImageLocal(file)
-      const path = `${user.id}/${Date.now()}.jpg`
-
-      if (fotoStoragePath) await supabase.storage.from('biblioteca').remove([fotoStoragePath])
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('biblioteca')
-        .upload(path, compressed, { contentType: 'image/jpeg' })
-      if (uploadError) throw new Error(uploadError.message)
-
-      const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(uploadData.path)
-
-      const modelo = extractModeloLocal(produto.nome)
-      const { data: allEstoque } = await supabase.from('estoque').select('id, nome').eq('user_id', user.id)
-      const variantIds = (allEstoque ?? [])
-        .filter(v => extractModeloLocal(v.nome).toLowerCase() === modelo.toLowerCase())
-        .map(v => v.id)
-      if (!variantIds.includes(produto.id)) variantIds.push(produto.id)
-
-      if (fotoId) {
-        await supabase.from('biblioteca_fotos')
-          .update({ url: publicUrl, storage_path: path, estoque_ids: variantIds })
-          .eq('id', fotoId)
-      } else {
-        const { data: newFoto } = await supabase.from('biblioteca_fotos').insert({
-          user_id: user.id,
-          url: publicUrl,
-          storage_path: path,
-          modelo,
-          marca: produto.marca,
-          estoque_ids: variantIds,
-        }).select('id').maybeSingle()
-        if (newFoto) setFotoId(newFoto.id)
-      }
-
-      setFotoUrl(publicUrl)
-      setFotoStoragePath(path)
-      showToast(`Foto vinculada a ${variantIds.length} produto(s)!`)
+      const n = await uploadFotoParaProduto(file, produto.id, produto.nome, produto.marca)
+      showToast(`Foto vinculada a ${n} produto(s)!`)
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Erro ao salvar foto', 'error')
     }
@@ -437,11 +445,23 @@ export default function EstoqueFormPage({
       cest: form.cest.trim() || null,
     }
 
-    const { error } = produto
-      ? await supabase.from('estoque').update(payload).eq('id', produto.id)
-      : await supabase.from('estoque').insert({ ...payload, user_id: user.id })
+    let prodId = produto?.id ?? null
+    if (produto) {
+      const { error } = await supabase.from('estoque').update(payload).eq('id', produto.id)
+      if (error) { setFormError(error.message); setSaving(false); return }
+    } else {
+      const { data: novo, error } = await supabase.from('estoque')
+        .insert({ ...payload, user_id: user.id }).select('id').single()
+      if (error) { setFormError(error.message); setSaving(false); return }
+      prodId = novo?.id ?? null
+    }
 
-    if (error) { setFormError(error.message); setSaving(false); return }
+    /* Sobe a foto capturada no cadastro novo, já com o id do produto */
+    if (pendingFoto && prodId) {
+      try { await uploadFotoParaProduto(pendingFoto, prodId, payload.nome, payload.marca) }
+      catch { /* não bloqueia o salvamento do produto */ }
+    }
+
     router.push('/estoque')
   }
 
@@ -503,11 +523,10 @@ export default function EstoqueFormPage({
           </div>
 
           {/* Foto do produto */}
-          {produto && (
-            <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-zinc-300">Foto do produto</label>
-                {fotoUrl && <span className="text-xs text-zinc-600">Salva na Biblioteca</span>}
+                {fotoUrl && <span className="text-xs text-zinc-600">{produto ? 'Salva na Biblioteca' : pendingFoto ? 'Salva ao cadastrar' : ''}</span>}
               </div>
 
               <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -518,7 +537,7 @@ export default function EstoqueFormPage({
               {fotoUrl ? (
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={fotoUrl} alt={produto.nome} className="w-full max-h-56 object-cover rounded-2xl bg-zinc-800" />
+                  <img src={fotoUrl} alt={form.nome || 'produto'} className="w-full max-h-56 object-cover rounded-2xl bg-zinc-800" />
                   {photoLoading && (
                     <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
                       <div className="flex items-center gap-2 text-white text-sm"><IconSpinner /> Salvando...</div>
@@ -547,7 +566,6 @@ export default function EstoqueFormPage({
               )}
               {!fotoUrl && <p className="text-xs text-zinc-600 text-center">Vinculada automaticamente a todas as variações do modelo</p>}
             </div>
-          )}
 
           {/* Tabs */}
           <div className="flex gap-1 p-1 bg-zinc-800/60 border border-zinc-700/60 rounded-xl">
