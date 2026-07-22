@@ -1,9 +1,19 @@
 const INSTANCE     = process.env.ZAPI_INSTANCE_ID
 const TOKEN        = process.env.ZAPI_TOKEN
 const CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN?.replace(/^﻿/, '').trim()
-const BASE         = `https://api.z-api.io/instances/${INSTANCE}/token/${TOKEN}`
 
-type SendOptions = { phone: string; message: string }
+/* Credenciais Z-API por loja (multi-tenant). Se a loja não tiver as
+   próprias, cai no env global (a loja original / Moca). */
+export type ZapiCreds = { instanceId?: string | null; token?: string | null; clientToken?: string | null }
+
+function resolverCreds(creds?: ZapiCreds) {
+  const instance = creds?.instanceId?.trim() || INSTANCE
+  const token = creds?.token?.trim() || TOKEN
+  const clientToken = (creds?.clientToken ?? CLIENT_TOKEN)?.replace(/^﻿/, '').trim()
+  return { instance, token, clientToken }
+}
+
+type SendOptions = { phone: string; message: string; creds?: ZapiCreds }
 
 /* ══════════════════════════════════════════════════════════════
    NORMALIZAÇÃO ÚNICA DE TELEFONE BR — usar SEMPRE que criar/buscar
@@ -21,21 +31,22 @@ export function normalizarTelefoneBR(raw: string): string {
     : with55
 }
 
-export async function sendWhatsAppMessage({ phone, message }: SendOptions): Promise<{ messageId?: string }> {
-  if (!INSTANCE || !TOKEN) {
+export async function sendWhatsAppMessage({ phone, message, creds }: SendOptions): Promise<{ messageId?: string }> {
+  const { instance, token, clientToken } = resolverCreds(creds)
+  if (!instance || !token) {
     throw new Error('Z-API não configurada. Verifique ZAPI_INSTANCE_ID e ZAPI_TOKEN.')
   }
-  if (!CLIENT_TOKEN) {
+  if (!clientToken) {
     throw new Error('Z-API não configurada. Verifique ZAPI_CLIENT_TOKEN.')
   }
 
   const number = normalizarTelefoneBR(phone)
 
-  const res = await fetch(`${BASE}/send-text`, {
+  const res = await fetch(`https://api.z-api.io/instances/${instance}/token/${token}/send-text`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Client-Token': CLIENT_TOKEN,
+      'Client-Token': clientToken,
     },
     body: JSON.stringify({ phone: number, message }),
   })

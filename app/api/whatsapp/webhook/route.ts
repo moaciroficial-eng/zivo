@@ -43,12 +43,16 @@ export async function POST(request: NextRequest) {
 
     const payload = body as Record<string, unknown>
 
-    const userId      = process.env.WHATSAPP_USER_ID
+    /* Multi-tenant: a loja vem na URL do webhook (?loja=<user_id>) —
+       cada loja configura seu webhook Z-API com o próprio id. Fallback
+       pro env WHATSAPP_USER_ID (loja original / Moca). */
+    const userId      = request.nextUrl.searchParams.get('loja')?.trim()
+                       || process.env.WHATSAPP_USER_ID
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!userId || !supabaseUrl || !supabaseKey) {
-      console.warn('Webhook: env vars ausentes')
+      console.warn('Webhook: loja/env ausentes')
       return NextResponse.json({ ok: true })
     }
 
