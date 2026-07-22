@@ -1,4 +1,4 @@
-import type { ZapiCreds } from '@/lib/whatsapp'
+import type { WhatsAppCreds } from '@/lib/whatsapp'
 
 /* ══════════════════════════════════════════════════════════════
    MULTI-TENANT — resolução de loja
@@ -13,7 +13,7 @@ export type Loja = {
   userId: string
   nomeLoja: string
   ownerPhone: string
-  creds: ZapiCreds
+  creds: WhatsAppCreds
   atendimentoAtivo: boolean   // responde cliente automaticamente?
   proativoAtivo: boolean
 }
@@ -25,27 +25,38 @@ type LojaConfigRow = {
   zapi_instance_id: string | null
   zapi_token: string | null
   zapi_client_token: string | null
+  whatsapp_provider: string | null
+  meta_phone_number_id: string | null
+  meta_access_token: string | null
+  meta_waba_id: string | null
   ativo: boolean | null
   proativo_ativo: boolean | null
   processamento_ativo: boolean | null
 }
 
 function mapLoja(c: LojaConfigRow): Loja {
+  const provider = c.whatsapp_provider === 'meta' ? 'meta' : 'zapi'
   return {
     userId: c.user_id,
     nomeLoja: c.nome_loja || 'a loja',
     ownerPhone: (c.owner_phone ?? '').replace(/\D/g, ''),
     creds: {
+      provider,
       instanceId: c.zapi_instance_id,
       token: c.zapi_token,
       clientToken: c.zapi_client_token,
+      meta: {
+        phoneNumberId: c.meta_phone_number_id,
+        accessToken: c.meta_access_token,
+        wabaId: c.meta_waba_id,
+      },
     },
     atendimentoAtivo: c.ativo !== false,
     proativoAtivo: c.proativo_ativo !== false,
   }
 }
 
-const COLS = 'user_id, nome_loja, owner_phone, zapi_instance_id, zapi_token, zapi_client_token, ativo, proativo_ativo, processamento_ativo'
+const COLS = 'user_id, nome_loja, owner_phone, zapi_instance_id, zapi_token, zapi_client_token, whatsapp_provider, meta_phone_number_id, meta_access_token, meta_waba_id, ativo, proativo_ativo, processamento_ativo'
 
 /* Loja original definida por env (retrocompat): usada quando o webhook
    não sabe de qual loja é a mensagem. */
@@ -63,6 +74,17 @@ export async function getLoja(admin: any, userId: string): Promise<Loja | null> 
   /* ownerPhone com fallback pro env (loja original) */
   if (!loja.ownerPhone) loja.ownerPhone = (process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
   return loja
+}
+
+/* Resolve a loja pelo phone_number_id que a Meta manda no webhook
+   (a Meta diz qual dos MEUS números recebeu a mensagem). Fallback pro
+   env WHATSAPP_USER_ID (loja original). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getLojaByMetaPhoneId(admin: any, phoneNumberId: string): Promise<Loja | null> {
+  const { data } = await admin.from('loja_config').select(COLS).eq('meta_phone_number_id', phoneNumberId).maybeSingle()
+  if (data) return mapLoja(data as LojaConfigRow)
+  const uid = lojaOriginalUserId()
+  return uid ? getLoja(admin, uid) : null
 }
 
 /* Todas as lojas com processamento ativo — os crons iteram sobre isso.

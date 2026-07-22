@@ -1,6 +1,6 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { sendWhatsAppMessage, type ZapiCreds } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, type WhatsAppCreds } from '@/lib/whatsapp'
 import { getLoja } from '@/lib/loja'
 
 export async function GET(request: NextRequest) {
@@ -30,10 +30,10 @@ export async function GET(request: NextRequest) {
   let erros = 0
 
   /* Cache de credenciais por loja (fallback env dentro de getLoja/resolverCreds) */
-  const credsCache = new Map<string, ZapiCreds | undefined>()
-  async function credsDaLoja(uid: string): Promise<ZapiCreds | undefined> {
+  const credsCache = new Map<string, WhatsAppCreds | undefined>()
+  async function credsDaLoja(uid: string): Promise<WhatsAppCreds | undefined> {
     if (credsCache.has(uid)) return credsCache.get(uid)
-    let creds: ZapiCreds | undefined
+    let creds: WhatsAppCreds | undefined
     try { creds = (await getLoja(admin, uid))?.creds } catch { creds = undefined }
     credsCache.set(uid, creds)
     return creds
