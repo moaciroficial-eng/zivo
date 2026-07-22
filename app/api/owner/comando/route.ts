@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, normalizarTelefoneBR } from '@/lib/whatsapp'
 import { gerarRelatorio, diagnosticoCompleto } from '@/lib/agentes/analitico'
 import { situacaoFinanceira, definirMeta } from '@/lib/agentes/financeiro'
 import { planoSemana, analisarCrescimento } from '@/lib/agentes/estrategista'
@@ -228,10 +228,18 @@ Exemplos:
   if (resposta) {
     try {
       await sendWhatsAppMessage({ phone: ownerPhone, message: resposta })
-      /* Salva no histórico do chat */
-      const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
+      /* Salva no histórico do chat.
+         Usa a MESMA normalização do webhook (com o 9º dígito) pra a resposta
+         cair no mesmo contato "Moca (você)" da mensagem recebida — senão o 9
+         faltante separa em duas conversas. */
+      const phone = normalizarTelefoneBR(ownerPhone)
       const { data: contatoDono } = await admin
-        .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
+        .from('whatsapp_contatos')
+        .upsert(
+          { user_id: userId, phone, nome: 'Moca (você)', ultima_mensagem: resposta, ultima_mensagem_at: new Date().toISOString() },
+          { onConflict: 'user_id,phone', ignoreDuplicates: false }
+        )
+        .select('id').single()
       if (contatoDono?.id) {
         const timestamp = new Date().toISOString()
         await admin.from('whatsapp_mensagens').insert({
@@ -240,9 +248,6 @@ Exemplos:
           conteudo: resposta, status: 'enviada', timestamp,
           raw: { origem: 'ia' },
         })
-        await admin.from('whatsapp_contatos').update({
-          ultima_mensagem: resposta, ultima_mensagem_at: timestamp,
-        }).eq('id', contatoDono.id)
       }
     } catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
   }
