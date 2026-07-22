@@ -24,8 +24,9 @@ async function enviarEHistorico(
   clienteId: string,
   phone: string,
   mensagem: string,
+  creds?: import('@/lib/whatsapp').ZapiCreds,
 ) {
-  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem, creds })
 
   const { data: contato } = await admin
     .from('whatsapp_contatos').select('id')
@@ -51,14 +52,22 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const userId = (process.env.WHATSAPP_USER_ID ?? '').replace(/^﻿/, '').trim()
-  if (!userId) return NextResponse.json({ ok: false, error: 'WHATSAPP_USER_ID não configurado' })
-
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  /* Multi-tenant: aniversários de cada loja ativa */
+  const { lojasAtivas } = await import('@/lib/loja')
+  let total = 0
+  for (const loja of await lojasAtivas(admin)) {
+    try { total += await processarAniversarios(admin, loja.userId, loja.creds) } catch { /* segue */ }
+  }
+  return NextResponse.json({ ok: true, enviadas: total })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function processarAniversarios(admin: any, userId: string, creds?: import('@/lib/whatsapp').ZapiCreds): Promise<number> {
   const hoje = new Date()
   const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1)
   const domingo = proximoDomingo(hoje)
@@ -133,7 +142,7 @@ export async function GET(request: NextRequest) {
     /* Dia anterior ao aniversário */
     if (ehAmanha && !cupomRow.msg_pre_enviada) {
       const msg = `Oi ${nome}! Amanhã é seu aniversário e temos um presente pra você 🎁\n\nVocê está ganhando um cupom de *${desconto}% de desconto* válido até ${domingoStr}.\n\nÉ só me chamar aqui e dizer que veio buscar o presente! 😊\n\n${nomeLoja}`
-      await enviarEHistorico(admin, userId, cliente.id, phone, msg)
+      await enviarEHistorico(admin, userId, cliente.id, phone, msg, creds)
       await admin.from('aniversario_cupons').update({ msg_pre_enviada: true }).eq('id', cupomRow.id)
       enviadas++
     }
@@ -141,7 +150,7 @@ export async function GET(request: NextRequest) {
     /* Dia do aniversário */
     if (ehHoje && !cupomRow.msg_dia_enviada) {
       const msg = `Feliz aniversário, ${nome}! 🎉🎂\n\nQue seu dia seja incrível! Lembra do seu cupom de *${desconto}% de desconto*? Válido até ${domingoStr}.\n\nÉ só me chamar 😊\n\n${nomeLoja}`
-      await enviarEHistorico(admin, userId, cliente.id, phone, msg)
+      await enviarEHistorico(admin, userId, cliente.id, phone, msg, creds)
       await admin.from('aniversario_cupons').update({ msg_dia_enviada: true }).eq('id', cupomRow.id)
       enviadas++
     }
@@ -200,13 +209,13 @@ export async function GET(request: NextRequest) {
 
       if (depAmanha) {
         const msg = `Oi ${nomeCliente}! Amanhã é o aniversário do seu ${relacao} ${nomeDepPrimeiro} 🎂\n\nQue tal um presente especial? Use *${desconto}% de desconto* aqui na ${nomeLoja} até ${domingoStr}!\n\nÉ só me chamar 😊`
-        await enviarEHistorico(admin, userId, cliente.id, phone, msg)
+        await enviarEHistorico(admin, userId, cliente.id, phone, msg, creds)
         enviadas++
       }
 
       if (depHoje) {
         const msg = `Oi ${nomeCliente}! Hoje é aniversário do ${relacao} ${nomeDepPrimeiro}! 🎉\n\nVenham comemorar com *${desconto}% de desconto* aqui na ${nomeLoja}, válido até ${domingoStr}!\n\nÉ só me chamar 😊`
-        await enviarEHistorico(admin, userId, cliente.id, phone, msg)
+        await enviarEHistorico(admin, userId, cliente.id, phone, msg, creds)
         enviadas++
       }
     }
@@ -243,10 +252,10 @@ export async function GET(request: NextRequest) {
 
     const nome = cliente.nome?.split(' ')[0] ?? 'você'
     const msg = `Oi ${nome}! Seu cupom de aniversário de *${desconto}% de desconto* vence amanhã ⏰\n\nAinda dá tempo de usar, é só me chamar 😊\n\n${nomeLoja}`
-    await enviarEHistorico(admin, userId, cupom.cliente_id, phone, msg)
+    await enviarEHistorico(admin, userId, cupom.cliente_id, phone, msg, creds)
     await admin.from('aniversario_cupons').update({ msg_lembrete_enviada: true }).eq('id', cupom.id)
     enviadas++
   }
 
-  return NextResponse.json({ ok: true, enviadas })
+  return enviadas
 }

@@ -1,18 +1,30 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { lojasAtivas } from '@/lib/loja'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (process.env.CRON_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-  const userId = process.env.WHATSAPP_USER_ID?.replace(/^﻿/, '').trim()
-  if (!userId) return NextResponse.json({ erro: 'WHATSAPP_USER_ID ausente' })
 
+  /* Multi-tenant: enriquece os insights de cada loja ativa */
+  let totalAtualizados = 0
+  for (const loja of await lojasAtivas(admin)) {
+    try { totalAtualizados += await enriquecerLoja(admin, loja.userId) } catch { /* segue */ }
+  }
+  return NextResponse.json({ ok: true, atualizados: totalAtualizados })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enriquecerLoja(admin: any, userId: string): Promise<number> {
   const agora = new Date()
-  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString()
 
   /* Carrega dados base em paralelo */
   const [{ data: vendas }, { data: estoque }, { data: contatos }] = await Promise.all([
@@ -23,7 +35,9 @@ export async function GET() {
   ])
 
   const estoqueMap = new Map<string, string>(
-    (estoque ?? []).filter(e => e.id && e.marca).map(e => [e.id, e.marca])
+    ((estoque ?? []) as { id: string; marca: string }[])
+      .filter(e => e.id && e.marca)
+      .map(e => [e.id, e.marca] as [string, string])
   )
 
   /* Agrupa vendas por cliente_id */
@@ -79,7 +93,8 @@ export async function GET() {
     const tendencia = mediaRecente > mediaAntiga * 1.1 ? 'crescendo' : mediaRecente < mediaAntiga * 0.9 ? 'caindo' : 'estavel'
 
     /* Upsert no contato vinculado */
-    const contatoVinculado = (contatos ?? []).find(c => c.cliente_id === clienteId)
+    const contatoVinculado = ((contatos ?? []) as { id: string; cliente_id: string | null; phone: string }[])
+      .find(c => c.cliente_id === clienteId)
     if (!contatoVinculado) continue
 
     await admin.from('contato_insights').upsert({
@@ -103,5 +118,5 @@ export async function GET() {
     atualizados++
   }
 
-  return NextResponse.json({ ok: true, atualizados })
+  return atualizados
 }

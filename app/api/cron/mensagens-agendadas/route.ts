@@ -1,6 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, type ZapiCreds } from '@/lib/whatsapp'
+import { getLoja } from '@/lib/loja'
 
 export async function GET(request: NextRequest) {
   /* Só a Vercel (cron) pode chamar quando CRON_SECRET está configurado */
@@ -27,6 +28,16 @@ export async function GET(request: NextRequest) {
 
   let enviadas = 0
   let erros = 0
+
+  /* Cache de credenciais por loja (fallback env dentro de getLoja/resolverCreds) */
+  const credsCache = new Map<string, ZapiCreds | undefined>()
+  async function credsDaLoja(uid: string): Promise<ZapiCreds | undefined> {
+    if (credsCache.has(uid)) return credsCache.get(uid)
+    let creds: ZapiCreds | undefined
+    try { creds = (await getLoja(admin, uid))?.creds } catch { creds = undefined }
+    credsCache.set(uid, creds)
+    return creds
+  }
 
   for (const msg of pendentes) {
     try {
@@ -60,7 +71,8 @@ export async function GET(request: NextRequest) {
 
       if (!mensagem) continue
 
-      const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
+      const creds = await credsDaLoja(msg.user_id)
+      const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem, creds })
 
       /* Salva mensagem no histórico */
       const { data: contatoCompleto } = await admin

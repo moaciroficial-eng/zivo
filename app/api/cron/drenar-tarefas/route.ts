@@ -1,6 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { varrerConversasPendentes } from '@/lib/agentes/varredura'
+import { lojasAtivas } from '@/lib/loja'
 
 export const maxDuration = 60
 
@@ -12,14 +13,15 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const userId = (process.env.WHATSAPP_USER_ID ?? '').replace(/^﻿/, '').trim()
-  if (!userId) return NextResponse.json({ ok: false, error: 'WHATSAPP_USER_ID ausente' })
-
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const redisparadas = await varrerConversasPendentes(admin, userId)
-  return NextResponse.json({ ok: true, redisparadas })
+  /* Multi-tenant: drena as conversas de cada loja ativa */
+  let total = 0
+  for (const loja of await lojasAtivas(admin)) {
+    total += await varrerConversasPendentes(admin, loja.userId)
+  }
+  return NextResponse.json({ ok: true, redisparadas: total })
 }

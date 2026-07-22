@@ -22,8 +22,9 @@ async function enviarWpp(
   clienteId: string,
   phone: string,
   mensagem: string,
+  creds?: import('@/lib/whatsapp').ZapiCreds,
 ) {
-  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem, creds })
   const { data: contato } = await admin
     .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
   if (contato?.id) {
@@ -116,14 +117,30 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const userId = (process.env.WHATSAPP_USER_ID ?? '').replace(/^﻿/, '').trim()
-  if (!userId) return NextResponse.json({ ok: false, error: 'WHATSAPP_USER_ID ausente' })
-
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  /* Multi-tenant: roda a inteligência de cada loja ativa */
+  const { lojasAtivas } = await import('@/lib/loja')
+  const resultados: unknown[] = []
+  for (const loja of await lojasAtivas(admin)) {
+    try {
+      resultados.push({ loja: loja.userId, ...(await processarLoja(admin, loja.userId, loja.creds)) })
+    } catch (e) {
+      resultados.push({ loja: loja.userId, ok: false, erro: e instanceof Error ? e.message : 'erro' })
+    }
+  }
+  return NextResponse.json({ ok: true, resultados })
+}
+
+async function processarLoja(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  userId: string,
+  creds?: import('@/lib/whatsapp').ZapiCreds,
+) {
   const hoje = new Date()
   const hojeStr = hoje.toISOString().split('T')[0]
 
@@ -143,9 +160,24 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId),
   ])
 
-  const vendas = todasVendas ?? []
-  const clientes = todosClientes ?? []
-  const estoque = todoEstoque ?? []
+  type VendaRowDb = {
+    id: string; cliente_id: string | null; cliente_nome: string | null
+    valor: number; data_venda: string; produtos: unknown
+    presente: boolean | null; tipo_presente: string | null; presente_tamanho: string | null
+  }
+  type ClienteRowDb = {
+    id: string; nome: string | null; telefone: string | null
+    tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
+    data_nascimento: string | null
+  }
+  type EstoqueRowDb = {
+    id: string; nome: string; marca: string | null; tamanhos: unknown
+    preco_venda: number | null; data_entrada: string | null; categoria: string | null
+  }
+
+  const vendas = (todasVendas ?? []) as VendaRowDb[]
+  const clientes = (todosClientes ?? []) as ClienteRowDb[]
+  const estoque = (todoEstoque ?? []) as EstoqueRowDb[]
 
   /* ── Por cliente: vendas agrupadas ─────────────────────── */
   type VendaRow = typeof vendas[number]
@@ -432,9 +464,9 @@ export async function GET(request: NextRequest) {
       ? `Oi ${nome}! Feliz aniversário! 🎂 Você tem ${descAniv} especial hoje aqui na ${nomeLoja}. Aproveite!`
       : `Oi ${nome}! Seu aniversário tá chegando em ${diasAniv} ${diasAniv === 1 ? 'dia' : 'dias'} 🎉 Passa aqui na ${nomeLoja} e garante ${descAniv} especial pra você.`
 
-    await enviarWpp(admin, userId, cliente.id, contato.phone, msg)
+    await enviarWpp(admin, userId, cliente.id, contato.phone, msg, creds)
     enviadas++
   }
 
-  return NextResponse.json({ ok: true, enviadas, sugeridas, giroMedio })
+  return { ok: true, enviadas, sugeridas, giroMedio }
 }
