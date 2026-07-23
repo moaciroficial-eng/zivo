@@ -59,6 +59,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, fragmento: frag.slice(-8), contatos: linhas })
   }
 
+  /* Config que decide se o atendimento responde */
+  const { data: cfg } = await createClient(url, key)
+    .from('loja_config')
+    .select('ativo, proativo_ativo, horario, endereco, meta_phone_number_id, meta_waba_id')
+    .eq('user_id', uid).maybeSingle()
+
   const diag = {
     ok: true,
     env,
@@ -69,6 +75,13 @@ export async function GET(request: NextRequest) {
       temMetaAccessToken: !!loja.creds.meta?.accessToken,
       temZapiToken: !!loja.creds.token,
       ownerPhoneUltimos4: loja.ownerPhone ? loja.ownerPhone.slice(-4) : null,
+    },
+    atendimento: {
+      ativo: cfg?.ativo,                         // se false → IA fica calada
+      atendimentoAtivo: loja.atendimentoAtivo,
+      temHorario: !!cfg?.horario,
+      metaPhoneNumberId: cfg?.meta_phone_number_id ?? null,
+      metaWabaId: cfg?.meta_waba_id ?? null,
     },
   }
 
