@@ -280,7 +280,7 @@ export default function EstoqueFormPage({
   /* Sobe a foto pro storage e vincula ao produto (e às variações do modelo).
      Usado tanto na edição (produto já existe) quanto no cadastro novo
      (chamado depois de salvar, com o id recém-criado). */
-  async function uploadFotoParaProduto(file: File, prodId: string, prodNome: string, prodMarca: string | null) {
+  async function uploadFotoParaProduto(file: File, prodId: string, prodNome: string, prodMarca: string | null, prodCor: string | null) {
     const compressed = await compressImageLocal(file)
     const path = `${user.id}/${Date.now()}.jpg`
 
@@ -293,9 +293,20 @@ export default function EstoqueFormPage({
     const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(uploadData.path)
 
     const modelo = extractModeloLocal(prodNome)
-    const { data: allEstoque } = await supabase.from('estoque').select('id, nome').eq('user_id', user.id)
+    /* Vincula só às variações do MESMO modelo + MESMA marca + MESMA cor —
+       só os tamanhos variam entre elas. Sem isso:
+       - a foto da "camiseta basica" da Tommy vazava pra da Aramis (mesmo nome)
+       - a foto da Aramis preta vazava pra Aramis branca (mesmo código, cor diferente).
+       Marca/cor vazias casam só com vazias. */
+    const marcaAlvo = (prodMarca ?? '').toLowerCase().trim()
+    const corAlvo = (prodCor ?? '').toLowerCase().trim()
+    const { data: allEstoque } = await supabase.from('estoque').select('id, nome, marca, cor').eq('user_id', user.id)
     const variantIds = (allEstoque ?? [])
-      .filter(v => extractModeloLocal(v.nome).toLowerCase() === modelo.toLowerCase())
+      .filter(v =>
+        extractModeloLocal(v.nome).toLowerCase() === modelo.toLowerCase() &&
+        (v.marca ?? '').toLowerCase().trim() === marcaAlvo &&
+        (v.cor ?? '').toLowerCase().trim() === corAlvo
+      )
       .map(v => v.id)
     if (!variantIds.includes(prodId)) variantIds.push(prodId)
 
@@ -325,10 +336,41 @@ export default function EstoqueFormPage({
     }
     setPhotoLoading(true)
     try {
-      const n = await uploadFotoParaProduto(file, produto.id, produto.nome, produto.marca)
+      const n = await uploadFotoParaProduto(file, produto.id, produto.nome, produto.marca, produto.cor ?? null)
       showToast(`Foto vinculada a ${n} produto(s)!`)
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Erro ao salvar foto', 'error')
+    }
+    setPhotoLoading(false)
+  }
+
+  /* Remove a foto DESTE produto. Se ele era o único vinculado, apaga a
+     foto de vez (storage + registro); senão só desvincula este produto,
+     preservando a foto pras outras variações. Limpa o estado pra que um
+     próximo upload crie uma foto nova em vez de sobrescrever a antiga. */
+  async function removerFoto() {
+    /* Produto novo (foto ainda não salva): só descarta o preview */
+    if (!produto || !fotoId) {
+      setPendingFoto(null)
+      setFotoUrl(null)
+      return
+    }
+    if (!confirm('Remover a foto deste produto?')) return
+    setPhotoLoading(true)
+    try {
+      const { data: f } = await supabase
+        .from('biblioteca_fotos').select('estoque_ids, storage_path').eq('id', fotoId).maybeSingle()
+      const restantes = ((f?.estoque_ids as string[]) ?? []).filter(id => id !== produto.id)
+      if (restantes.length === 0) {
+        if (f?.storage_path) await supabase.storage.from('biblioteca').remove([f.storage_path])
+        await supabase.from('biblioteca_fotos').delete().eq('id', fotoId)
+      } else {
+        await supabase.from('biblioteca_fotos').update({ estoque_ids: restantes }).eq('id', fotoId)
+      }
+      setFotoUrl(null); setFotoId(null); setFotoStoragePath(null); setPendingFoto(null)
+      showToast('Foto removida')
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Erro ao remover foto', 'error')
     }
     setPhotoLoading(false)
   }
@@ -516,7 +558,7 @@ export default function EstoqueFormPage({
     /* Sobe a foto capturada no cadastro novo, já com o id do produto */
     if (pendingFoto && prodId) {
       try {
-        await uploadFotoParaProduto(pendingFoto, prodId, alvoNome, payload.marca)
+        await uploadFotoParaProduto(pendingFoto, prodId, alvoNome, payload.marca, payload.cor ?? null)
       } catch (e) {
         /* produto já foi salvo — mostra o erro da foto em vez de sumir com ele */
         setFormError(`Produto salvo, mas a foto falhou: ${e instanceof Error ? e.message : 'erro'}`)
@@ -607,8 +649,9 @@ export default function EstoqueFormPage({
                     </div>
                   )}
                   <div className="absolute bottom-2.5 right-2.5 flex gap-1.5">
-                    <button onClick={() => photoInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-black/90 transition">Câmera</button>
-                    <button onClick={() => galleryInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-black/90 transition">Galeria</button>
+                    <button type="button" onClick={() => photoInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-black/90 transition">Câmera</button>
+                    <button type="button" onClick={() => galleryInputRef.current?.click()} className="bg-black/70 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-black/90 transition">Galeria</button>
+                    <button type="button" onClick={removerFoto} disabled={photoLoading} className="bg-red-600/80 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg backdrop-blur-sm cursor-pointer hover:bg-red-600 transition disabled:opacity-50">Remover</button>
                   </div>
                 </div>
               ) : (
