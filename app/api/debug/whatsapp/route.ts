@@ -29,6 +29,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, motivo: 'loja não encontrada pelo WHATSAPP_USER_ID', env, detalhe: loja })
   }
 
+  /* ?contatos=<fragmento telefone> → lista contatos que casam + contagem de
+     mensagens de cada um. Revela contato "rachado" (preview num, mensagens
+     noutro). Só dígitos, mostra telefone mascarado. */
+  const frag = request.nextUrl.searchParams.get('contatos')?.replace(/\D/g, '')
+  if (frag) {
+    const admin = createClient(url, key)
+    const { data: contatos } = await admin
+      .from('whatsapp_contatos')
+      .select('id, phone, nome, ultima_mensagem, ultima_mensagem_at')
+      .eq('user_id', uid)
+      .ilike('phone', `%${frag.slice(-8)}%`)
+      .limit(20)
+    const linhas = []
+    for (const c of contatos ?? []) {
+      const { count } = await admin
+        .from('whatsapp_mensagens')
+        .select('id', { count: 'exact', head: true })
+        .eq('contato_id', c.id)
+      linhas.push({
+        contato_id: c.id,
+        phone_mascarado: `...${String(c.phone).slice(-6)}`,
+        nome: c.nome,
+        msgs: count ?? 0,
+        ultima: c.ultima_mensagem?.slice(0, 30),
+        ultima_at: c.ultima_mensagem_at,
+      })
+    }
+    return NextResponse.json({ ok: true, fragmento: frag.slice(-8), contatos: linhas })
+  }
+
   const diag = {
     ok: true,
     env,
