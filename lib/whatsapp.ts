@@ -61,11 +61,40 @@ export function normalizarTelefoneBR(raw: string): string {
     : with55
 }
 
+/* Credenciais da loja original, lidas do banco quem chama não passa as
+   suas. Sem isto, todo handler que envia sem creds caía no Z-API do env
+   — a Z-API aceitava o POST e devolvia OK, então a resposta era gravada
+   no histórico mas NUNCA chegava no WhatsApp (instância desconectada).
+   Cache curto porque isso roda no caminho de cada envio. */
+const CREDS_CACHE_MS = 60_000
+let credsCache: { at: number; creds: WhatsAppCreds | undefined } | null = null
+
+async function credsPadrao(): Promise<WhatsAppCreds | undefined> {
+  if (credsCache && Date.now() - credsCache.at < CREDS_CACHE_MS) return credsCache.creds
+  let creds: WhatsAppCreds | undefined
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const uid = (process.env.WHATSAPP_USER_ID ?? '').replace(/^﻿/, '').trim()
+    if (url && key && uid) {
+      /* import dinâmico: mantém supabase/loja fora de bundle de cliente */
+      const [{ createClient }, { getLoja }] = await Promise.all([
+        import('@supabase/supabase-js'),
+        import('@/lib/loja'),
+      ])
+      creds = (await getLoja(createClient(url, key), uid))?.creds
+    }
+  } catch { creds = undefined }
+  credsCache = { at: Date.now(), creds }
+  return creds
+}
+
 export async function sendWhatsAppMessage({ phone, message, creds }: SendOptions): Promise<{ messageId?: string }> {
-  const provider = creds?.provider || PROVIDER_GLOBAL
+  const efetivas = creds ?? await credsPadrao()
+  const provider = efetivas?.provider || PROVIDER_GLOBAL
   const number = normalizarTelefoneBR(phone)
-  if (provider === 'meta') return sendViaMeta(number, message, creds?.meta)
-  return sendViaZapi(number, message, creds)
+  if (provider === 'meta') return sendViaMeta(number, message, efetivas?.meta)
+  return sendViaZapi(number, message, efetivas)
 }
 
 /* ── Envio via Z-API (gateway não-oficial / legado) ─────────── */
