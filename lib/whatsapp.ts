@@ -160,6 +160,62 @@ async function sendViaMeta(number: string, message: string, meta?: MetaCreds): P
 }
 
 /* ══════════════════════════════════════════════════════════════
+   TEMPLATES (Meta) — abrir conversa FORA da janela de 24h
+
+   A Meta só deixa iniciar conversa (aniversário, campanha, cadastro,
+   reativação) com um template aprovado. As variáveis {{1}}, {{2}}...
+   entram em `variaveis` na ORDEM. Idioma padrão pt_BR (nossos modelos).
+   Só funciona com provider=meta — Z-API não tem template.
+   ══════════════════════════════════════════════════════════════ */
+export type TemplateOptions = {
+  phone: string
+  templateName: string
+  variaveis?: string[]              // preenche {{1}}, {{2}}... na ordem
+  idioma?: string                   // default 'pt_BR'
+  creds?: WhatsAppCreds
+}
+
+export async function sendWhatsAppTemplate(opts: TemplateOptions): Promise<{ messageId?: string }> {
+  const creds = opts.creds ?? await credsPadrao()
+  const { phoneNumberId, accessToken } = resolverMeta(creds?.meta)
+  if (!phoneNumberId || !accessToken) {
+    throw new Error('Meta WhatsApp não configurada — template exige Cloud API oficial.')
+  }
+
+  const number = normalizarTelefoneBR(opts.phone)
+  const componentes = (opts.variaveis && opts.variaveis.length > 0)
+    ? [{ type: 'body', parameters: opts.variaveis.map(v => ({ type: 'text', text: String(v ?? '') })) }]
+    : []
+
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: number,
+      type: 'template',
+      template: {
+        name: opts.templateName,
+        language: { code: opts.idioma ?? 'pt_BR' },
+        ...(componentes.length ? { components: componentes } : {}),
+      },
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Meta template erro ${res.status}: ${body}`)
+  }
+
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
+/* ══════════════════════════════════════════════════════════════
    CONTROLE DE ORIGEM — IA vs humano
 
    Toda mensagem enviada pela IA é gravada com raw.origem = 'ia'.
