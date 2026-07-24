@@ -29,6 +29,7 @@ export type Cliente = {
   dia_pagamento: number | null
   observacoes: string | null
   dependentes: Dependente[] | null
+  saldo_credito?: number | null
   created_at: string
 }
 
@@ -259,6 +260,50 @@ export default function ClientesClient({
   const [addingDep, setAddingDep] = useState(false)
   const [editingDepId, setEditingDepId] = useState<string | null>(null)
   const [depForm, setDepForm] = useState({ nome: '', relacao: '' as Dependente['relacao'] | '', genero: '' as 'M' | 'F' | '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' })
+
+  /* HAVER (crédito do cliente) — saldo + extrato + lançamento manual */
+  type Lancamento = { id: string; valor: number; tipo: string; descricao: string | null; created_at: string }
+  const [haverExtrato, setHaverExtrato] = useState<Lancamento[]>([])
+  const [haverAberto, setHaverAberto] = useState(false)
+  const [haverValor, setHaverValor] = useState('')
+  const [haverDesc, setHaverDesc] = useState('')
+  const [haverSalvando, setHaverSalvando] = useState(false)
+
+  async function carregarHaver(clienteId: string) {
+    const { data } = await supabase
+      .from('cliente_creditos')
+      .select('id, valor, tipo, descricao, created_at')
+      .eq('cliente_id', clienteId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    setHaverExtrato((data ?? []) as Lancamento[])
+  }
+
+  /* sinal: +1 adiciona crédito, -1 retira (ex: cliente sacou / usou fora do sistema) */
+  async function lancarHaver(sinal: 1 | -1) {
+    if (!editing) return
+    const bruto = Math.abs(parseFloat(haverValor.replace(',', '.')) || 0)
+    if (bruto <= 0) { showToast('Informe um valor', 'error'); return }
+    setHaverSalvando(true)
+    const valor = sinal * bruto
+    const { error } = await supabase.from('cliente_creditos').insert({
+      user_id: editing.user_id,
+      cliente_id: editing.id,
+      valor,
+      tipo: 'manual',
+      descricao: haverDesc.trim() || (sinal > 0 ? 'Crédito lançado manualmente' : 'Baixa lançada manualmente'),
+    })
+    setHaverSalvando(false)
+    if (error) { showToast(error.message, 'error'); return }
+
+    /* atualiza saldo local (o trigger do banco já recalculou o real) */
+    const novoSaldo = (Number(editing.saldo_credito) || 0) + valor
+    setEditing(c => c ? { ...c, saldo_credito: novoSaldo } : c)
+    setClientes(cs => cs.map(c => c.id === editing.id ? { ...c, saldo_credito: novoSaldo } : c))
+    setHaverValor(''); setHaverDesc('')
+    await carregarHaver(editing.id)
+    showToast(sinal > 0 ? 'Haver adicionado' : 'Haver baixado')
+  }
 
   function field(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -1090,6 +1135,89 @@ export default function ClientesClient({
             {/* Drawer body — aba Cadastro */}
             {(!editing || drawerTab === 'dados') && (
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6 flex flex-col gap-5">
+
+              {/* HAVER — crédito que a loja deve ao cliente (troco não
+                  devolvido, devolução, ajuste). Só em cliente já salvo. */}
+              {editing && (() => {
+                const saldo = Number(editing.saldo_credito) || 0
+                return (
+                  <div className={`rounded-xl border p-3.5 flex flex-col gap-3 ${
+                    saldo > 0 ? 'border-amber-500/40 bg-amber-500/10' : 'border-zinc-800 bg-zinc-900/40'
+                  }`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-zinc-400">Haver (crédito do cliente)</span>
+                        <span className={`text-lg font-bold ${saldo > 0 ? 'text-amber-300' : 'text-zinc-500'}`}>
+                          {saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const abrindo = !haverAberto
+                          setHaverAberto(abrindo)
+                          if (abrindo) carregarHaver(editing.id)
+                        }}
+                        className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white transition cursor-pointer"
+                      >
+                        {haverAberto ? 'Fechar' : 'Lançar / extrato'}
+                      </button>
+                    </div>
+
+                    {haverAberto && (
+                      <div className="flex flex-col gap-3 pt-1 border-t border-zinc-700/60">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <input
+                              type="number" min="0" step="0.01" inputMode="decimal"
+                              value={haverValor}
+                              onChange={e => setHaverValor(e.target.value)}
+                              placeholder="Valor"
+                              className="w-28 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400 text-white"
+                            />
+                            <input
+                              type="text"
+                              value={haverDesc}
+                              onChange={e => setHaverDesc(e.target.value)}
+                              placeholder="Motivo (opcional)"
+                              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400 text-white"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" disabled={haverSalvando} onClick={() => lancarHaver(1)}
+                              className="flex-1 py-2 rounded-lg bg-amber-500 text-zinc-900 text-sm font-semibold hover:bg-amber-400 transition cursor-pointer disabled:opacity-50">
+                              + Adicionar haver
+                            </button>
+                            <button type="button" disabled={haverSalvando || saldo <= 0} onClick={() => lancarHaver(-1)}
+                              className="flex-1 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-sm font-semibold hover:border-zinc-500 hover:text-white transition cursor-pointer disabled:opacity-40">
+                              − Dar baixa
+                            </button>
+                          </div>
+                          <p className="text-xs text-zinc-600">
+                            &quot;Adicionar&quot; para devolução/troco. &quot;Dar baixa&quot; quando você devolveu o dinheiro em espécie.
+                          </p>
+                        </div>
+
+                        {haverExtrato.length > 0 && (
+                          <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto">
+                            {haverExtrato.map(l => (
+                              <div key={l.id} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-zinc-400 truncate">
+                                  {new Date(l.created_at).toLocaleDateString('pt-BR')} · {l.descricao ?? l.tipo}
+                                </span>
+                                <span className={`font-semibold shrink-0 ${Number(l.valor) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {Number(l.valor) > 0 ? '+' : ''}
+                                  {Number(l.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               <Field label="Nome *">
                 <input
