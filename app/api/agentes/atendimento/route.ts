@@ -76,6 +76,20 @@ async function notificarDono(admin: any, userId: string, ownerPhone: string, men
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    return await handleAtendimento(request)
+  } catch (err) {
+    /* Sem isto o erro virava 500 mudo em produção e o cliente ficava sem
+       resposta sem deixar rastro. Agora o motivo aparece no retorno. */
+    console.error('[atendimento] erro fatal:', err)
+    return NextResponse.json({
+      ok: false,
+      erro: err instanceof Error ? err.message : String(err),
+    }, { status: 200 })
+  }
+}
+
+async function handleAtendimento(request: NextRequest) {
   const secret = process.env.WEBHOOK_SECRET
   if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ ok: false }, { status: 401 })
