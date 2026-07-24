@@ -128,7 +128,12 @@ async function handleAtendimento(request: NextRequest) {
   if (!contato) return NextResponse.json({ ok: false })
   if (config?.ativo === false) return NextResponse.json({ ok: true, skipped: 'inativo' })
 
-  const mensagensOrdenadas = (mensagens ?? []).reverse()
+  /* [...] copia ANTES de inverter — .reverse() muta a lista original.
+     Sem a cópia, `mensagens` virava ascendente e a trava anti-duplicidade
+     (mais abaixo) pegava a resposta mais ANTIGA em vez da mais recente,
+     cancelando o envio pra todo cliente que já tinha 2+ respostas. Era o
+     motivo do atendimento nunca responder quem já era cliente. */
+  const mensagensOrdenadas = [...(mensagens ?? [])].reverse()
 
   /* ── HUMANO NO COMANDO: se o dono mandou mensagem manual há pouco
      (pela UI do Zivo ou pelo celular), ele assumiu a conversa — a IA
