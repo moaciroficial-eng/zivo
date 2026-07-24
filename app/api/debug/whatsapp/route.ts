@@ -59,6 +59,47 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, fragmento: frag.slice(-8), contatos: linhas })
   }
 
+  /* ?testar=<fragmento telefone>&msg=<pergunta>
+     Executa o atendimento REAL para esse contato e devolve a resposta crua
+     do endpoint — que já diz o motivo quando ele decide não responder
+     ('inativo', 'throttled', 'dono ativo na conversa', erro de envio...).
+     Sem isso a falha era invisível: tudo acontece em fetch fire-and-forget. */
+  const testar = request.nextUrl.searchParams.get('testar')?.replace(/\D/g, '')
+  if (testar) {
+    const admin = createClient(url, key)
+    const { data: contatos } = await admin
+      .from('whatsapp_contatos')
+      .select('id, phone, nome')
+      .eq('user_id', uid)
+      .ilike('phone', `%${testar.slice(-8)}%`)
+      .limit(1)
+    const alvo = contatos?.[0]
+    if (!alvo) return NextResponse.json({ ok: false, motivo: 'contato não encontrado', fragmento: testar.slice(-8) })
+
+    const msg = request.nextUrl.searchParams.get('msg') || 'que horas vocês abrem?'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
+    let resposta: unknown = null
+    let httpStatus: number | null = null
+    try {
+      const r = await fetch(`${baseUrl}/api/agentes/atendimento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
+        body: JSON.stringify({ contatoId: alvo.id, userId: uid, mensagem: msg }),
+      })
+      httpStatus = r.status
+      resposta = await r.json().catch(() => null)
+    } catch (e) {
+      resposta = { erroFetch: e instanceof Error ? e.message : String(e) }
+    }
+    return NextResponse.json({
+      ok: true,
+      contato: { nome: alvo.nome, phone_mascarado: `...${String(alvo.phone).slice(-6)}` },
+      mensagemTestada: msg,
+      httpStatus,
+      respostaDoAtendimento: resposta,
+    })
+  }
+
   /* Config que decide se o atendimento responde */
   const { data: cfg } = await createClient(url, key)
     .from('loja_config')
