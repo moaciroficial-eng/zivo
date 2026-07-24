@@ -40,7 +40,7 @@ type Caixa = {
 
 type ClienteDependente = { id: string; nome: string; relacao: string; genero: 'M' | 'F'; tamanho_camiseta?: string; tamanho_calca?: string; tamanho_tenis?: string }
 
-type ClienteOption = { id: string; nome: string; dependentes?: ClienteDependente[] }
+type ClienteOption = { id: string; nome: string; dependentes?: ClienteDependente[]; saldo_credito?: number | null }
 
 type TamanhoQtd = { tamanho: string; qtd: number }
 
@@ -310,6 +310,13 @@ export default function VendasClient({
   const [crEntrada, setCrEntrada] = useState('')
   const [crParcelas, setCrParcelas] = useState<number | null>(null)
   const [crDataPrimeira, setCrDataPrimeira] = useState('')
+  /* HAVER (crédito do cliente): sobra do troco que fica guardada,
+     e uso desse saldo numa compra seguinte */
+  const [saldosHaver, setSaldosHaver] = useState<Record<string, number>>(
+    Object.fromEntries((clientes ?? []).map(c => [c.id, Number(c.saldo_credito) || 0]))
+  )
+  const [trocoEmHaver, setTrocoEmHaver] = useState(false)
+  const [usarHaver, setUsarHaver] = useState('')
   const [pagandoParcela, setPagandoParcela] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
   const [clienteDependentes, setClienteDependentes] = useState<ClienteDependente[]>([])
   const [selectedDepId, setSelectedDepId] = useState<string>('')
@@ -411,7 +418,13 @@ export default function VendasClient({
     : 0
 
   const totalSugerido = subtotalProdutos != null ? Math.max(0, subtotalProdutos - descontoVendaAmt) : null
-  const totalFinal = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
+  const totalBruto = totalSugerido != null ? totalSugerido : (parseFloat(form.valor) || 0)
+
+  /* HAVER: saldo do cliente selecionado e quanto dele está sendo usado
+     nesta venda. O total a pagar cai pelo valor usado. */
+  const saldoHaverCliente = form.clienteId ? (saldosHaver[form.clienteId] ?? 0) : 0
+  const haverUsado = Math.min(Math.max(parseFloat(usarHaver) || 0, 0), saldoHaverCliente, totalBruto)
+  const totalFinal = Math.max(0, totalBruto - haverUsado)
 
   const produtosFiltrados: EstoqueFlat[] = (() => {
     if (productSearch.length < 1) return []
@@ -502,6 +515,7 @@ export default function VendasClient({
   function resetPayment() {
     setPagSlots([emptySlot()]); setIsHibrido(false)
     setCrEntrada(''); setCrParcelas(null); setCrDataPrimeira('')
+    setTrocoEmHaver(false); setUsarHaver('')
   }
 
   /* ── Caixa ── */
@@ -708,6 +722,38 @@ export default function VendasClient({
 
     /* Baixa no estoque dos itens vendidos */
     await ajustarEstoque(payload.produtos as Produto[], -1)
+
+    /* ── HAVER (crédito do cliente) ──
+       Lança no livro-razão: o troco que ficou guardado (+) e/ou o saldo
+       que o cliente usou nesta compra (−). O trigger do banco recalcula
+       o saldo do cliente sozinho. */
+    if (payload.cliente_id) {
+      const trocoAtual = pagSlots[0]?.metodo === 'dinheiro' && pagSlots[0]?.recebido
+        ? (parseFloat(pagSlots[0].recebido) || 0) - totalFinal
+        : 0
+      const lancamentos: Record<string, unknown>[] = []
+      if (trocoEmHaver && trocoAtual > 0) {
+        lancamentos.push({
+          user_id: user.id, cliente_id: payload.cliente_id, venda_id: data?.id ?? null,
+          valor: Number(trocoAtual.toFixed(2)), tipo: 'troco',
+          descricao: `Troco não devolvido na venda de ${formatBRL(totalFinal)}`,
+        })
+      }
+      if (haverUsado > 0) {
+        lancamentos.push({
+          user_id: user.id, cliente_id: payload.cliente_id, venda_id: data?.id ?? null,
+          valor: -Number(haverUsado.toFixed(2)), tipo: 'uso',
+          descricao: `Usado na compra de ${formatBRL(totalBruto)}`,
+        })
+      }
+      if (lancamentos.length > 0) {
+        const { error: haverErr } = await supabase.from('cliente_creditos').insert(lancamentos)
+        if (!haverErr) {
+          const delta = lancamentos.reduce((s, l) => s + Number(l.valor), 0)
+          setSaldosHaver(m => ({ ...m, [payload.cliente_id as string]: (m[payload.cliente_id as string] ?? 0) + delta }))
+        }
+      }
+    }
 
     if (fp === 'crediario' && data) {
       const entrada = parseFloat(crEntrada) || 0
@@ -1749,11 +1795,59 @@ export default function VendasClient({
                   </button>
                   <div className="flex-1">
                     <h2 className="font-semibold text-base">Como vai pagar?</h2>
-                    {totalFinal > 0 && <p className="text-sm font-bold text-emerald-400">{formatBRL(totalFinal)}</p>}
+                    {totalFinal > 0 && (
+                      <p className="text-sm font-bold text-emerald-400">
+                        {formatBRL(totalFinal)}
+                        {haverUsado > 0 && (
+                          <span className="ml-2 text-xs font-normal text-amber-300">
+                            (−{formatBRL(haverUsado)} de haver)
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-5">
+
+                  {/* HAVER disponível: abate do total desta compra */}
+                  {saldoHaverCliente > 0 && (
+                    <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-amber-100">
+                          💰 Cliente tem <strong>{formatBRL(saldoHaverCliente)}</strong> em haver
+                        </span>
+                        {haverUsado <= 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setUsarHaver(String(Math.min(saldoHaverCliente, totalBruto).toFixed(2)))}
+                            className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-zinc-900 hover:bg-amber-400 transition cursor-pointer"
+                          >
+                            Usar
+                          </button>
+                        )}
+                      </div>
+                      {haverUsado > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-amber-200/80">Usar nesta compra:</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            max={Math.min(saldoHaverCliente, totalBruto)}
+                            value={usarHaver}
+                            onChange={e => setUsarHaver(e.target.value)}
+                            className="w-24 text-center bg-zinc-800 border border-amber-500/50 rounded-lg text-sm py-1 outline-none focus:border-amber-400 text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setUsarHaver('')}
+                            className="text-xs text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                          >
+                            cancelar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* ── Single mode ── */}
                   {!isHibrido && (() => {
@@ -1811,6 +1905,38 @@ export default function VendasClient({
                             )}
                             {troco !== null && troco < 0 && (
                               <p className="text-sm text-red-400">Valor insuficiente</p>
+                            )}
+
+                            {/* Sem troco na gaveta? Deixa a diferença como
+                                crédito do cliente pra próxima compra. */}
+                            {troco !== null && troco > 0 && (
+                              form.clienteId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setTrocoEmHaver(v => !v)}
+                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition cursor-pointer ${
+                                    trocoEmHaver
+                                      ? 'border-amber-500 bg-amber-500/15'
+                                      : 'border-zinc-700 bg-zinc-800/60 hover:border-zinc-600'
+                                  }`}
+                                >
+                                  <span className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center text-xs font-bold ${
+                                    trocoEmHaver ? 'border-amber-400 bg-amber-400 text-zinc-900' : 'border-zinc-600 text-transparent'
+                                  }`}>✓</span>
+                                  <span className="flex flex-col">
+                                    <span className={`text-sm font-semibold ${trocoEmHaver ? 'text-amber-200' : 'text-zinc-300'}`}>
+                                      Deixar {formatBRL(troco)} em haver
+                                    </span>
+                                    <span className="text-xs text-zinc-500">
+                                      Não dou o troco agora — fica de crédito pro cliente usar depois
+                                    </span>
+                                  </span>
+                                </button>
+                              ) : (
+                                <p className="text-xs text-zinc-600">
+                                  Selecione um cliente acima para poder deixar o troco em haver.
+                                </p>
+                              )
                             )}
                           </div>
                         )}
