@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Produto, TamanhoQtd, NfeGrupoMeta } from '../types'
 import { imageToBase64, fileToBase64Raw } from '../_utils/imageUtils'
+import { extrairTamanhoDoNome } from '@/lib/tamanhos'
 
 /* ── Types ── */
 
@@ -312,7 +313,11 @@ export default function ImportNFeModal({
       cor:            null,
       categoria:      item.categoria,
       manga:          item.categoria === 'camisa' ? item.manga : null,
-      tamanhos:       [{ tamanho: 'UN', qtd: item.qtd }] as TamanhoQtd[],
+      /* A NF-e não tem campo de tamanho — ele vem no fim da descrição
+         ("... C/ CASTOR G"). Antes gravava sempre 'UN', o que criava uma
+         quantidade "solta" que o formulário não mostrava nem deixava
+         apagar. Agora extrai do nome; só cai em 'UN' se não achar. */
+      tamanhos:       [{ tamanho: extrairTamanhoDoNome(item.nome) ?? 'UN', qtd: item.qtd }] as TamanhoQtd[],
       preco_custo:    item.preco_custo,
       preco_venda:    item.preco_venda,
       ncm:            item.ncm,

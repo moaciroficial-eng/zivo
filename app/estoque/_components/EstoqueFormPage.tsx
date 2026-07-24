@@ -851,6 +851,36 @@ export default function EstoqueFormPage({
                       )
                     })}
                   </div>
+
+                  {/* Tamanhos fora do padrão da categoria (ex: 'UN' vindo da
+                      nota fiscal antiga). Sem isto a quantidade ficava presa:
+                      aparecia na lista do estoque mas não dava pra editar. */}
+                  {(() => {
+                    const extras = form.tamanhos.filter(t => !sizeOptions.includes(t.tamanho))
+                    if (extras.length === 0) return null
+                    return (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 flex flex-col gap-2">
+                        <p className="text-xs text-amber-200/80">
+                          ⚠️ Quantidade sem tamanho definido (veio da nota fiscal). Ajuste ou remova, e selecione o tamanho certo acima.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {extras.map(t => (
+                            <div key={t.tamanho} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 border border-amber-500/60 bg-amber-500/10 rounded-lg">
+                              <span className="text-sm font-semibold text-amber-200">{t.tamanho === 'UN' ? 'sem tamanho' : t.tamanho}</span>
+                              <input
+                                type="number" min="0" value={t.qtd}
+                                onChange={e => setTamanhoQtd(t.tamanho, Number(e.target.value))}
+                                onClick={e => e.stopPropagation()}
+                                className="w-12 text-center bg-zinc-800 border border-zinc-600 rounded text-sm py-0.5 outline-none focus:border-amber-400 text-white"
+                              />
+                              <button type="button" onClick={() => toggleTamanho(t.tamanho)} className="p-0.5 text-zinc-500 hover:text-red-400 transition cursor-pointer"><IconX size={13}/></button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   <p className="text-xs text-zinc-600">Clique num tamanho para adicionar, depois defina a quantidade</p>
                 </div>
               )}

@@ -31,6 +31,29 @@ function norm(t: unknown): string {
   return String(t ?? '').trim().toUpperCase().replace(/\s/g, '')
 }
 
+/* Tamanhos reconhecíveis no FINAL do nome de um produto.
+   Ordem importa: os maiores primeiro, senão "XGG" casaria como "G". */
+const SUFIXOS_TAMANHO = [
+  'XXXL', 'XXL', 'XGG', 'PLUS', 'EXTRA', 'GG', 'PP', 'XS', 'XL',
+  'P', 'M', 'G', 'S', 'L',
+  '60', '58', '56', '54', '52', '50', '48', '46', '44', '42', '40', '38', '36', '34', '32',
+]
+
+/* Extrai o tamanho que vem no fim da descrição do produto.
+   A NF-e não traz campo de tamanho — ele vive no fim do nome
+   ("CAMISETA ... C/ CASTOR G" → "G"). Retorna null se não achar,
+   pra quem chama decidir o fallback. */
+export function extrairTamanhoDoNome(nome: unknown): string | null {
+  const limpo = String(nome ?? '').trim().toUpperCase()
+  if (!limpo) return null
+  for (const t of SUFIXOS_TAMANHO) {
+    /* exige separador antes (espaço, hífen ou barra) pra não pegar
+       a última letra de uma palavra ("BASICA" não vira "A") */
+    if (new RegExp(`[\\s\\-/]${t}$`).test(limpo)) return t
+  }
+  return null
+}
+
 /* Quebra um valor que pode conter DOIS tamanhos ("38 e 40", "38/40",
    "38 ou 40", "38,40") numa lista de tamanhos individuais normalizados. */
 export function separarTamanhos(valor: unknown): string[] {
