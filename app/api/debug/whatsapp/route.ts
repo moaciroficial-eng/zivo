@@ -100,6 +100,37 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  /* ?dump=<fragmento telefone> → últimas 15 mensagens do contato
+     (direção, status, trecho) pra ver se a resposta foi gravada e se
+     'enviada' realmente saiu (status) ou ficou presa. */
+  const dump = request.nextUrl.searchParams.get('dump')?.replace(/\D/g, '')
+  if (dump) {
+    const admin = createClient(url, key)
+    const { data: c } = await admin
+      .from('whatsapp_contatos').select('id, phone, nome')
+      .eq('user_id', uid).ilike('phone', `%${dump.slice(-8)}%`).limit(1)
+    const alvo = c?.[0]
+    if (!alvo) return NextResponse.json({ ok: false, motivo: 'contato não encontrado' })
+    const { data: msgs } = await admin
+      .from('whatsapp_mensagens')
+      .select('direcao, conteudo, status, message_id, timestamp, raw')
+      .eq('contato_id', alvo.id)
+      .order('timestamp', { ascending: false })
+      .limit(15)
+    return NextResponse.json({
+      ok: true,
+      contato: { nome: alvo.nome, phone_mascarado: `...${String(alvo.phone).slice(-6)}` },
+      mensagens: (msgs ?? []).map(m => ({
+        dir: m.direcao,
+        status: m.status,
+        temMessageId: !!m.message_id,
+        origem: (m.raw as { origem?: string } | null)?.origem ?? null,
+        quando: m.timestamp,
+        texto: String(m.conteudo ?? '').slice(0, 45),
+      })),
+    })
+  }
+
   /* Config que decide se o atendimento responde */
   const { data: cfg } = await createClient(url, key)
     .from('loja_config')
