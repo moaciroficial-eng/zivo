@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   ] = await Promise.all([
     admin.from('whatsapp_contatos').select('id, nome, phone, funil_etapa, cliente_id').eq('user_id', user.id).limit(1000),
     admin.from('clientes').select('id, nome, telefone, data_nascimento, genero, dependentes').eq('user_id', user.id).limit(1000),
-    admin.from('vendas').select('cliente_id, cliente_nome, produtos').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
+    admin.from('vendas').select('cliente_id, cliente_nome, produtos, valor, data_venda, created_at').eq('user_id', user.id).gte('created_at', inicioMes).limit(500),
     admin.from('estoque').select('id, marca').eq('user_id', user.id).limit(2000),
   ])
 
@@ -160,6 +160,16 @@ export async function POST(request: NextRequest) {
     .sort((a, b) => a.dias - b.dias)
     .map(a => `${a.nome} (${String(a.dd).padStart(2, '0')}/${String(a.mm).padStart(2, '0')}${a.dias === 0 ? ' — HOJE' : ''})`)
 
+  /* Vendas de hoje e do mês (valor + contagem) — pra responder direto
+     "quanto vendi hoje?" sem despejar relatório. */
+  const hojeISO = `${inicioHoje.getFullYear()}-${String(inicioHoje.getMonth() + 1).padStart(2, '0')}-${String(inicioHoje.getDate()).padStart(2, '0')}`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vArr = (vendasMes ?? []) as any[]
+  const vendasHoje = vArr.filter(v => String(v.data_venda ?? v.created_at ?? '').slice(0, 10) === hojeISO)
+  const totalHoje = vendasHoje.reduce((s, v) => s + (Number(v.valor) || 0), 0)
+  const totalMesValor = vArr.reduce((s, v) => s + (Number(v.valor) || 0), 0)
+  const fmtBR = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
   const DATAS_COMEMORATIVAS: { nome: string; mesDia: [number, number]; aprox?: boolean }[] = [
     { nome: 'Dia das Mães', mesDia: [5, 11], aprox: true },
     { nome: 'Dia dos Namorados', mesDia: [6, 12] },
@@ -184,7 +194,13 @@ export async function POST(request: NextRequest) {
 Você faz DUAS coisas: (1) RESPONDE perguntas do dono sobre a loja e (2) EXECUTA comandos/tarefas.
 Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — NUNCA diga que não tem acesso.
 
-Se o dono só PERGUNTA algo (ex: "quem faz aniversário hoje?", "quais datas comemorativas vêm?", "quanto vendi?", "quais clientes gostam de Aramis?"), responda direto e útil no campo "resposta" usando os dados abaixo — sem tarefa nenhuma. Para análise mais profunda, use "consultar_agente". Só monte "tarefa"/"operacao" quando o dono pedir uma AÇÃO (mandar mensagem, atualizar em massa).
+Se o dono só PERGUNTA algo, responda direto no campo "resposta" — sem tarefa nenhuma. Só monte "tarefa"/"operacao" quando o dono pedir uma AÇÃO (mandar mensagem, atualizar em massa).
+
+⚠️ SEJA CURTO E RESPONDA EXATAMENTE O QUE FOI PERGUNTADO. Nada de despejar relatório quando pediram uma coisa só.
+- "quanto vendi hoje?" → responda SÓ com VENDAS DE HOJE (o valor e a quantidade), 1 linha. NÃO use consultar_agente.
+- "quanto vendi esse mês?" → responda SÓ com VENDAS DO MÊS, 1 linha. NÃO use consultar_agente.
+- "quem faz aniversário hoje/essa semana?" → liste só os nomes de ANIVERSARIANTES. Se não tiver ninguém, diga isso.
+- Só use "consultar_agente: financeiro" (relatório completo com mês anterior, variação, projeção) quando o dono PEDIR análise/relatório/comparação — nunca pra um número simples.
 
 MARCAS NO ESTOQUE: ${linhasEstoque}
 TOTAL DE VENDAS NO MÊS: ${totalVendasMes} venda(s)
@@ -193,6 +209,8 @@ TOTAL DE VENDAS NO MÊS: ${totalVendasMes} venda(s)
 PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
 ${listaTodos || '(nenhum cadastrado ainda)'}
 
+VENDAS DE HOJE: R$ ${fmtBR(totalHoje)} (${vendasHoje.length} venda(s))
+VENDAS DO MÊS: R$ ${fmtBR(totalMesValor)} (${vArr.length} venda(s))
 ANIVERSARIANTES (hoje + próximos 7 dias): ${aniversariantes.join(' | ') || '(nenhum)'}
 DATAS COMEMORATIVAS (próximos 60 dias): ${datasProximas.join(' | ') || '(nenhuma)'}
 
