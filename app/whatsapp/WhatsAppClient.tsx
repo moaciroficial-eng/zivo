@@ -70,11 +70,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'chat'>('list')
-  const [connected, setConnected] = useState<boolean | null>(null)
-  const [qrcode, setQrcode] = useState<string | null>(null)
-  const [statusError, setStatusError] = useState<string | null>(null)
-  const [checkingStatus, setCheckingStatus] = useState(false)
-  const [reconnecting, setReconnecting] = useState(false)
+  /* Conexão/QR removidos — Meta oficial não usa QR nem "instância". */
   const [novaConversa, setNovaConversa] = useState(false)
   const [novaSearch, setNovaSearch] = useState('')
   const [novaNumero, setNovaNumero] = useState('')
@@ -115,66 +111,6 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       openContato((novo as Contato).id)
     }
   }
-
-  /* ── Status da conexão WhatsApp ── */
-  async function checkStatus() {
-    setCheckingStatus(true)
-    setStatusError(null)
-    try {
-      const res = await fetch('/api/whatsapp/status')
-      const data = await res.json()
-      setConnected(data.connected)
-      setQrcode(data.qrcode ?? null)
-      if (data.error) setStatusError(data.error)
-    } catch {
-      setConnected(false)
-      setStatusError('Não foi possível contactar o servidor WhatsApp')
-    } finally {
-      setCheckingStatus(false)
-    }
-  }
-
-  async function reconnect() {
-    setReconnecting(true)
-    setStatusError(null)
-    setQrcode(null)
-    try {
-      // Passo 1: deleta e recria a instância
-      const res = await fetch('/api/whatsapp/reconnect', { method: 'POST' })
-      const data = await res.json()
-      if (!data.ok) { setStatusError(data.error ?? 'Erro ao reiniciar instância'); setReconnecting(false); return }
-
-      // Passo 2: polling — tenta buscar o QR de 3 em 3 segundos por até 30s
-      let attempts = 0
-      const maxAttempts = 10
-      const poll = async () => {
-        attempts++
-        try {
-          const r = await fetch('/api/whatsapp/reconnect')
-          const d = await r.json()
-          if (d.qrcode) {
-            setQrcode(d.qrcode)
-            setConnected(false)
-            setReconnecting(false)
-          } else if (attempts < maxAttempts) {
-            setTimeout(poll, 3000)
-          } else {
-            setStatusError('QR code não gerado após 30s. Verifique o servidor Evolution API.')
-            setReconnecting(false)
-          }
-        } catch {
-          setStatusError('Falha ao buscar QR code')
-          setReconnecting(false)
-        }
-      }
-      setTimeout(poll, 3000)
-    } catch {
-      setStatusError('Falha de conexão com o servidor')
-      setReconnecting(false)
-    }
-  }
-
-  useEffect(() => { checkStatus() }, [])
 
   /* Pede permissão de notificação na primeira visita */
   useEffect(() => {
@@ -370,63 +306,15 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   )
 
   return (
-    <div className="flex-1 flex flex-col bg-[#09090b] text-white overflow-hidden">
-
-      {/* ── Painel de status da conexão ── */}
-      {connected === false && (
-        <div className="shrink-0 border-b border-zinc-800 bg-zinc-950 px-4 py-4 flex flex-col items-center gap-3">
-          {qrcode ? (
-            <div className="flex flex-col items-center gap-3">
-              <p className="text-sm font-semibold text-amber-400">Escaneie o QR code com o WhatsApp</p>
-              <img src={qrcode} alt="QR Code WhatsApp" className="w-52 h-52 rounded-xl border border-zinc-700 bg-white p-1" />
-              <div className="flex gap-2">
-                <button onClick={checkStatus} disabled={checkingStatus}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 transition cursor-pointer disabled:opacity-50">
-                  {checkingStatus ? 'Verificando...' : 'Já escaneei ✓'}
-                </button>
-                <button onClick={reconnect} disabled={reconnecting}
-                  className="text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer disabled:opacity-50">
-                  {reconnecting ? 'Gerando...' : 'Novo QR code'}
-                </button>
-              </div>
-              {statusError && <p className="text-xs text-red-400">{statusError}</p>}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
-                <p className="text-sm font-semibold text-red-400">WhatsApp desconectado</p>
-              </div>
-              {statusError && <p className="text-xs text-zinc-500">{statusError}</p>}
-              <div className="flex gap-2 mt-1">
-                <button onClick={reconnect} disabled={reconnecting}
-                  className="text-xs bg-violet-600 hover:bg-violet-500 text-white rounded-lg px-4 py-2 transition cursor-pointer disabled:opacity-50">
-                  {reconnecting ? 'Gerando QR code...' : 'Gerar QR code'}
-                </button>
-                <button onClick={checkStatus} disabled={checkingStatus}
-                  className="text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer disabled:opacity-50">
-                  {checkingStatus ? 'Verificando...' : 'Verificar conexão'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {connected === true && (
-        <div className="shrink-0 border-b border-zinc-800 bg-zinc-950 px-4 py-2 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <p className="text-xs text-emerald-400 font-medium">WhatsApp conectado</p>
-        </div>
-      )}
+    <div className="flex flex-col bg-[#09090b] text-white overflow-hidden h-[calc(100dvh-3.25rem)] lg:h-screen">
 
       {/* ── Body ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* ── Lista de contatos ── */}
         <aside className={`
           ${view === 'chat' ? 'hidden' : 'flex'} md:flex relative
-          flex-col w-full md:w-72 lg:w-80 border-r border-zinc-800 shrink-0 bg-zinc-950
+          flex-col w-full md:w-72 lg:w-80 border-r border-zinc-800 shrink-0 bg-zinc-950 min-h-0
         `}>
           <div className="p-3 border-b border-zinc-800 flex gap-2">
             <input
@@ -556,7 +444,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         </aside>
 
         {/* ── Área de chat ── */}
-        <main className={`${view === 'list' ? 'hidden' : 'flex'} md:flex flex-1 flex-col overflow-hidden`}>
+        <main className={`${view === 'list' ? 'hidden' : 'flex'} md:flex flex-1 flex-col overflow-hidden min-h-0`}>
 
           {/* Empty state */}
           {!selectedContato && (
