@@ -140,10 +140,51 @@ export async function POST(request: NextRequest) {
   const marcasNoEstoque = [...new Set((estoque ?? []).map((e: { marca: string | null }) => e.marca).filter(Boolean))].join(', ')
   const linhasEstoque = marcasNoEstoque || '(nenhuma marca cadastrada)'
 
-  const systemPrompt = `Você é o Gerente IA do Zivo, sistema de gestão de loja de roupas.
-Você recebe comandos do dono da loja e coordena os agentes para executar.
+  /* Aniversariantes (hoje + 7 dias) e datas comemorativas — pro Gerente
+     responder "quem faz aniversário hoje?" e "quais datas vêm?". */
+  const hojeD = new Date()
+  const inicioHoje = new Date(hojeD.getFullYear(), hojeD.getMonth(), hojeD.getDate())
+  const aniversariantes = (clientes ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((c: any) => {
+      if (!c.data_nascimento) return null
+      const p = String(c.data_nascimento).slice(0, 10).split('-').map(Number)
+      const mm = p[1], dd = p[2]
+      if (!mm || !dd) return null
+      let alvo = new Date(hojeD.getFullYear(), mm - 1, dd)
+      if (alvo < inicioHoje) alvo = new Date(hojeD.getFullYear() + 1, mm - 1, dd)
+      const dias = Math.round((alvo.getTime() - inicioHoje.getTime()) / 86400000)
+      return dias <= 7 ? { nome: c.nome as string, dd, mm, dias } : null
+    })
+    .filter((a): a is { nome: string; dd: number; mm: number; dias: number } => !!a)
+    .sort((a, b) => a.dias - b.dias)
+    .map(a => `${a.nome} (${String(a.dd).padStart(2, '0')}/${String(a.mm).padStart(2, '0')}${a.dias === 0 ? ' — HOJE' : ''})`)
+
+  const DATAS_COMEMORATIVAS: { nome: string; mesDia: [number, number]; aprox?: boolean }[] = [
+    { nome: 'Dia das Mães', mesDia: [5, 11], aprox: true },
+    { nome: 'Dia dos Namorados', mesDia: [6, 12] },
+    { nome: 'Dia dos Pais', mesDia: [8, 10], aprox: true },
+    { nome: 'Dia das Crianças', mesDia: [10, 12] },
+    { nome: 'Black Friday', mesDia: [11, 28], aprox: true },
+    { nome: 'Natal', mesDia: [12, 25] },
+    { nome: 'Ano Novo', mesDia: [1, 1] },
+  ]
+  const datasProximas = DATAS_COMEMORATIVAS
+    .map(d => {
+      let alvo = new Date(hojeD.getFullYear(), d.mesDia[0] - 1, d.mesDia[1])
+      if (alvo < inicioHoje) alvo = new Date(hojeD.getFullYear() + 1, d.mesDia[0] - 1, d.mesDia[1])
+      const dias = Math.round((alvo.getTime() - inicioHoje.getTime()) / 86400000)
+      return { nome: d.nome, dias, data: `${String(d.mesDia[1]).padStart(2, '0')}/${String(d.mesDia[0]).padStart(2, '0')}`, aprox: d.aprox }
+    })
+    .filter(d => d.dias <= 60)
+    .sort((a, b) => a.dias - b.dias)
+    .map(d => `${d.nome} (~${d.data}, em ${d.dias}d${d.aprox ? ', data aproximada' : ''})`)
+
+  const systemPrompt = `Você é o Gerente IA do Zivo, o cérebro da loja de roupas — o dono conversa com você.
+Você faz DUAS coisas: (1) RESPONDE perguntas do dono sobre a loja e (2) EXECUTA comandos/tarefas.
 Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — NUNCA diga que não tem acesso.
-Quando precisar de análise mais profunda, indique "consultar_agente" no JSON.
+
+Se o dono só PERGUNTA algo (ex: "quem faz aniversário hoje?", "quais datas comemorativas vêm?", "quanto vendi?", "quais clientes gostam de Aramis?"), responda direto e útil no campo "resposta" usando os dados abaixo — sem tarefa nenhuma. Para análise mais profunda, use "consultar_agente". Só monte "tarefa"/"operacao" quando o dono pedir uma AÇÃO (mandar mensagem, atualizar em massa).
 
 MARCAS NO ESTOQUE: ${linhasEstoque}
 TOTAL DE VENDAS NO MÊS: ${totalVendasMes} venda(s)
@@ -151,6 +192,9 @@ TOTAL DE VENDAS NO MÊS: ${totalVendasMes} venda(s)
 
 PESSOAS DISPONÍVEIS ([WA] = já tem WhatsApp, [CAD] = só no cadastro):
 ${listaTodos || '(nenhum cadastrado ainda)'}
+
+ANIVERSARIANTES (hoje + próximos 7 dias): ${aniversariantes.join(' | ') || '(nenhum)'}
+DATAS COMEMORATIVAS (próximos 60 dias): ${datasProximas.join(' | ') || '(nenhuma)'}
 
 DADOS DA LOJA:
 - Clientes sem data de nascimento: ${semCadastroCompleto}
