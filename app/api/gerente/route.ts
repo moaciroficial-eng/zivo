@@ -7,6 +7,7 @@ import { situacaoFinanceira } from '@/lib/agentes/financeiro'
 import { diagnosticoCompleto, clientesPorMarca } from '@/lib/agentes/analitico'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
 import { previewLembrete, enviarLembretes } from '@/lib/agentes/lembrete'
+import { FERRAMENTAS_CONSULTA, executarConsulta } from '@/lib/agentes/consultas'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -226,6 +227,8 @@ Se o dono só PERGUNTA algo, responda direto no campo "resposta" — sem tarefa 
 - "quem faz aniversário hoje/essa semana?" → liste só os nomes de ANIVERSARIANTES. Se não tiver ninguém, diga isso.
 - Só use "consultar_agente: financeiro" (relatório completo com mês anterior, variação, projeção) quando o dono PEDIR análise/relatório/comparação — nunca pra um número simples.
 
+🔧 FERRAMENTAS DE CONSULTA: você tem consultar_vendas, consultar_clientes e consultar_estoque. Use-as pra BUSCAR o dado real quando a resposta não estiver no contexto acima (ex: vendas de outro mês, maior venda, quantas peças de tal marca/tamanho, clientes VIP/inativos, quem comprou tal marca). NUNCA invente número — se não tá no contexto, consulta. Depois de consultar, responda SEMPRE no JSON, curto e direto.
+
 MARCAS NO ESTOQUE: ${linhasEstoque}
 TOTAL DE VENDAS NO MÊS: ${totalVendasMes} venda(s)
 (Para saber quem comprou uma marca específica, use consultar_agente: "vendas_marca")
@@ -329,16 +332,40 @@ REGRAS:
     { role: 'user' as const, content: mensagem },
   ]
 
-  const res = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1500,
-    /* Prompt caching: o contexto (lista de contatos/clientes) é grande e
-       igual entre mensagens seguidas — leitura em cache custa ~10% */
-    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-    messages,
-  })
+  /* Loop de tool-use: o Gerente pode consultar vendas/clientes/estoque no
+     banco antes de responder. Executa as ferramentas que ele pedir e
+     devolve o resultado, até ele dar a resposta final (JSON). Guarda de
+     segurança em 4 rodadas pra não rodar infinito. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const convo: any[] = [...messages]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let res: any
+  let guard = 0
+  while (true) {
+    res = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      /* Prompt caching: o contexto (lista de contatos/clientes) é grande e
+         igual entre mensagens seguidas — leitura em cache custa ~10% */
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+      tools: FERRAMENTAS_CONSULTA,
+      messages: convo,
+    })
+    if (res.stop_reason !== 'tool_use' || guard++ >= 4) break
+    convo.push({ role: 'assistant', content: res.content })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolResults: any[] = []
+    for (const block of res.content) {
+      if (block.type === 'tool_use') {
+        const resultado = await executarConsulta(admin, user.id, block.name, block.input)
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(resultado) })
+      }
+    }
+    convo.push({ role: 'user', content: toolResults })
+  }
 
-  const text = (res.content[0] as { text: string }).text.trim()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const text = (res.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n')).trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let parsed: any
