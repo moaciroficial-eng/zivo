@@ -49,7 +49,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
   sugestoes: Sugestao[]; agentes: Agente[]; logs: Log[]; userId: string
 }) {
   const supabase = createClient()
-  const [tab, setTab] = useState<'socio' | 'acoes' | 'gerente' | 'aprendizado'>('socio')
+  const [tab, setTab] = useState<'socio' | 'acoes' | 'gerente' | 'aprendizado'>('gerente')
   const [sugestoes, setSugestoes] = useState(initialSugestoes)
   const router = useRouter()
 
@@ -293,10 +293,6 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
       <div className="flex items-center justify-between gap-3 shrink-0">
         <h1 className="text-lg font-bold text-white">IA</h1>
         <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
-          <button className={tabCls('socio')} onClick={() => setTab('socio')}>🧑‍💼 Sócio</button>
-          <button className={tabCls('acoes')} onClick={() => setTab('acoes')}>
-            ⚡ Ações{sugestoes.length > 0 ? ` (${sugestoes.length})` : ''}
-          </button>
           <button className={tabCls('gerente')} onClick={() => setTab('gerente')}>🤖 Gerente</button>
           <button className={tabCls('aprendizado')} onClick={() => setTab('aprendizado')}>🧠</button>
         </div>
