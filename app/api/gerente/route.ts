@@ -170,6 +170,30 @@ export async function POST(request: NextRequest) {
   const totalMesValor = vArr.reduce((s, v) => s + (Number(v.valor) || 0), 0)
   const fmtBR = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+  /* Agregados comuns pro Gerente responder direto (ticket, top clientes,
+     marcas mais vendidas do mês) — sem precisar consultar agente. */
+  const totalClientes = (clientes ?? []).length
+  const ticketMedioMes = vArr.length > 0 ? totalMesValor / vArr.length : 0
+  const porClienteVal = new Map<string, number>()
+  for (const v of vArr) {
+    const n = (v.cliente_nome as string) || 'Avulso'
+    porClienteVal.set(n, (porClienteVal.get(n) ?? 0) + (Number(v.valor) || 0))
+  }
+  const topClientesMes = [...porClienteVal.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([n, val]) => `${n} (R$ ${fmtBR(val)})`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const estoqueMarcaMap = new Map((estoque ?? []).map((e: any) => [e.id, e.marca]))
+  const porMarcaQtd = new Map<string, number>()
+  for (const v of vArr) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of (Array.isArray(v.produtos) ? v.produtos : []) as any[]) {
+      const m = (p.estoque_id && estoqueMarcaMap.get(p.estoque_id)) || null
+      if (m) porMarcaQtd.set(m, (porMarcaQtd.get(m) ?? 0) + 1)
+    }
+  }
+  const topMarcasMes = [...porMarcaQtd.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([m, n]) => `${m} (${n})`)
+
   const DATAS_COMEMORATIVAS: { nome: string; mesDia: [number, number]; aprox?: boolean }[] = [
     { nome: 'Dia das Mães', mesDia: [5, 11], aprox: true },
     { nome: 'Dia dos Namorados', mesDia: [6, 12] },
@@ -211,6 +235,10 @@ ${listaTodos || '(nenhum cadastrado ainda)'}
 
 VENDAS DE HOJE: R$ ${fmtBR(totalHoje)} (${vendasHoje.length} venda(s))
 VENDAS DO MÊS: R$ ${fmtBR(totalMesValor)} (${vArr.length} venda(s))
+TICKET MÉDIO (mês): R$ ${fmtBR(ticketMedioMes)}
+TOTAL DE CLIENTES CADASTRADOS: ${totalClientes}
+TOP CLIENTES DO MÊS (por valor): ${topClientesMes.join(' | ') || '(sem vendas ainda)'}
+MARCAS MAIS VENDIDAS DO MÊS: ${topMarcasMes.join(' | ') || '(sem vendas ainda)'}
 ANIVERSARIANTES (hoje + próximos 7 dias): ${aniversariantes.join(' | ') || '(nenhum)'}
 DATAS COMEMORATIVAS (próximos 60 dias): ${datasProximas.join(' | ') || '(nenhuma)'}
 
