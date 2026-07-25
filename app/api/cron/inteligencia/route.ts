@@ -1,7 +1,6 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { rodarInteligencia } from '@/lib/inteligencia/motor'
-import { enviarResumoDiario } from '@/lib/inteligencia/digest'
 import { lojasAtivas } from '@/lib/loja'
 
 export const maxDuration = 300
@@ -23,17 +22,16 @@ export async function GET(request: NextRequest) {
     headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET ?? ''}` },
   }).catch(() => null)
 
-  /* Multi-tenant: roda o motor + resumo diário para CADA loja ativa */
+  /* Multi-tenant: roda o motor para CADA loja ativa.
+     O motor escreve as sugestões em agente_sugestoes → elas viram os
+     cards da Central de Oportunidades no app. NÃO mandamos mais digest
+     no WhatsApp (o dono usa o zap só pra consultar/comandar). */
   const lojas = await lojasAtivas(admin)
   const resultados: unknown[] = []
   for (const loja of lojas) {
     try {
       const resultado = await rodarInteligencia(admin, loja.userId)
-      let digest = { enviado: false, itens: 0 }
-      if (resultado.ok) {
-        try { digest = await enviarResumoDiario(admin, loja.userId) } catch { /* não derruba */ }
-      }
-      resultados.push({ loja: loja.userId, ...resultado, digest })
+      resultados.push({ loja: loja.userId, ...resultado })
     } catch (e) {
       resultados.push({ loja: loja.userId, ok: false, erro: e instanceof Error ? e.message : 'erro' })
     }
