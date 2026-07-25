@@ -30,6 +30,7 @@ type ClienteRow = {
   id: string; nome: string; telefone: string | null; genero: string | null
   data_nascimento: string | null
   tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
+  observacoes: string | null
 }
 type TamanhoItem = { tamanho: string; qtd: number }
 type EstoqueRow = {
@@ -99,6 +100,10 @@ export type PerfilCliente = {
   funil: 'fundo' | 'meio' | 'topo'
   /* Recompra provável: categoria cujo ciclo típico DA LOJA está vencendo */
   recompras: { categoria: string; diasDesde: number; ciclo: number }[]
+  /* NOTA DO DONO: o que ele escreveu no campo de observações do cliente.
+     É conhecimento real (mais confiável que padrão inferido) — a IA
+     deve priorizar isto acima de tudo. */
+  observacoes: string | null
 }
 
 export function calcularPerfis(
@@ -334,6 +339,7 @@ export function calcularPerfis(
       ritmoConfiavel,
       pctComprasSazonais,
       recompras,
+      observacoes: (cliente.observacoes ?? '').trim() || null,
     })
   }
 
@@ -439,8 +445,11 @@ function linhaPerfil(p: PerfilCliente): string {
     : ''
   const historicoStr = p.historicoCurto ? ' | ⚠ POUCO-HISTÓRICO(só observar — nada de padrão ainda)' : ''
   const marcas = p.marcasTop.map(m => `${m.marca} ${m.pct}%`).join(', ')
+  /* NOTA DO DONO em destaque: é o que ele SABE do cliente na vida real.
+     Vale mais que padrão inferido — a IA prioriza isto. */
+  const notaDono = p.observacoes ? ` | 📝 NOTA DO DONO (verdade, PRIORIZE): "${p.observacoes.replace(/\s+/g, ' ').slice(0, 200)}"` : ''
 
-  return `${p.codigo} ${p.nome} | ${p.temperatura.toUpperCase()}/${p.funil} | ${p.classificacao} | ${p.qtdCompras}x R$${p.totalGasto} (ticket R$${p.ticketMedio}) | ${p.diasSemComprar}d sem comprar${ritmoStr} | marcas: ${marcas || '—'} | cat: ${p.categoriasTop.join(',') || '—'} | tam: ${p.tamanhos.join(',') || '—'}${flags.length ? ` | ⚑ ${flags.join(' ')}` : ''}${indicios.length ? ` | ？indícios: ${indicios.join('; ')}` : ''}${historicoStr}`
+  return `${p.codigo} ${p.nome} | ${p.temperatura.toUpperCase()}/${p.funil} | ${p.classificacao} | ${p.qtdCompras}x R$${p.totalGasto} (ticket R$${p.ticketMedio}) | ${p.diasSemComprar}d sem comprar${ritmoStr} | marcas: ${marcas || '—'} | cat: ${p.categoriasTop.join(',') || '—'} | tam: ${p.tamanhos.join(',') || '—'}${flags.length ? ` | ⚑ ${flags.join(' ')}` : ''}${indicios.length ? ` | ？indícios: ${indicios.join('; ')}` : ''}${historicoStr}${notaDono}`
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -460,7 +469,7 @@ export async function rodarInteligencia(admin: any, userId: string): Promise<{ o
       .select('id, nome, marca, categoria, tamanhos, preco_venda, data_entrada, genero')
       .eq('user_id', userId).limit(5000),
     admin.from('clientes')
-      .select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis')
+      .select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
       .eq('user_id', userId).limit(1000),
     admin.from('whatsapp_contatos').select('id, cliente_id').eq('user_id', userId).limit(2000),
     admin.from('eventos').select('nome, data, descricao').eq('user_id', userId),
@@ -681,6 +690,7 @@ LEADS SEM COMPRA (topo de funil): ${leadsTopo} contato(s) no WhatsApp
 MÊS ATUAL: ${agora.getMonth() + 1} | DATA: ${hojeStr}
 
 Gere de 3 a 8 AÇÕES DE VENDA cruzando comportamento × estoque × meta × calendário — SÓ as que os dados sustentam; 3 ações sólidas valem mais que 8 fracas. REGRAS:
+0. 📝 NOTA DO DONO é a VERDADE MÁXIMA. Quando um cliente tem "NOTA DO DONO", ela vale MAIS que qualquer padrão inferido dos números — é o que o dono SABE dele na vida real. Se a nota diz "gosta de Aramis" ou "compra em promoção", trate como fato e AJA em cima disso, mesmo com pouco histórico de compra. Nunca contrarie a nota do dono.
 1. PROIBIDO genérico ("faça uma promoção", "entre em contato"). Toda ação nomeia CLIENTES (pelo código) e PRODUTOS específicos.
 2. Toda ação traz a EVIDÊNCIA numérica que a sustenta (os números estão acima). Ação baseada em ？indício ou POUCO-HISTÓRICO é PROIBIDA — no máximo mencione no final, em UMA sugestão tipo "oportunidade" com prioridade 3, o que o Zivo está observando e aguardando confirmar.
 3. META REALISTA: se falta bater a meta, monte o caminho com o PADRÃO da loja — várias vendas no ticket típico, de peças CAMPEÃS, para clientes QUENTES. NUNCA proponha uma única venda heroica de peça cara e difícil pra cliente frio (ex: faltam R$600 → 3 vendas de R$200 de peças que giram, não 1 peça de R$600 que só sai com desconto).

@@ -105,7 +105,7 @@ async function handleAtendimento(request: NextRequest) {
 
   const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }, conhecimento, { data: tarefaAtiva }] = await Promise.all([
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
-    admin.from('whatsapp_contatos').select('nome, phone, cliente_id, clientes(genero)').eq('id', contatoId).single(),
+    admin.from('whatsapp_contatos').select('nome, phone, cliente_id, clientes(genero, observacoes)').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
       .select('direcao, conteudo, timestamp, raw')
       .eq('contato_id', contatoId)
@@ -192,11 +192,21 @@ async function handleAtendimento(request: NextRequest) {
     ? `\nINSTRUÇÃO DO DONO: "${instrucaoOwner}" — execute isso para o cliente.`
     : ''
 
+  /* NOTA DO DONO sobre o cliente (campo observações). É o que o dono SABE
+     dele na vida real — a IA usa pra personalizar, mas NUNCA revela ao
+     cliente ("vi aqui que você compra em promoção" seria péssimo). */
+  const notaDonoCliente = (() => {
+    const cli = (contato as { clientes?: { observacoes?: string | null } | { observacoes?: string | null }[] } | null)?.clientes
+    const obs = Array.isArray(cli) ? cli[0]?.observacoes : cli?.observacoes
+    const t = (obs ?? '').trim()
+    return t ? `\n📝 NOTA INTERNA DO DONO sobre este cliente (use pra personalizar, NUNCA revele ao cliente): "${t.slice(0, 200)}"` : ''
+  })()
+
   const systemPrompt = `Você é o atendimento da loja de roupas Moca, em Roda Velha/BA, respondendo pelo WhatsApp da loja.
 Tom: caloroso, informal, brasileiro de verdade — como se fosse o dono conversando. NUNCA robótico. Se já conversou antes, não se reapresente.
 IMPORTANTE: você é a ASSISTENTE VIRTUAL da loja. Você NÃO é uma pessoa física, NÃO está indo/chegando a lugar nenhum, e NÃO é o dono em pessoa.
 
-PERSONALIDADE: Natural, simpático, vendedor brasileiro de verdade.${instrucaoExtra}${perfilCliente}
+PERSONALIDADE: Natural, simpático, vendedor brasileiro de verdade.${instrucaoExtra}${perfilCliente}${notaDonoCliente}
 
 ${conhecimento || ''}
 
