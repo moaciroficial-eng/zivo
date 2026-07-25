@@ -260,6 +260,7 @@ export default function VendasClient({
   caixaAtual,
   historicoCaixas,
   initialCrediarios,
+  marcaPorCliente = {},
 }: {
   user: { id: string; email: string }
   initialVendas: Venda[]
@@ -268,6 +269,7 @@ export default function VendasClient({
   caixaAtual: Caixa | null
   historicoCaixas: Caixa[]
   initialCrediarios: CrediarioItem[]
+  marcaPorCliente?: Record<string, string>
 }) {
   const supabase = createClient()
   const [vendas, setVendas] = useState(initialVendas)
@@ -339,12 +341,13 @@ export default function VendasClient({
     setObsCliente(obsOverrides[c.id] ?? c.observacoes ?? '')
   }
 
-  /* Salva a observação do cliente (na venda). Guarda um override local
-     pra não reler o valor velho do prop na mesma sessão. */
-  async function salvarObsCliente() {
+  /* Salva a observação do cliente (na venda). Aceita o texto explícito
+     (o chip passa o valor novo, sem esperar o estado atualizar). Guarda
+     um override local pra não reler o valor velho do prop na sessão. */
+  async function salvarObsCliente(texto?: string) {
     const id = form.clienteId
     if (!id) return
-    const nota = obsCliente.trim()
+    const nota = (typeof texto === 'string' ? texto : obsCliente).trim()
     const atual = (obsOverrides[id] ?? clientes.find(c => c.id === id)?.observacoes ?? '').trim()
     if (nota === atual) return
     await supabase.from('clientes').update({ observacoes: nota || null }).eq('id', id)
@@ -1653,14 +1656,36 @@ export default function VendasClient({
                 {/* Observação em 1 linha — o Zivo aprende o cliente. Salva
                     sozinho ao sair do campo. Sem formulário, sem travar. */}
                 {form.clienteId && (
-                  <input
-                    type="text"
-                    value={obsCliente}
-                    onChange={e => setObsCliente(e.target.value)}
-                    onBlur={salvarObsCliente}
-                    placeholder={`💡 O que você sabe de ${form.clienteNome?.split(' ')[0] || 'quem'}? (gosta de X, compra em promoção...)`}
-                    className={`${INPUT} mt-2 text-sm`}
-                  />
+                  <>
+                    <input
+                      type="text"
+                      value={obsCliente}
+                      onChange={e => setObsCliente(e.target.value)}
+                      onBlur={() => salvarObsCliente()}
+                      placeholder={`💡 O que você sabe de ${form.clienteNome?.split(' ')[0] || 'quem'}? (gosta de X, compra em promoção...)`}
+                      className={`${INPUT} mt-2 text-sm`}
+                    />
+                    {/* Zivo sugere a nota a partir do histórico (marca com
+                        afinidade real). Um toque adiciona. */}
+                    {(() => {
+                      const marca = marcaPorCliente[form.clienteId]
+                      if (!marca) return null
+                      if (obsCliente.toLowerCase().includes(marca.toLowerCase())) return null
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nova = (obsCliente.trim() ? `${obsCliente.trim()}, ` : '') + `gosta de ${marca}`
+                            setObsCliente(nova)
+                            salvarObsCliente(nova)
+                          }}
+                          className="mt-1.5 self-start text-xs px-2.5 py-1 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 transition cursor-pointer"
+                        >
+                          💡 comprou {marca} antes — marcar &quot;gosta de {marca}&quot;?
+                        </button>
+                      )
+                    })()}
+                  </>
                 )}
               </Field>
 
