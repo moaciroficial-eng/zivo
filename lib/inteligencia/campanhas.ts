@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { calcularPerfis } from '@/lib/inteligencia/motor'
+import { clienteServeProduto } from '@/lib/tamanhos'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -151,6 +152,85 @@ Responda SOMENTE JSON:
   } catch {
     return { ...vazio, erro: 'JSON inválido' }
   }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CASAR CLIENTES POR TAMANHO — o coração do "zera a grade"
+
+   Dado os tamanhos que o dono QUER vender (ex: só G e GG), devolve só
+   os clientes que VESTEM esses tamanhos (com equivalência número↔letra)
+   — nunca sugere quem usa um tamanho que ele não vai vender. Se marcar
+   uma marca, prioriza quem tem afinidade com ela (observação/histórico).
+   ══════════════════════════════════════════════════════════════ */
+export type ClienteCasado = {
+  id: string
+  nome: string
+  telefone: string | null
+  tamanhos: string[]        // os tamanhos do cliente que casaram com a oferta
+  afinidadeMarca: boolean   // observação/insight indica a marca da oferta
+  motivo: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function casarClientesPorTamanho(
+  admin: any,
+  userId: string,
+  tamanhosOferta: string[],
+  marca?: string | null,
+): Promise<ClienteCasado[]> {
+  const tams = (tamanhosOferta ?? []).map(t => String(t).trim()).filter(Boolean)
+  if (tams.length === 0) return []
+
+  const [{ data: clientes }, { data: insights }] = await Promise.all([
+    admin.from('clientes')
+      .select('id, nome, telefone, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
+      .eq('user_id', userId).limit(3000),
+    admin.from('contato_insights')
+      .select('cliente_id, marca_principal, marcas_favoritas')
+      .eq('user_id', userId),
+  ])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insMap = new Map<string, any>()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const i of (insights ?? []) as any[]) if (i.cliente_id) insMap.set(i.cliente_id, i)
+
+  const marcaLow = (marca ?? '').toLowerCase().trim()
+  const casados: ClienteCasado[] = []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const c of (clientes ?? []) as any[]) {
+    if (!c.telefone || !String(c.telefone).trim()) continue
+    const tamsCliente = [c.tamanho_camiseta, c.tamanho_calca, c.tamanho_tenis].filter(Boolean)
+    if (!clienteServeProduto(tamsCliente, tams)) continue
+
+    /* quais tamanhos do cliente casaram (pra mostrar) */
+    const casaram = tamsCliente.filter(tc => clienteServeProduto([tc], tams))
+
+    /* afinidade de marca: observação escrita OU insight */
+    let afinidade = false
+    if (marcaLow) {
+      const obs = String(c.observacoes ?? '').toLowerCase()
+      const ins = insMap.get(c.id)
+      const favs: string[] = Array.isArray(ins?.marcas_favoritas) ? ins.marcas_favoritas : []
+      afinidade = obs.includes(marcaLow)
+        || String(ins?.marca_principal ?? '').toLowerCase() === marcaLow
+        || favs.some(m => String(m).toLowerCase() === marcaLow)
+    }
+
+    casados.push({
+      id: c.id,
+      nome: c.nome,
+      telefone: c.telefone,
+      tamanhos: casaram,
+      afinidadeMarca: afinidade,
+      motivo: `veste ${casaram.join('/')}${afinidade && marca ? ` · curte ${marca}` : ''}`,
+    })
+  }
+
+  /* quem tem afinidade de marca primeiro */
+  casados.sort((a, b) => Number(b.afinidadeMarca) - Number(a.afinidadeMarca))
+  return casados
 }
 
 /* Resolve a lista de clientes-alvo pelo critério (código, não modelo) */
