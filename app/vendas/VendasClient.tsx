@@ -40,7 +40,7 @@ type Caixa = {
 
 type ClienteDependente = { id: string; nome: string; relacao: string; genero: 'M' | 'F'; tamanho_camiseta?: string; tamanho_calca?: string; tamanho_tenis?: string }
 
-type ClienteOption = { id: string; nome: string; dependentes?: ClienteDependente[]; saldo_credito?: number | null }
+type ClienteOption = { id: string; nome: string; dependentes?: ClienteDependente[]; saldo_credito?: number | null; observacoes?: string | null }
 
 type TamanhoQtd = { tamanho: string; qtd: number }
 
@@ -317,6 +317,10 @@ export default function VendasClient({
   )
   const [trocoEmHaver, setTrocoEmHaver] = useState(false)
   const [usarHaver, setUsarHaver] = useState('')
+  /* Observação do cliente capturada na hora da venda (1 linha). É o
+     combustível da inteligência — o Zivo lê isso pra pensar como o dono. */
+  const [obsCliente, setObsCliente] = useState('')
+  const [obsOverrides, setObsOverrides] = useState<Record<string, string>>({})
   const [pagandoParcela, setPagandoParcela] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
   const [clienteDependentes, setClienteDependentes] = useState<ClienteDependente[]>([])
   const [selectedDepId, setSelectedDepId] = useState<string>('')
@@ -332,6 +336,19 @@ export default function VendasClient({
     setClienteDropdown(false)
     setClienteDependentes(c.dependentes ?? [])
     setSelectedDepId('')
+    setObsCliente(obsOverrides[c.id] ?? c.observacoes ?? '')
+  }
+
+  /* Salva a observação do cliente (na venda). Guarda um override local
+     pra não reler o valor velho do prop na mesma sessão. */
+  async function salvarObsCliente() {
+    const id = form.clienteId
+    if (!id) return
+    const nota = obsCliente.trim()
+    const atual = (obsOverrides[id] ?? clientes.find(c => c.id === id)?.observacoes ?? '').trim()
+    if (nota === atual) return
+    await supabase.from('clientes').update({ observacoes: nota || null }).eq('id', id)
+    setObsOverrides(m => ({ ...m, [id]: nota }))
   }
 
   function handleClienteInput(val: string) {
@@ -1612,7 +1629,7 @@ export default function VendasClient({
                     className={`${INPUT} pl-9 ${form.clienteId ? 'border-violet-500/50' : ''}`}
                   />
                   {form.clienteId && (
-                    <button type="button" onClick={() => setForm(f => ({ ...f, clienteSearch: '', clienteId: '', clienteNome: '' }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition">
+                    <button type="button" onClick={() => { setForm(f => ({ ...f, clienteSearch: '', clienteId: '', clienteNome: '' })); setObsCliente('') }} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition">
                       <IconX size={14} />
                     </button>
                   )}
@@ -1631,6 +1648,19 @@ export default function VendasClient({
                 </div>
                 {form.clienteId && (
                   <p className="text-xs text-violet-400 flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
+                )}
+
+                {/* Observação em 1 linha — o Zivo aprende o cliente. Salva
+                    sozinho ao sair do campo. Sem formulário, sem travar. */}
+                {form.clienteId && (
+                  <input
+                    type="text"
+                    value={obsCliente}
+                    onChange={e => setObsCliente(e.target.value)}
+                    onBlur={salvarObsCliente}
+                    placeholder={`💡 O que você sabe de ${form.clienteNome?.split(' ')[0] || 'quem'}? (gosta de X, compra em promoção...)`}
+                    className={`${INPUT} mt-2 text-sm`}
+                  />
                 )}
               </Field>
 
