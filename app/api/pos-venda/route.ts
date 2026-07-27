@@ -1,7 +1,9 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { enviarOferta } from '@/lib/agentes/envio'
+import { getLoja } from '@/lib/loja'
+import { normalizarTelefoneBR } from '@/lib/whatsapp'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -16,49 +18,45 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  /* 1. Tenta achar pelo cliente_id direto no whatsapp_contatos */
-  let contato: { phone: string; nome: string | null; id?: string } | null = null
-
+  /* 1. Contato pelo cliente_id direto */
+  let contato: { id: string; phone: string; nome: string | null } | null = null
   const { data: c1 } = await admin
-    .from('whatsapp_contatos')
-    .select('id, phone, nome')
-    .eq('user_id', user.id)
-    .eq('cliente_id', clienteId)
-    .maybeSingle()
+    .from('whatsapp_contatos').select('id, phone, nome')
+    .eq('user_id', user.id).eq('cliente_id', clienteId).maybeSingle()
 
   if (c1?.phone) {
     contato = c1
   } else {
-    /* 2. Fallback: busca telefone do cliente e procura contato por telefone */
+    /* 2. Fallback: acha pelo telefone do cliente; se não existir contato, CRIA
+       (assim a venda de balcão vira um contato e aparece no WhatsApp do Zivo). */
     const { data: cliente } = await admin
       .from('clientes').select('telefone, nome').eq('id', clienteId).maybeSingle()
 
     if (cliente?.telefone) {
       const phoneLast = cliente.telefone.replace(/\D/g, '').slice(-8)
       const { data: c2 } = await admin
-        .from('whatsapp_contatos')
-        .select('id, phone, nome')
-        .eq('user_id', user.id)
-        .ilike('phone', `%${phoneLast}`)
-        .maybeSingle()
+        .from('whatsapp_contatos').select('id, phone, nome')
+        .eq('user_id', user.id).ilike('phone', `%${phoneLast}`).maybeSingle()
 
       if (c2?.phone) {
         contato = { ...c2, nome: c2.nome ?? cliente.nome }
-        /* Vincula cliente_id pro futuro */
         await admin.from('whatsapp_contatos').update({ cliente_id: clienteId }).eq('id', c2.id)
+      } else {
+        const phone = normalizarTelefoneBR(cliente.telefone)
+        const { data: novo } = await admin.from('whatsapp_contatos').insert({
+          user_id: user.id, phone, nome: cliente.nome ?? clienteNome ?? null, cliente_id: clienteId,
+        }).select('id, phone, nome').single()
+        if (novo?.phone) contato = novo
       }
     }
   }
 
   if (!contato?.phone) {
-    console.log(`[pos-venda] cliente ${clienteId} sem WhatsApp vinculado`)
-    return NextResponse.json({ ok: false, motivo: 'sem whatsapp' })
+    return NextResponse.json({ ok: false, motivo: 'sem telefone' })
   }
 
-  const { data: config } = await admin
-    .from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
-
-  const nomeLoja = config?.nome_loja || 'Moca'
+  const loja = await getLoja(admin, user.id).catch(() => null)
+  const nomeLoja = loja?.nomeLoja || 'Moca'
   const nomeCliente = (contato.nome ?? clienteNome ?? 'você').split(' ')[0]
 
   const variantes = [
@@ -67,28 +65,22 @@ export async function POST(request: NextRequest) {
   ]
   const mensagem = variantes[Math.floor(Math.random() * variantes.length)]
 
-  let messageId: string | undefined
-  try {
-    messageId = (await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })).messageId
-  } catch (err) {
-    console.error('[pos-venda] erro ao enviar:', err)
-    return NextResponse.json({ ok: false, motivo: String(err) })
-  }
+  /* Window-aware: quente → texto livre; frio → template de agradecimento.
+     Sem isso, venda de balcão (cliente frio) era rejeitada pela Meta e a
+     mensagem nem aparecia no histórico. */
+  const r = await enviarOferta(admin, {
+    userId: user.id,
+    contatoId: contato.id,
+    phone: contato.phone,
+    texto: mensagem,
+    templateName: 'agradecimento_compra',
+    templateVars: [nomeCliente, nomeLoja],
+    creds: loja?.creds,
+  })
 
-  /* Salva no histórico do chat */
-  const contatoId = contato.id
-  if (contatoId) {
-    const timestamp = new Date().toISOString()
-    await admin.from('whatsapp_mensagens').insert({
-      user_id: user.id, contato_id: contatoId, message_id: messageId ?? null,
-      direcao: 'enviada', tipo: 'texto',
-      conteudo: mensagem, status: 'enviada', timestamp,
-      raw: { origem: 'ia' },
-    })
-    await admin.from('whatsapp_contatos').update({
-      ultima_mensagem: mensagem, ultima_mensagem_at: timestamp,
-    }).eq('id', contatoId)
+  if (!r.ok) {
+    console.error('[pos-venda] falha no envio:', r.erro)
+    return NextResponse.json({ ok: false, motivo: r.erro ?? 'falha no envio' })
   }
-
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, via: r.via })
 }
