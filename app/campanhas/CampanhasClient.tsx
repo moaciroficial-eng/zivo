@@ -28,7 +28,7 @@ type Proposta = {
   desconto: string | null
 }
 type Publico = { id: string; nome: string; telefone: string | null; motivo: string }
-type Espera = 'texto' | 'produto' | 'foto' | 'opcoes'
+type Espera = 'texto' | 'produto' | 'foto' | 'opcoes' | 'desconto'
 type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string; opcoes?: string[]; espera?: Espera }
 type Produto = {
   id: string; nome: string; marca: string | null; cor: string | null
@@ -74,6 +74,10 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
 
   /* Escape: força o campo de texto mesmo quando a IA espera produto/foto */
   const [forcarTexto, setForcarTexto] = useState(false)
+
+  /* Passo de desconto */
+  const [descTipo, setDescTipo] = useState<'%' | 'R$'>('%')
+  const [descValor, setDescValor] = useState('')
 
   /* Picker de produtos do estoque (multi-seleção) */
   const [pickerAberto, setPickerAberto] = useState(false)
@@ -358,11 +362,13 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
                 {disparando ? 'Enviando...' : `📤 Aprovar e enviar (${publico.length})`}
               </button>
-              <button onClick={() => setProposta(null)} disabled={disparando}
+              <button onClick={() => { setProposta(null); enviar('Não curti essa copy, me gera outra versão com um approach diferente.') }} disabled={disparando || pensando}
                 className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">
-                Descartar
+                🔄 Outra copy
               </button>
             </div>
+            <button onClick={() => setProposta(null)} disabled={disparando}
+              className="text-[11px] text-zinc-600 hover:text-zinc-400 self-center cursor-pointer">descartar campanha</button>
           </div>
         )}
 
@@ -416,6 +422,39 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
             <button onClick={() => setForcarTexto(true)} className="text-[11px] text-zinc-500 hover:text-zinc-300 self-center cursor-pointer">prefiro escrever</button>
           </div>
         )
+
+        /* Passo: preço cheio ou desconto (% ou R$) direto no botão */
+        if (modo === 'desconto') {
+          const aplicarDesc = () => {
+            const v = descValor.trim().replace(',', '.')
+            if (!v || Number(v) <= 0) return
+            const txt = descTipo === '%' ? `Vou dar ${v}% de desconto.` : `Vou dar R$ ${v} de desconto.`
+            setDescValor('')
+            enviar(txt)
+          }
+          return (
+            <div className="shrink-0 border-t border-zinc-800 pt-3 flex flex-col gap-2">
+              <button onClick={() => enviar('Preço cheio, sem desconto.')}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-sm font-medium transition cursor-pointer">
+                Preço cheio (sem desconto)
+              </button>
+              <div className="flex gap-2 items-stretch">
+                <div className="flex bg-zinc-900 border border-zinc-700 rounded-xl p-0.5">
+                  <button onClick={() => setDescTipo('%')}
+                    className={`text-xs px-3 rounded-lg transition cursor-pointer ${descTipo === '%' ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>%</button>
+                  <button onClick={() => setDescTipo('R$')}
+                    className={`text-xs px-3 rounded-lg transition cursor-pointer ${descTipo === 'R$' ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>R$</button>
+                </div>
+                <input value={descValor} onChange={e => setDescValor(e.target.value.replace(/[^\d.,]/g, ''))}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aplicarDesc() } }}
+                  inputMode="decimal" placeholder={descTipo === '%' ? 'ex: 20' : 'ex: 50'}
+                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500" />
+                <button onClick={aplicarDesc} disabled={!descValor.trim()}
+                  className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-bold transition cursor-pointer">Dar desconto</button>
+              </div>
+            </div>
+          )
+        }
 
         /* Passo: escolha clicável — as opções aparecem embaixo da mensagem;
            aqui só um atalho pra escrever, caso queira */

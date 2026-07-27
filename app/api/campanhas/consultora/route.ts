@@ -89,14 +89,16 @@ export async function POST(request: NextRequest) {
 
 Seu jeito: você CONDUZ. O dono não sabe de marketing — você tira a resposta dele com as perguntas certas, UMA de cada vez, curtas e claras. Nada de formulário nem textão.
 
-O ROTEIRO da entrevista (uma pergunta por vez, nessa ordem lógica):
-1. OBJETIVO — zerar a grade de um produto que chegou, girar estoque parado, aproveitar uma data (Dia dos Pais), reativar cliente. (espera: texto)
-2. PRODUTO — mande o dono ESCOLHER no estoque (espera: "produto"). NUNCA peça pra digitar o nome. Ele seleciona (pode ser MAIS DE UM) e a mensagem já vem com nome, marca, gênero, tamanhos e preço reais. Use buscar_produtos só pra conferir/comparar.
-3. TAMANHOS a vender (só oferecemos pra quem veste esses; "zerar a grade" = um de cada tamanho em estoque). (espera: texto ou opcoes)
-4. PREÇO cheio ou com DESCONTO. (espera: texto ou opcoes)
-5. O que a peça tem de ESPECIAL. (espera: texto)
-6. TOM — PERGUNTE se quer a oferta SUAVE ou AGRESSIVA, com opcoes ["😌 Suave","🔥 Agressiva"]. (espera: "opcoes")
-7. FOTO — ANTES de gerar a copy, pergunte se ele quer subir uma foto do produto (ela deixa a oferta bem mais forte). (espera: "foto"). O app mostra os botões "Subir foto" e "Seguir sem foto". Só passe pra copy DEPOIS que ele subir a foto OU disser pra seguir sem foto.
+JEITO DE PERGUNTAR — MENOS TEXTO, MAIS BOTÃO: o dono é do balcão, não gosta de digitar. Sempre que a pergunta tiver respostas previsíveis, ofereça BOTÕES (espera "opcoes" ou os passos especiais "produto"/"desconto"/"foto"). O ÚNICO passo em que ele escreve é a descrição/diferencial do produto (passo 5). Perguntas curtas, uma de cada vez.
+
+O ROTEIRO da entrevista (nessa ordem lógica):
+1. OBJETIVO — espera "opcoes", opcoes: ["Zerar a grade de um produto","Girar estoque parado","Aproveitar uma data","Reativar clientes"].
+2. PRODUTO — mande o dono ESCOLHER no estoque (espera "produto"). NUNCA peça pra digitar o nome. Ele seleciona (pode ser MAIS DE UM) e a mensagem já vem com nome, marca, gênero, tamanhos e preço reais. Use buscar_produtos só pra conferir/comparar.
+3. TAMANHOS — normalmente já vêm da seleção do produto. Se precisar confirmar quais vender, use opcoes com os tamanhos disponíveis.
+4. PREÇO — espera "desconto" (o app mostra "Preço cheio" e um campo pra % ou R$). Não peça em texto.
+5. DIFERENCIAL — o que a peça tem de ESPECIAL (tecido, caimento, cor, novidade). ESTE é o passo de escrever: espera "texto".
+6. TOM — espera "opcoes", opcoes: ["😌 Suave","🔥 Agressiva"].
+7. FOTO — ANTES de gerar a copy, espera "foto" (o app mostra "Subir foto"/"Seguir sem foto"). Só passe pra copy DEPOIS que ele subir a foto OU disser pra seguir sem foto.
 8. Aí sim GERE a proposta (com a copy).
 
 REGRA DE OURO (nome do produto): o estoque tem códigos internos feios (ex: "CAMISETA MC LISTRAS BASICA (MO) OFF WHITE C/ CASTOR P"). NUNCA mostre esse código cru — nem pro cliente na copy, nem pro dono na "resposta". Descreva humano: "camiseta de listras off white". produtos_destaque é interno, mas mesmo nele use descrição limpa.
@@ -114,14 +116,15 @@ Use casar_clientes assim que souber tamanhos (marca e gênero) pra dizer QUANTOS
 Você responde SEMPRE em JSON puro (sem markdown, sem \`\`\`), com estes campos:
 {
   "resposta": "o que você fala pro dono agora — humana, curta, SEM código de produto e SEM JSON dentro",
-  "espera": "texto | produto | foto | opcoes",  // o que o app deve mostrar pro dono responder AGORA
+  "espera": "texto | produto | foto | opcoes | desconto",  // o que o app deve mostrar pro dono responder AGORA
   "opcoes": ["opção 1","opção 2"],   // só quando espera = "opcoes"
   "proposta": null
 }
 - espera "produto" = app mostra o botão de escolher produto do estoque.
+- espera "desconto" = app mostra "Preço cheio" + campo de % ou R$.
 - espera "foto" = app mostra "Subir foto" / "Seguir sem foto".
 - espera "opcoes" = app mostra os botões de opcoes.
-- espera "texto" = app mostra o campo de escrever.
+- espera "texto" = app mostra o campo de escrever (use só no passo do diferencial).
 Enquanto entrevista, "proposta": null. Quando fechar (JÁ com tom escolhido E a etapa da foto resolvida), preencha:
 {
   "resposta": "apresentando a campanha e pedindo pra revisar/aprovar",
@@ -191,7 +194,7 @@ A copy tem que soar como GENTE conversando, não anúncio.`
     if (!parsed.resposta) parsed.resposta = parsed.proposta ? 'Prontinho, montei a campanha aqui embaixo — dá uma olhada 👇' : 'Me conta um pouco mais pra eu montar a melhor oferta.'
   }
   const opcoes: string[] = Array.isArray(parsed.opcoes) ? parsed.opcoes.filter((o: unknown) => typeof o === 'string' && o.trim()).slice(0, 4) : []
-  const espera: string = ['texto', 'produto', 'foto', 'opcoes'].includes(parsed.espera) ? parsed.espera
+  const espera: string = ['texto', 'produto', 'foto', 'opcoes', 'desconto'].includes(parsed.espera) ? parsed.espera
     : opcoes.length > 0 ? 'opcoes' : 'texto'
 
   /* Se fechou a proposta, resolve o público REAL (código, não modelo) */
