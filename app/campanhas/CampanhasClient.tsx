@@ -21,19 +21,19 @@ type Proposta = {
   tamanhos: string[]
   marca: string | null
   genero?: string | null
+  intensidade?: string | null
   copy_descritor: string
   copy_texto: string
   produtos_destaque: string[]
   desconto: string | null
 }
 type Publico = { id: string; nome: string; telefone: string | null; motivo: string }
-type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string }
+type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string; opcoes?: string[] }
 type Produto = {
   id: string; nome: string; marca: string | null; cor: string | null
   genero: string | null; preco: number | null; tamanhos: string[]; resumo: string
 }
 type SelProduto = { produto: Produto; tamanhos: string[] }
-type Intensidade = 'leve' | 'agressiva'
 
 const SUGESTOES = [
   'Chegou um produto e quero zerar a grade dele',
@@ -65,9 +65,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [resultado, setResultado] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-
-  /* Tom da oferta */
-  const [intensidade, setIntensidade] = useState<Intensidade>('leve')
 
   /* Foto do produto (fica anexada até o disparo) */
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
@@ -185,11 +182,11 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
     try {
       const res = await fetch('/api/campanhas/consultora', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null, intensidade }),
+        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null }),
       })
       const data = await res.json()
       if (!data.ok) { setErro('A consultora tropeçou. Tenta de novo.'); return }
-      setMsgs(prev => [...prev, { papel: 'consultora', conteudo: data.resposta }])
+      setMsgs(prev => [...prev, { papel: 'consultora', conteudo: data.resposta, opcoes: data.opcoes ?? [] }])
       if (data.proposta) {
         setProposta(data.proposta)
         setPublico(data.publico ?? [])
@@ -276,13 +273,24 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           </div>
         )}
         {msgs.map((m, i) => (
-          <div key={i} className={`flex ${m.papel === 'dono' ? 'justify-end' : 'justify-start'}`}>
+          <div key={i} className={`flex flex-col ${m.papel === 'dono' ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
               m.papel === 'dono' ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
             }`}>
               {m.foto && <img src={m.foto} alt="produto" className="rounded-lg mb-2 max-h-40 w-auto" />}
               {m.conteudo}
             </div>
+            {/* Opções clicáveis (só na última mensagem da consultora, antes da proposta) */}
+            {m.papel === 'consultora' && i === msgs.length - 1 && (m.opcoes?.length ?? 0) > 0 && !proposta && !pensando && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {m.opcoes!.map(op => (
+                  <button key={op} onClick={() => enviar(op)}
+                    className="text-sm bg-violet-600/20 hover:bg-violet-600 border border-violet-500/40 text-violet-200 hover:text-white px-3.5 py-2 rounded-full transition cursor-pointer font-medium">
+                    {op}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {pensando && <div className="flex justify-start"><div className="bg-zinc-800 text-zinc-500 rounded-2xl px-4 py-2.5 text-sm animate-pulse">pensando...</div></div>}
@@ -297,19 +305,25 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 {proposta.marca ? ` · ${proposta.marca}` : ''}
                 {proposta.genero ? ` · ${generoLabel(proposta.genero)}` : ''}
                 {proposta.desconto ? ` · ${proposta.desconto} off` : ''}
-                {` · tom ${intensidade === 'agressiva' ? 'agressivo' : 'de boa'}`}
+                {proposta.intensidade ? ` · tom ${proposta.intensidade === 'agressiva' ? 'agressivo' : 'de boa'}` : ''}
               </p>
             </div>
 
             <div className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
-              <p className="text-xs font-semibold text-zinc-400 mb-1">👥 {publico.length} cliente(s) casaram (vestem os tamanhos)</p>
-              {publico.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {publico.slice(0, 14).map(p => (
-                    <span key={p.id} className="text-[11px] bg-zinc-700 text-zinc-200 px-2 py-0.5 rounded-full" title={p.motivo}>{p.nome.split(' ')[0]}</span>
+              <p className="text-xs font-semibold text-zinc-400 mb-2">👥 {publico.length} cliente(s) vão receber <span className="text-zinc-600 font-normal">— tira quem já comprou na 🗑️</span></p>
+              {publico.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+                  {publico.map(p => (
+                    <span key={p.id} title={p.motivo}
+                      className="group flex items-center gap-1 text-[12px] bg-zinc-700/80 text-zinc-100 pl-2.5 pr-1 py-1 rounded-full">
+                      {p.nome.split(' ')[0]}
+                      <button onClick={() => setPublico(prev => prev.filter(x => x.id !== p.id))}
+                        title="Tirar da lista" className="text-zinc-400 hover:text-red-300 px-0.5 cursor-pointer leading-none">🗑️</button>
+                    </span>
                   ))}
-                  {publico.length > 14 && <span className="text-[11px] text-zinc-500 px-1">+{publico.length - 14}</span>}
                 </div>
+              ) : (
+                <p className="text-[11px] text-zinc-500">Ninguém na lista. Ajusta os tamanhos ou o gênero com a consultora.</p>
               )}
             </div>
 
@@ -325,9 +339,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               <p className="text-xs font-semibold text-zinc-400 mb-1">💬 Copy (edite à vontade — {'{nome}'} vira o primeiro nome)</p>
               <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={4}
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
-              <button onClick={() => enviar(`Refaz a copy no tom ${intensidade === 'agressiva' ? 'agressivo' : 'de boa'}, por favor.`)}
-                disabled={pensando}
-                className="mt-1.5 text-[11px] text-violet-300 hover:text-violet-200 disabled:opacity-40 cursor-pointer">↻ Refazer a copy no tom {intensidade === 'agressiva' ? 'agressivo' : 'de boa'}</button>
+              <p className="mt-1.5 text-[11px] text-zinc-600">Quer outro tom ou ajuste? É só pedir na conversa (&quot;deixa mais agressiva&quot;).</p>
             </div>
 
             <div className="flex gap-2 pt-1">
@@ -356,17 +368,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1 ml-auto cursor-pointer">remover</button>
         </div>
       )}
-
-      {/* Tom da oferta */}
-      <div className="shrink-0 flex items-center gap-2">
-        <span className="text-[11px] text-zinc-500">Tom:</span>
-        <div className="flex bg-zinc-900 border border-zinc-700 rounded-lg p-0.5">
-          <button onClick={() => setIntensidade('leve')}
-            className={`text-[11px] px-2.5 py-1 rounded-md transition cursor-pointer ${intensidade === 'leve' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>😌 De boa</button>
-          <button onClick={() => setIntensidade('agressiva')}
-            className={`text-[11px] px-2.5 py-1 rounded-md transition cursor-pointer ${intensidade === 'agressiva' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>🔥 Agressiva</button>
-        </div>
-      </div>
 
       {/* Input */}
       <div className="flex gap-2 shrink-0 border-t border-zinc-800 pt-3">

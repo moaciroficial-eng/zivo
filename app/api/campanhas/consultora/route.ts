@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { mensagem, historico = [], foto = null, intensidade = 'leve' } = await request.json()
+  const { mensagem, historico = [], foto = null } = await request.json()
   if (!mensagem && !foto) return NextResponse.json({ ok: false }, { status: 400 })
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -96,35 +96,38 @@ Descubra o essencial pra montar uma oferta forte:
 - PREÇO cheio ou com DESCONTO? Se desconto, quanto?
 - O que essa peça tem de ESPECIAL pra destacar?
 
+REGRA DE OURO (nome do produto): o estoque tem nomes/códigos internos feios (ex: "CAMISETA MC LISTRAS BASICA (MO) OFF WHITE C/ CASTOR P"). NUNCA mostre esse código cru — nem pro cliente na copy, nem pro dono na sua "resposta". Sempre descreva humano: "camiseta de listras off white". O campo produtos_destaque é interno (o cliente nunca vê), mas mesmo nele prefira uma descrição limpa.
+
 GÊNERO: se o produto é masculino ('M') ou feminino ('F'), a oferta NÃO vai pra quem é do gênero oposto — sempre passe o gênero pro casar_clientes. Se o dono selecionou vários produtos e todos são do mesmo gênero, use esse gênero.
 
 FOTO: se o dono ANEXOU uma foto do produto (você vai ver a imagem), comente rápido se ela vende bem (luz, enquadramento, se dá pra ver a peça) e USE o que vê pra deixar a copy mais concreta. A foto será enviada junto na oferta.
 
-TOM DA OFERTA (o dono escolhe "${intensidade === 'agressiva' ? 'AGRESSIVA' : 'DE BOA'}"):
-- DE BOA (leve): convite suave, sem pressão. Ex: "Oi {nome}, tudo bem? 😊 Chegaram novidades da Aramis muito com a sua cara, quer que eu te mande as fotos?"
+TOM DA OFERTA — passo OBRIGATÓRIO antes de escrever a copy: PERGUNTE ao dono se ele quer a oferta mais SUAVE ou mais AGRESSIVA, oferecendo os botões clicáveis no campo "opcoes": ["😌 Suave", "🔥 Agressiva"]. Só pule se ele já tiver dito o tom.
+- SUAVE: convite leve, sem pressão. Ex: "Oi {nome}, tudo bem? 😊 Chegou uma novidade da Aramis muito com a sua cara, quer que eu te mande as fotos?"
 - AGRESSIVA: direta, com a peça específica + gancho de urgência + PREÇO ESPECIAL/condição pra fechar hoje, já contando que a foto vai junto. Ex: "Bom dia {nome}, tudo bem? Chegou um embarque novo da Aramis e essa camiseta aqui eu achei muito a sua cara — se tiver interesse, faço um preço especial pra você hoje 😉". Nunca invente desconto que o dono não autorizou; se ele não deu preço especial, pergunte antes de prometer.
-Agora monte a copy no tom "${intensidade}".
 
 Use casar_clientes assim que souber os tamanhos (marca e gênero) pra dizer ao dono QUANTOS clientes casam — isso empolga e valida.
 
-Quando tiver o suficiente, MONTE a proposta. Responda SEMPRE em JSON:
+Você responde SEMPRE em JSON puro (sem markdown, sem \`\`\`), com estes campos:
 {
-  "resposta": "o que você fala pro dono agora (pergunta seguinte OU apresentação da proposta)",
+  "resposta": "o que você fala pro dono agora — humana, curta, SEM código de produto e SEM JSON dentro",
+  "opcoes": ["opção 1","opção 2"],   // OPCIONAL: só quando faz uma pergunta de múltipla escolha (ex: tom). Omita ou deixe [] quando não for pergunta clicável.
   "proposta": null
 }
-Enquanto estiver entrevistando, "proposta": null. Quando fechar, preencha:
+Enquanto entrevista, "proposta": null. Quando fechar (JÁ com o tom escolhido), preencha:
 {
   "resposta": "apresentando a campanha e pedindo pra revisar/aprovar",
+  "opcoes": [],
   "proposta": {
-    "titulo": "nome curto da campanha",
+    "titulo": "nome curto e humano da campanha (sem código)",
     "objetivo": "zerar_grade | girar_estoque | data | reativar",
     "tamanhos": ["G","GG"],
     "marca": "Aramis ou null",
     "genero": "M | F | null (null = unissex)",
-    "intensidade": "${intensidade}",
-    "copy_descritor": "texto curto pro cliente (ex: 'da Aramis', 'de camisa social', 'pro Dia dos Pais') — vai no meio de uma frase natural",
-    "copy_texto": "a mensagem pra cliente QUENTE no tom escolhido. Use {nome} pro primeiro nome. Natural, brasileira. NUNCA robótica.",
-    "produtos_destaque": ["nomes dos produtos"],
+    "intensidade": "leve | agressiva (o tom que o dono escolheu)",
+    "copy_descritor": "descrição humana curta pro cliente (ex: 'da Aramis', 'de camisa social') — SEM código",
+    "copy_texto": "a mensagem pra cliente QUENTE no tom escolhido. Use {nome} pro primeiro nome. Natural, brasileira. NUNCA robótica, NUNCA com código de produto.",
+    "produtos_destaque": ["descrição limpa dos produtos"],
     "desconto": "ex: '20%' ou null"
   }
 }
@@ -173,6 +176,13 @@ A copy tem que soar como GENTE conversando, não anúncio.`
   let parsed: any = { resposta: text, proposta: null }
   try { if (jsonMatch) parsed = JSON.parse(jsonMatch[0]) } catch { /* mantém texto cru */ }
 
+  /* Rede de segurança: a resposta pro dono nunca deve conter JSON/código cru */
+  if (typeof parsed.resposta === 'string') {
+    parsed.resposta = parsed.resposta.replace(/```[\s\S]*?```/g, '').replace(/\{[\s\S]*\}/g, '').trim()
+    if (!parsed.resposta) parsed.resposta = parsed.proposta ? 'Prontinho, montei a campanha aqui embaixo — dá uma olhada 👇' : 'Me conta um pouco mais pra eu montar a melhor oferta.'
+  }
+  const opcoes: string[] = Array.isArray(parsed.opcoes) ? parsed.opcoes.filter((o: unknown) => typeof o === 'string' && o.trim()).slice(0, 4) : []
+
   /* Se fechou a proposta, resolve o público REAL (código, não modelo) */
   let publico: { id: string; nome: string; telefone: string | null; motivo: string }[] = []
   if (parsed.proposta?.tamanhos?.length) {
@@ -183,6 +193,7 @@ A copy tem que soar como GENTE conversando, não anúncio.`
   return NextResponse.json({
     ok: true,
     resposta: parsed.resposta ?? '',
+    opcoes,
     proposta: parsed.proposta ?? null,
     publico,
   })
