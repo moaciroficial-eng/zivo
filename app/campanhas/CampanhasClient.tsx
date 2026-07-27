@@ -196,7 +196,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
     try {
       const res = await fetch('/api/campanhas/consultora', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null, genero_produto: generoCampanha }),
+        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null, genero_produto: generoCampanha, tem_foto: !!(fotoVision || fotoUrl) }),
       })
       const data = await res.json()
       if (!data.ok) { setErro('A consultora tropeçou. Tenta de novo.'); return }

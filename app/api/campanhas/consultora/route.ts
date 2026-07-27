@@ -79,8 +79,9 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { mensagem, historico = [], foto = null, genero_produto = null } = await request.json()
+  const { mensagem, historico = [], foto = null, genero_produto = null, tem_foto = false } = await request.json()
   if (!mensagem && !foto) return NextResponse.json({ ok: false }, { status: 400 })
+  const temFoto = !!tem_foto || !!foto
 
   /* Gênero AUTORITATIVO do produto selecionado (vem do picker). Não dependemos
      do modelo lembrar de setar — é o servidor que garante o filtro. */
@@ -114,6 +115,10 @@ GÊNERO: produto 'M' ou 'F' → a oferta NÃO vai pro gênero oposto. Sempre pas
 FOTO (visão): se o dono ANEXOU uma foto (você vê a imagem), comente rápido se ela vende bem (luz, enquadramento) e use o que vê pra deixar a copy concreta. A foto vai junto na oferta.
 
 COMO ESCREVER A COPY (O MAIS IMPORTANTE): é um WhatsApp de dono de loja pra cliente conhecido. CURTA (2 a 3 linhas). Leve, como GENTE falando — nunca anúncio nem vendedor empurrando. PROIBIDO: empilhar adjetivos ("tecido encorpado, mas fresco, caimento impecável"), fazer discurso, e principalmente MOSTRAR A CONTA ("tá saindo por R$269 e consigo por R$215", "20% off"). Isso afasta.
+
+FOTO NA COPY: ${temFoto
+  ? 'ESTA campanha VAI COM FOTO (a imagem do produto vai junto na mensagem). Então a copy NÃO pode perguntar "quer que eu te mande as fotos?" — a foto já está ali. Convide a olhar/opinar. Ex: "Oi {nome}, tudo bem? 😊 Olha essa camiseta da Aramis que chegou, achei muito a sua cara. O que achou?"'
+  : 'ESTA campanha VAI SEM FOTO. Então PODE terminar instigando "quer que eu te mande as fotos?" — quando o cliente responder, as fotos são enviadas automaticamente.'}
 
 PREÇO: por padrão NEM FALA de preço — só instiga e deixa o cliente perguntar. O jeito certo é "se você tiver interesse, consigo uma oferta especial nela". Quando houver desconto, gere DUAS versões da copy:
 - copy_texto (PADRÃO, SEM preço): instiga sem número. Ex: "...se tiver interesse, consigo uma oferta especial nela pra você."
