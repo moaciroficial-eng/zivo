@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   let q = supabase
     .from('estoque')
-    .select('id, nome, marca, cor, tamanhos, preco_venda')
+    .select('id, nome, marca, cor, genero, tamanhos, preco_venda')
     .eq('user_id', user.id)
 
   if (termo) {
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       nome: p.nome,
       marca: p.marca,
       cor: p.cor,
+      genero: p.genero ?? null,
       preco: p.preco_venda,
       grade,
       tamanhos: grade.map((g: any) => g.tamanho),

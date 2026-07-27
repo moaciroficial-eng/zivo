@@ -160,6 +160,52 @@ async function sendViaMeta(number: string, message: string, meta?: MetaCreds): P
 }
 
 /* ══════════════════════════════════════════════════════════════
+   IMAGEM — foto do produto na oferta (só janela aberta / provider meta)
+
+   A Meta manda imagem por URL PÚBLICA (image.link) com legenda. Fora da
+   janela de 24h não dá pra mandar imagem livre (precisaria template com
+   header de imagem) — então o disparo só anexa foto pra quem está quente.
+   ══════════════════════════════════════════════════════════════ */
+export type ImageOptions = { phone: string; imageUrl: string; caption?: string; creds?: WhatsAppCreds }
+
+export async function sendWhatsAppImage({ phone, imageUrl, caption, creds }: ImageOptions): Promise<{ messageId?: string }> {
+  const efetivas = creds ?? await credsPadrao()
+  const provider = efetivas?.provider || PROVIDER_GLOBAL
+  const number = normalizarTelefoneBR(phone)
+  if (provider === 'meta') return sendViaMetaImage(number, imageUrl, caption, efetivas?.meta)
+  return sendViaZapiImage(number, imageUrl, caption, efetivas)
+}
+
+async function sendViaMetaImage(number: string, imageUrl: string, caption: string | undefined, meta?: MetaCreds): Promise<{ messageId?: string }> {
+  const { phoneNumberId, accessToken } = resolverMeta(meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: number,
+      type: 'image', image: { link: imageUrl, ...(caption ? { caption } : {}) },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta imagem erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
+async function sendViaZapiImage(number: string, imageUrl: string, caption: string | undefined, creds?: ZapiCreds): Promise<{ messageId?: string }> {
+  const { instance, token, clientToken } = resolverCreds(creds)
+  if (!instance || !token || !clientToken) throw new Error('Z-API não configurada.')
+  const res = await fetch(`https://api.z-api.io/instances/${instance}/token/${token}/send-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
+    body: JSON.stringify({ phone: number, image: imageUrl, caption: caption ?? '' }),
+  })
+  if (!res.ok) throw new Error(`Z-API imagem erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messageId ?? data?.zaapId ?? data?.id ?? undefined }
+}
+
+/* ══════════════════════════════════════════════════════════════
    TEMPLATES (Meta) — abrir conversa FORA da janela de 24h
 
    A Meta só deixa iniciar conversa (aniversário, campanha, cadastro,

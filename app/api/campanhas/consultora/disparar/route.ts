@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { titulo, objetivo, marca, copy_texto, publico_ids } = await request.json()
+  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url } = await request.json()
   if (!copy_texto || !Array.isArray(publico_ids) || publico_ids.length === 0) {
     return NextResponse.json({ ok: false, erro: 'Faltou copy ou público.' }, { status: 400 })
   }
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       texto: textoPersonalizado,
       templateName: 'novidade_loja',
       templateVars: [primeiroNome, nomeLoja, teaser(textoPersonalizado)],
+      fotoUrl: foto_url ?? null,
       creds: loja?.creds,
     })
     if (!r.ok) { falhas++; continue }

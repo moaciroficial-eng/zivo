@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 type CampanhaRow = {
   id: string; nome: string; objetivo: string | null; produto_marca?: string | null
@@ -19,24 +20,38 @@ type Proposta = {
   objetivo: string
   tamanhos: string[]
   marca: string | null
+  genero?: string | null
   copy_descritor: string
   copy_texto: string
   produtos_destaque: string[]
   desconto: string | null
 }
 type Publico = { id: string; nome: string; telefone: string | null; motivo: string }
-type Msg = { papel: 'dono' | 'consultora'; conteudo: string }
+type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string }
 type Produto = {
   id: string; nome: string; marca: string | null; cor: string | null
-  preco: number | null; tamanhos: string[]; resumo: string
+  genero: string | null; preco: number | null; tamanhos: string[]; resumo: string
 }
+type SelProduto = { produto: Produto; tamanhos: string[] }
+type Intensidade = 'leve' | 'agressiva'
 
 const SUGESTOES = [
   'Chegou um produto e quero zerar a grade dele',
   'Quero girar uma peça que tá parada no estoque',
-  'Montar uma campanha pro Dia dos Pais',
   'Quero reativar clientes que sumiram',
 ]
+
+function generoLabel(g: string | null | undefined): string {
+  const c = String(g ?? '').toUpperCase().charAt(0)
+  return c === 'M' ? 'masculino' : c === 'F' ? 'feminino' : 'unissex'
+}
+function generoDominante(sels: SelProduto[]): string | null {
+  const gs = sels.map(s => String(s.produto.genero ?? '').toUpperCase().charAt(0)).filter(g => g === 'M' || g === 'F')
+  if (gs.length === 0) return null
+  if (gs.every(g => g === 'M')) return 'M'
+  if (gs.every(g => g === 'F')) return 'F'
+  return null
+}
 
 export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }: { campanhas: CampanhaRow[]; datas?: DataProxima[] }) {
   const [campanhas, setCampanhas] = useState<CampanhaRow[]>(campanhasInit)
@@ -51,20 +66,29 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [erro, setErro] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  /* Picker de produto do estoque */
+  /* Tom da oferta */
+  const [intensidade, setIntensidade] = useState<Intensidade>('leve')
+
+  /* Foto do produto (fica anexada até o disparo) */
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [enviandoFoto, setEnviandoFoto] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  /* Picker de produtos do estoque (multi-seleção) */
   const [pickerAberto, setPickerAberto] = useState(false)
   const [busca, setBusca] = useState('')
   const [resultados, setResultados] = useState<Produto[]>([])
   const [buscando, setBuscando] = useState(false)
-  const [produtoSel, setProdutoSel] = useState<Produto | null>(null)
+  const [selecionados, setSelecionados] = useState<SelProduto[]>([])
 
-  /* Detalhe/resultado de campanha (histórico tipo conversa) */
+  /* Detalhe/resultado de campanha */
   const [detalhe, setDetalhe] = useState<DetalheCampanha | null>(null)
   const [carregandoDet, setCarregandoDet] = useState(false)
   const [acaoDet, setAcaoDet] = useState(false)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, pensando])
 
+  /* ─── histórico / resultado ─── */
   async function abrirDetalhe(id: string) {
     setCarregandoDet(true); setDetalhe(null)
     try {
@@ -73,7 +97,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       if (data.ok) setDetalhe(data)
     } catch { /* ignora */ } finally { setCarregandoDet(false) }
   }
-
   async function salvarCampanha(id: string) {
     setAcaoDet(true)
     try {
@@ -82,7 +105,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       setDetalhe(d => d ? { ...d, campanha: { ...d.campanha, status: 'salva' } } : d)
     } catch { /* ignora */ } finally { setAcaoDet(false) }
   }
-
   async function apagarCampanha(id: string) {
     if (!confirm('Apagar essa campanha do histórico? Não dá pra desfazer.')) return
     setAcaoDet(true)
@@ -93,7 +115,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
     } catch { /* ignora */ } finally { setAcaoDet(false) }
   }
 
-  /* Busca no estoque com debounce enquanto o picker está aberto */
+  /* ─── picker ─── */
   useEffect(() => {
     if (!pickerAberto) return
     setBuscando(true)
@@ -108,29 +130,62 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   }, [busca, pickerAberto])
 
   function abrirPicker() { setPickerAberto(true); setBusca('') }
-
-  function selecionarProduto(p: Produto) {
-    setProdutoSel(p)
+  function estaSelecionado(id: string) { return selecionados.some(s => s.produto.id === id) }
+  function toggleProduto(p: Produto) {
+    setSelecionados(prev => prev.some(s => s.produto.id === p.id)
+      ? prev.filter(s => s.produto.id !== p.id)
+      : [...prev, { produto: p, tamanhos: [...p.tamanhos] }])
+  }
+  function toggleTamanho(id: string, t: string) {
+    setSelecionados(prev => prev.map(s => s.produto.id !== id ? s : {
+      ...s, tamanhos: s.tamanhos.includes(t) ? s.tamanhos.filter(x => x !== t) : [...s.tamanhos, t],
+    }))
+  }
+  function confirmarSelecao() {
+    const validos = selecionados.filter(s => s.tamanhos.length > 0)
+    if (validos.length === 0) return
+    const linhas = validos.map((s, i) => {
+      const p = s.produto
+      const attrs = [p.marca, p.cor, generoLabel(p.genero)].filter(Boolean).join(', ')
+      const preco = p.preco != null ? ` — R$ ${Number(p.preco).toFixed(2).replace('.', ',')}` : ''
+      return `${i + 1}) ${p.nome} (${attrs}) — vender tamanhos ${s.tamanhos.join(', ')}${preco}`
+    }).join('\n')
+    const g = generoDominante(validos)
+    const nota = g ? `\n(Produto ${g === 'M' ? 'masculino' : 'feminino'} — não oferecer pro gênero oposto.)` : ''
     setPickerAberto(false)
-    const partes = [
-      `Selecionei do estoque: "${p.nome}"`,
-      p.marca ? `da marca ${p.marca}` : '',
-      p.cor ? `cor ${p.cor}` : '',
-    ].filter(Boolean).join(', ')
-    const preco = p.preco != null ? ` Preço: R$ ${Number(p.preco).toFixed(2).replace('.', ',')}.` : ''
-    enviar(`${partes}. Tamanhos em estoque: ${p.resumo}.${preco} Quero montar a campanha em cima desse produto.`)
+    setSelecionados([])
+    enviar(`Selecionei do estoque pra campanha:\n${linhas}${nota}\nMonta a campanha em cima desses produtos.`)
   }
 
-  async function enviar(texto?: string) {
+  /* ─── foto ─── */
+  async function onFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (e.target) e.target.value = ''
+    if (!file) return
+    setEnviandoFoto(true); setErro(null)
+    try {
+      const supabase = createClient()
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `campanhas/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'image/jpeg' })
+      if (error) { setErro('Não consegui subir a foto. Tenta de novo.'); return }
+      const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(path)
+      setFotoUrl(publicUrl)
+      enviar('Anexei a foto do produto. Dá uma olhada e usa ela pra deixar a campanha melhor.', publicUrl)
+    } catch { setErro('Falha ao enviar a foto.') } finally { setEnviandoFoto(false) }
+  }
+
+  /* ─── conversa ─── */
+  async function enviar(texto?: string, fotoVision?: string) {
     const conteudo = (texto ?? input).trim()
-    if (!conteudo || pensando) return
+    if ((!conteudo && !fotoVision) || pensando) return
     setInput(''); setErro(null); setResultado(null)
-    const novos: Msg[] = [...msgs, { papel: 'dono', conteudo }]
+    const novos: Msg[] = [...msgs, { papel: 'dono', conteudo, foto: fotoVision }]
     setMsgs(novos); setPensando(true)
     try {
       const res = await fetch('/api/campanhas/consultora', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: conteudo, historico: msgs }),
+        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null, intensidade }),
       })
       const data = await res.json()
       if (!data.ok) { setErro('A consultora tropeçou. Tenta de novo.'); return }
@@ -157,11 +212,12 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           copy_texto: copyEditada,
           copy_descritor: proposta.copy_descritor,
           publico_ids: publico.map(p => p.id),
+          foto_url: fotoUrl,
         }),
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
-      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes). As respostas caem no atendimento — o resultado aparece aqui no histórico.`)
+      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes)${fotoUrl ? ' — com foto pros quentes' : ''}. O resultado aparece no histórico.`)
       if (data.campanhaId) {
         setCampanhas(prev => [{
           id: data.campanhaId, nome: proposta.titulo, objetivo: proposta.objetivo,
@@ -169,7 +225,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           created_at: new Date().toISOString(),
         }, ...prev])
       }
-      setProposta(null); setPublico([]); setProdutoSel(null)
+      setProposta(null); setPublico([]); setFotoUrl(null)
     } catch { setErro('Erro de conexão.') } finally { setDisparando(false) }
   }
 
@@ -189,7 +245,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
             <div className="flex flex-col gap-2 mt-4 max-w-sm mx-auto">
               <button onClick={abrirPicker}
                 className="text-left text-sm bg-violet-600 hover:bg-violet-500 text-white px-3 py-2.5 rounded-lg transition cursor-pointer font-medium">
-                📦 Escolher um produto do estoque
+                📦 Escolher produtos do estoque
               </button>
               <p className="text-[11px] text-zinc-600 py-1">ou me conta o objetivo:</p>
               {SUGESTOES.map(s => (
@@ -200,7 +256,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               ))}
             </div>
 
-            {/* Datas chegando — não deixa passar */}
             {datas.length > 0 && (
               <div className="mt-6 max-w-sm mx-auto text-left">
                 <p className="text-[11px] font-semibold text-zinc-500 mb-2 px-1">📅 Tá chegando — monta antes que passe</p>
@@ -224,7 +279,10 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           <div key={i} className={`flex ${m.papel === 'dono' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
               m.papel === 'dono' ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
-            }`}>{m.conteudo}</div>
+            }`}>
+              {m.foto && <img src={m.foto} alt="produto" className="rounded-lg mb-2 max-h-40 w-auto" />}
+              {m.conteudo}
+            </div>
           </div>
         ))}
         {pensando && <div className="flex justify-start"><div className="bg-zinc-800 text-zinc-500 rounded-2xl px-4 py-2.5 text-sm animate-pulse">pensando...</div></div>}
@@ -237,7 +295,9 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               <p className="text-xs text-zinc-400 mt-0.5">
                 {proposta.tamanhos?.length ? `Tamanhos: ${proposta.tamanhos.join(', ')}` : ''}
                 {proposta.marca ? ` · ${proposta.marca}` : ''}
+                {proposta.genero ? ` · ${generoLabel(proposta.genero)}` : ''}
                 {proposta.desconto ? ` · ${proposta.desconto} off` : ''}
+                {` · tom ${intensidade === 'agressiva' ? 'agressivo' : 'de boa'}`}
               </p>
             </div>
 
@@ -253,10 +313,21 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               )}
             </div>
 
+            {fotoUrl && (
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <img src={fotoUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                📷 Foto vai junto pros clientes quentes
+                <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
+              </div>
+            )}
+
             <div>
               <p className="text-xs font-semibold text-zinc-400 mb-1">💬 Copy (edite à vontade — {'{nome}'} vira o primeiro nome)</p>
               <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={4}
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+              <button onClick={() => enviar(`Refaz a copy no tom ${intensidade === 'agressiva' ? 'agressivo' : 'de boa'}, por favor.`)}
+                disabled={pensando}
+                className="mt-1.5 text-[11px] text-violet-300 hover:text-violet-200 disabled:opacity-40 cursor-pointer">↻ Refazer a copy no tom {intensidade === 'agressiva' ? 'agressivo' : 'de boa'}</button>
             </div>
 
             <div className="flex gap-2 pt-1">
@@ -277,24 +348,33 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         <div ref={bottomRef} />
       </div>
 
-      {/* Chip do produto selecionado */}
-      {produtoSel && (
+      {/* Foto anexada (fora da proposta) */}
+      {fotoUrl && !proposta && (
         <div className="shrink-0 flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2">
-          <span className="text-sm">📦</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-zinc-200 truncate">{produtoSel.nome}</p>
-            <p className="text-[11px] text-zinc-500 truncate">
-              {[produtoSel.marca, produtoSel.cor].filter(Boolean).join(' · ')} · {produtoSel.resumo}
-            </p>
-          </div>
-          <button onClick={() => setProdutoSel(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1 cursor-pointer">✕</button>
+          <img src={fotoUrl} alt="" className="h-9 w-9 rounded object-cover" />
+          <span className="text-xs text-zinc-300">📷 Foto anexada à campanha</span>
+          <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1 ml-auto cursor-pointer">remover</button>
         </div>
       )}
 
+      {/* Tom da oferta */}
+      <div className="shrink-0 flex items-center gap-2">
+        <span className="text-[11px] text-zinc-500">Tom:</span>
+        <div className="flex bg-zinc-900 border border-zinc-700 rounded-lg p-0.5">
+          <button onClick={() => setIntensidade('leve')}
+            className={`text-[11px] px-2.5 py-1 rounded-md transition cursor-pointer ${intensidade === 'leve' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>😌 De boa</button>
+          <button onClick={() => setIntensidade('agressiva')}
+            className={`text-[11px] px-2.5 py-1 rounded-md transition cursor-pointer ${intensidade === 'agressiva' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>🔥 Agressiva</button>
+        </div>
+      </div>
+
       {/* Input */}
       <div className="flex gap-2 shrink-0 border-t border-zinc-800 pt-3">
-        <button onClick={abrirPicker} disabled={pensando} title="Escolher produto do estoque"
+        <button onClick={abrirPicker} disabled={pensando} title="Escolher produtos do estoque"
           className="px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 rounded-xl text-sm transition cursor-pointer shrink-0">📦</button>
+        <button onClick={() => fileRef.current?.click()} disabled={pensando || enviandoFoto} title="Enviar foto do produto"
+          className="px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 rounded-xl text-sm transition cursor-pointer shrink-0">{enviandoFoto ? '⏳' : '📷'}</button>
+        <input ref={fileRef} type="file" accept="image/*" onChange={onFoto} className="hidden" />
         <textarea value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
           placeholder="Responde a consultora..." rows={1} disabled={pensando}
@@ -303,45 +383,68 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer">Enviar</button>
       </div>
 
-      {/* Modal do picker de produto */}
+      {/* Modal do picker de produtos (multi-seleção) */}
       {pickerAberto && (
         <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/60 p-0 lg:p-4" onClick={() => setPickerAberto(false)}>
           <div onClick={e => e.stopPropagation()}
-            className="w-full lg:max-w-lg bg-zinc-900 border border-zinc-700 rounded-t-2xl lg:rounded-2xl flex flex-col max-h-[80dvh]">
+            className="w-full lg:max-w-lg bg-zinc-900 border border-zinc-700 rounded-t-2xl lg:rounded-2xl flex flex-col max-h-[85dvh]">
             <div className="p-4 border-b border-zinc-800 shrink-0">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-bold text-white">📦 Escolher produto do estoque</p>
+                <p className="text-sm font-bold text-white">📦 Escolher produtos ({selecionados.length})</p>
                 <button onClick={() => setPickerAberto(false)} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">✕</button>
               </div>
               <input autoFocus value={busca} onChange={e => setBusca(e.target.value)}
                 placeholder="Buscar por nome, marca ou cor..."
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500" />
             </div>
+
             <div className="flex-1 overflow-y-auto min-h-0 p-2">
               {buscando && <p className="text-center text-xs text-zinc-500 py-6 animate-pulse">buscando...</p>}
               {!buscando && resultados.length === 0 && (
                 <p className="text-center text-xs text-zinc-500 py-6">Nenhum produto com estoque encontrado.</p>
               )}
-              {resultados.map(p => (
-                <button key={p.id} onClick={() => selecionarProduto(p)}
-                  className="w-full text-left rounded-lg hover:bg-zinc-800 px-3 py-2.5 transition cursor-pointer flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm text-zinc-100 font-medium truncate">{p.nome}</p>
-                    <p className="text-[11px] text-zinc-500 truncate">
-                      {[p.marca, p.cor].filter(Boolean).join(' · ')} · {p.resumo}
-                    </p>
+              {resultados.map(p => {
+                const sel = selecionados.find(s => s.produto.id === p.id)
+                return (
+                  <div key={p.id} className={`rounded-lg px-3 py-2.5 mb-1 transition ${estaSelecionado(p.id) ? 'bg-violet-500/10 border border-violet-500/30' : 'hover:bg-zinc-800 border border-transparent'}`}>
+                    <button onClick={() => toggleProduto(p)} className="w-full text-left flex items-center justify-between gap-2 cursor-pointer">
+                      <div className="min-w-0">
+                        <p className="text-sm text-zinc-100 font-medium truncate">{estaSelecionado(p.id) ? '✓ ' : ''}{p.nome}</p>
+                        <p className="text-[11px] text-zinc-500 truncate">
+                          {[p.marca, p.cor, generoLabel(p.genero)].filter(Boolean).join(' · ')} · {p.resumo}
+                        </p>
+                      </div>
+                      {p.preco != null && (
+                        <span className="text-xs text-[#00D4AA] font-semibold shrink-0">R$ {Number(p.preco).toFixed(2).replace('.', ',')}</span>
+                      )}
+                    </button>
+                    {sel && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <span className="text-[10px] text-zinc-500 mr-1 self-center">vender:</span>
+                        {p.tamanhos.map(t => (
+                          <button key={t} onClick={() => toggleTamanho(p.id, t)}
+                            className={`text-[11px] px-2 py-0.5 rounded-full transition cursor-pointer ${sel.tamanhos.includes(t) ? 'bg-violet-600 text-white' : 'bg-zinc-700 text-zinc-400'}`}>{t}</button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {p.preco != null && (
-                    <span className="text-xs text-[#00D4AA] font-semibold shrink-0">R$ {Number(p.preco).toFixed(2).replace('.', ',')}</span>
-                  )}
-                </button>
-              ))}
+                )
+              })}
             </div>
+
+            {selecionados.length > 0 && (
+              <div className="p-3 border-t border-zinc-800 shrink-0">
+                <button onClick={confirmarSelecao}
+                  className="w-full py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                  Confirmar {selecionados.length} produto(s) →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Histórico de campanhas — clica pra ver o resultado */}
+      {/* Histórico de campanhas */}
       {campanhas.length > 0 && (
         <details className="shrink-0 text-xs text-zinc-500">
           <summary className="cursor-pointer hover:text-zinc-300">📜 Campanhas ({campanhas.length}) — clica pra ver o resultado</summary>
@@ -362,7 +465,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         </details>
       )}
 
-      {/* Modal de detalhe/resultado da campanha */}
+      {/* Modal de detalhe/resultado */}
       {(carregandoDet || detalhe) && (
         <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/60 p-0 lg:p-4" onClick={() => { if (!acaoDet) setDetalhe(null) }}>
           <div onClick={e => e.stopPropagation()}
@@ -382,7 +485,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 </div>
 
                 <div className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col gap-4">
-                  {/* Métricas */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 p-3 text-center">
                       <p className="text-xl font-bold text-white">{detalhe.metricas.enviados}</p>
@@ -403,7 +505,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                     </p>
                   )}
 
-                  {/* Copy enviada */}
                   {detalhe.campanha.copy_whatsapp && (
                     <div>
                       <p className="text-xs font-semibold text-zinc-500 mb-1">💬 Mensagem enviada</p>
@@ -411,7 +512,6 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                     </div>
                   )}
 
-                  {/* Quem converteu */}
                   {detalhe.leads.some(l => l.converteu) && (
                     <div>
                       <p className="text-xs font-semibold text-zinc-500 mb-1">✅ Compraram depois</p>

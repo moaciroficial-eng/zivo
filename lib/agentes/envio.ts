@@ -1,4 +1,4 @@
-import { sendWhatsAppMessage, sendWhatsAppTemplate, type WhatsAppCreds } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendWhatsAppTemplate, sendWhatsAppImage, type WhatsAppCreds } from '@/lib/whatsapp'
 
 /* ══════════════════════════════════════════════════════════════
    BRAÇO DE EXECUÇÃO — enviar oferta respeitando a janela de 24h
@@ -20,6 +20,7 @@ export type EnvioOferta = {
   texto: string               // copy completa (janela aberta / o que mostrar no chat)
   templateName: string        // template aprovado pra janela fechada
   templateVars: string[]      // variáveis do template ({{1}}, {{2}}...) na ordem
+  fotoUrl?: string | null     // foto do produto (só entra em janela aberta)
   creds?: WhatsAppCreds
 }
 
@@ -54,7 +55,13 @@ export async function enviarOferta(admin: any, opts: EnvioOferta): Promise<Resul
   try {
     if (aberta) {
       via = 'texto'
-      messageId = (await sendWhatsAppMessage({ phone: opts.phone, message: opts.texto, creds: opts.creds })).messageId
+      /* Com foto e janela aberta → imagem com a copy de legenda (a Meta só
+         deixa imagem livre dentro das 24h). Sem foto → texto puro. */
+      if (opts.fotoUrl) {
+        messageId = (await sendWhatsAppImage({ phone: opts.phone, imageUrl: opts.fotoUrl, caption: opts.texto, creds: opts.creds })).messageId
+      } else {
+        messageId = (await sendWhatsAppMessage({ phone: opts.phone, message: opts.texto, creds: opts.creds })).messageId
+      }
     } else {
       via = 'template'
       messageId = (await sendWhatsAppTemplate({

@@ -32,12 +32,13 @@ const TOOLS = [
   },
   {
     name: 'casar_clientes',
-    description: 'Dado os tamanhos que o dono QUER vender (ex: ["G","GG"]) e opcionalmente a marca, retorna QUANTOS e QUAIS clientes vestem esses tamanhos (nunca sugere quem usa tamanho fora da lista). Quem tem afinidade com a marca vem primeiro.',
+    description: 'Dado os tamanhos que o dono QUER vender (ex: ["G","GG"]), opcionalmente a marca e o gênero do produto, retorna QUANTOS e QUAIS clientes vestem esses tamanhos (nunca sugere quem usa tamanho fora da lista, nem quem é do gênero oposto ao produto). Quem tem afinidade com a marca vem primeiro.',
     input_schema: {
       type: 'object' as const,
       properties: {
         tamanhos: { type: 'array', items: { type: 'string' }, description: 'tamanhos a vender' },
         marca: { type: 'string', description: 'marca da oferta (opcional)' },
+        genero: { type: 'string', description: "gênero do produto: 'M' (masculino), 'F' (feminino) ou vazio se unissex" },
       },
       required: ['tamanhos'],
     },
@@ -59,7 +60,7 @@ async function execTool(admin: any, userId: string, nome: string, input: any): P
       return { total: itens.length, itens: itens.slice(0, 25) }
     }
     if (nome === 'casar_clientes') {
-      const casados = await casarClientesPorTamanho(admin, userId, input.tamanhos ?? [], input.marca ?? null)
+      const casados = await casarClientesPorTamanho(admin, userId, input.tamanhos ?? [], input.marca ?? null, input.genero ?? null)
       return {
         total: casados.length,
         com_afinidade_marca: casados.filter(c => c.afinidadeMarca).length,
@@ -77,8 +78,8 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { mensagem, historico = [] } = await request.json()
-  if (!mensagem) return NextResponse.json({ ok: false }, { status: 400 })
+  const { mensagem, historico = [], foto = null, intensidade = 'leve' } = await request.json()
+  if (!mensagem && !foto) return NextResponse.json({ ok: false }, { status: 400 })
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: config } = await admin.from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
@@ -90,13 +91,21 @@ Seu jeito: você CONDUZ. O dono não sabe de marketing — você tira a resposta
 
 Descubra o essencial pra montar uma oferta forte:
 - Qual o OBJETIVO? (zerar a grade de um produto que chegou, girar estoque parado, aproveitar uma data como Dia dos Pais, reativar cliente)
-- Qual PRODUTO (ou ocasião)? IMPORTANTE: quando precisar do produto, NUNCA peça pro dono digitar o nome — mande ele tocar no botão 📦 ("Escolher produto do estoque") pra selecionar o produto certo, com os tamanhos e preço reais. Quando o dono selecionar, a mensagem já vem com nome, marca, tamanhos em estoque e preço — trabalhe em cima disso. Use buscar_produtos só se precisar conferir/comparar outros itens.
+- Qual PRODUTO (ou ocasião)? IMPORTANTE: quando precisar do produto, NUNCA peça pro dono digitar o nome — mande ele tocar no botão 📦 ("Escolher produto do estoque") pra selecionar o produto (pode ser MAIS DE UM), com os tamanhos e preço reais. Quando o dono selecionar, a mensagem já vem com nome, marca, gênero, tamanhos em estoque e preço — trabalhe em cima disso. Use buscar_produtos só se precisar conferir/comparar outros itens.
 - Quais TAMANHOS vender? (importante: só vamos oferecer pra quem veste esses tamanhos — normalmente "zerar a grade" = um de cada tamanho que tem em estoque)
 - PREÇO cheio ou com DESCONTO? Se desconto, quanto?
 - O que essa peça tem de ESPECIAL pra destacar?
-- Tem FOTO boa? (sem foto a oferta rende menos — sugira tirar uma)
 
-Use casar_clientes assim que souber os tamanhos (e marca) pra dizer ao dono QUANTOS clientes casam — isso empolga e valida.
+GÊNERO: se o produto é masculino ('M') ou feminino ('F'), a oferta NÃO vai pra quem é do gênero oposto — sempre passe o gênero pro casar_clientes. Se o dono selecionou vários produtos e todos são do mesmo gênero, use esse gênero.
+
+FOTO: se o dono ANEXOU uma foto do produto (você vai ver a imagem), comente rápido se ela vende bem (luz, enquadramento, se dá pra ver a peça) e USE o que vê pra deixar a copy mais concreta. A foto será enviada junto na oferta.
+
+TOM DA OFERTA (o dono escolhe "${intensidade === 'agressiva' ? 'AGRESSIVA' : 'DE BOA'}"):
+- DE BOA (leve): convite suave, sem pressão. Ex: "Oi {nome}, tudo bem? 😊 Chegaram novidades da Aramis muito com a sua cara, quer que eu te mande as fotos?"
+- AGRESSIVA: direta, com a peça específica + gancho de urgência + PREÇO ESPECIAL/condição pra fechar hoje, já contando que a foto vai junto. Ex: "Bom dia {nome}, tudo bem? Chegou um embarque novo da Aramis e essa camiseta aqui eu achei muito a sua cara — se tiver interesse, faço um preço especial pra você hoje 😉". Nunca invente desconto que o dono não autorizou; se ele não deu preço especial, pergunte antes de prometer.
+Agora monte a copy no tom "${intensidade}".
+
+Use casar_clientes assim que souber os tamanhos (marca e gênero) pra dizer ao dono QUANTOS clientes casam — isso empolga e valida.
 
 Quando tiver o suficiente, MONTE a proposta. Responda SEMPRE em JSON:
 {
@@ -111,20 +120,29 @@ Enquanto estiver entrevistando, "proposta": null. Quando fechar, preencha:
     "objetivo": "zerar_grade | girar_estoque | data | reativar",
     "tamanhos": ["G","GG"],
     "marca": "Aramis ou null",
+    "genero": "M | F | null (null = unissex)",
+    "intensidade": "${intensidade}",
     "copy_descritor": "texto curto pro cliente (ex: 'da Aramis', 'de camisa social', 'pro Dia dos Pais') — vai no meio de uma frase natural",
-    "copy_texto": "a mensagem HUMANA e calorosa pra cliente QUENTE (que respondeu nas últimas 24h). Use {nome} pro primeiro nome. Natural, brasileira, com um convite ('quer que eu te mande as fotos?'). NUNCA robótica.",
+    "copy_texto": "a mensagem pra cliente QUENTE no tom escolhido. Use {nome} pro primeiro nome. Natural, brasileira. NUNCA robótica.",
     "produtos_destaque": ["nomes dos produtos"],
     "desconto": "ex: '20%' ou null"
   }
 }
-A copy tem que soar como GENTE conversando, não anúncio. Ex: "Oi {nome}, tudo bem? 😊 Chegaram peças novas da Aramis que são muito o seu estilo, quer que eu te mande as fotos?"`
+A copy tem que soar como GENTE conversando, não anúncio.`
+
+  const conteudoAtual: any = foto
+    ? [
+        { type: 'image', source: { type: 'url', url: foto } },
+        { type: 'text', text: mensagem || 'Essa é a foto do produto pra campanha. O que achou?' },
+      ]
+    : mensagem
 
   const messages: any[] = [
     ...historico.map((h: { papel: string; conteudo: string }) => ({
       role: h.papel === 'dono' ? 'user' as const : 'assistant' as const,
       content: h.conteudo,
     })),
-    { role: 'user' as const, content: mensagem },
+    { role: 'user' as const, content: conteudoAtual },
   ]
 
   /* Loop de tool-use */
@@ -158,7 +176,7 @@ A copy tem que soar como GENTE conversando, não anúncio. Ex: "Oi {nome}, tudo 
   /* Se fechou a proposta, resolve o público REAL (código, não modelo) */
   let publico: { id: string; nome: string; telefone: string | null; motivo: string }[] = []
   if (parsed.proposta?.tamanhos?.length) {
-    const casados = await casarClientesPorTamanho(admin, user.id, parsed.proposta.tamanhos, parsed.proposta.marca ?? null)
+    const casados = await casarClientesPorTamanho(admin, user.id, parsed.proposta.tamanhos, parsed.proposta.marca ?? null, parsed.proposta.genero ?? null)
     publico = casados.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone, motivo: c.motivo }))
   }
 

@@ -177,13 +177,18 @@ export async function casarClientesPorTamanho(
   userId: string,
   tamanhosOferta: string[],
   marca?: string | null,
+  genero?: string | null,   // 'M' | 'F' — produto masculino não vai pra mulher e vice-versa
 ): Promise<ClienteCasado[]> {
   const tams = (tamanhosOferta ?? []).map(t => String(t).trim()).filter(Boolean)
   if (tams.length === 0) return []
 
+  /* Gênero do produto: 'M'/'F' filtra; 'U'/null/qualquer outro = sem filtro */
+  const g = String(genero ?? '').trim().toUpperCase().charAt(0)
+  const generoOferta = g === 'M' || g === 'F' ? g : null
+
   const [{ data: clientes }, { data: insights }] = await Promise.all([
     admin.from('clientes')
-      .select('id, nome, telefone, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
+      .select('id, nome, telefone, genero, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
       .eq('user_id', userId).limit(3000),
     admin.from('contato_insights')
       .select('cliente_id, marca_principal, marcas_favoritas')
@@ -201,6 +206,14 @@ export async function casarClientesPorTamanho(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const c of (clientes ?? []) as any[]) {
     if (!c.telefone || !String(c.telefone).trim()) continue
+
+    /* Gênero: só exclui quem é do gênero OPOSTO ao do produto. Cliente sem
+       gênero cadastrado fica (não sabemos — não vamos tirar por engano). */
+    if (generoOferta) {
+      const gc = String(c.genero ?? '').trim().toUpperCase().charAt(0)
+      if ((gc === 'M' || gc === 'F') && gc !== generoOferta) continue
+    }
+
     const tamsCliente = [c.tamanho_camiseta, c.tamanho_calca, c.tamanho_tenis].filter(Boolean)
     if (!clienteServeProduto(tamsCliente, tams)) continue
 

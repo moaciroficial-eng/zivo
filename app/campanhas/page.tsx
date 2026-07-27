@@ -12,7 +12,8 @@ export default async function CampanhasPage() {
     .from('campanhas').select('id, nome, objetivo, produto_marca, copy_whatsapp, status, created_at')
     .eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
 
-  const datas = proximasDatas(45)
+  /* Sempre as próximas datas (mesmo distantes) pra ele priorizar */
+  const datas = proximasDatas(400).slice(0, 3)
 
   return <CampanhasClient campanhas={campanhas ?? []} datas={datas} />
 }
