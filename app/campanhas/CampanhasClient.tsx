@@ -28,7 +28,8 @@ type Proposta = {
   desconto: string | null
 }
 type Publico = { id: string; nome: string; telefone: string | null; motivo: string }
-type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string; opcoes?: string[] }
+type Espera = 'texto' | 'produto' | 'foto' | 'opcoes'
+type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string; opcoes?: string[]; espera?: Espera }
 type Produto = {
   id: string; nome: string; marca: string | null; cor: string | null
   genero: string | null; preco: number | null; tamanhos: string[]; resumo: string
@@ -70,6 +71,9 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [enviandoFoto, setEnviandoFoto] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  /* Escape: força o campo de texto mesmo quando a IA espera produto/foto */
+  const [forcarTexto, setForcarTexto] = useState(false)
 
   /* Picker de produtos do estoque (multi-seleção) */
   const [pickerAberto, setPickerAberto] = useState(false)
@@ -176,7 +180,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   async function enviar(texto?: string, fotoVision?: string) {
     const conteudo = (texto ?? input).trim()
     if ((!conteudo && !fotoVision) || pensando) return
-    setInput(''); setErro(null); setResultado(null)
+    setInput(''); setErro(null); setResultado(null); setForcarTexto(false)
     const novos: Msg[] = [...msgs, { papel: 'dono', conteudo, foto: fotoVision }]
     setMsgs(novos); setPensando(true)
     try {
@@ -186,7 +190,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       })
       const data = await res.json()
       if (!data.ok) { setErro('A consultora tropeçou. Tenta de novo.'); return }
-      setMsgs(prev => [...prev, { papel: 'consultora', conteudo: data.resposta, opcoes: data.opcoes ?? [] }])
+      setMsgs(prev => [...prev, { papel: 'consultora', conteudo: data.resposta, opcoes: data.opcoes ?? [], espera: data.espera ?? 'texto' }])
       if (data.proposta) {
         setProposta(data.proposta)
         setPublico(data.publico ?? [])
@@ -369,20 +373,63 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         </div>
       )}
 
-      {/* Input */}
-      <div className="flex gap-2 shrink-0 border-t border-zinc-800 pt-3">
-        <button onClick={abrirPicker} disabled={pensando} title="Escolher produtos do estoque"
-          className="px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 rounded-xl text-sm transition cursor-pointer shrink-0">📦</button>
-        <button onClick={() => fileRef.current?.click()} disabled={pensando || enviandoFoto} title="Enviar foto do produto"
-          className="px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 rounded-xl text-sm transition cursor-pointer shrink-0">{enviandoFoto ? '⏳' : '📷'}</button>
-        <input ref={fileRef} type="file" accept="image/*" onChange={onFoto} className="hidden" />
-        <textarea value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-          placeholder="Responde a consultora..." rows={1} disabled={pensando}
-          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
-        <button onClick={() => enviar()} disabled={!input.trim() || pensando}
-          className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer">Enviar</button>
-      </div>
+      {/* Input contextual — aparece conforme o que a consultora está pedindo */}
+      <input ref={fileRef} type="file" accept="image/*" onChange={onFoto} className="hidden" />
+      {(() => {
+        const ultima = msgs.length > 0 ? msgs[msgs.length - 1] : null
+        const base: Espera = (!pensando && !proposta && ultima?.papel === 'consultora') ? (ultima.espera ?? 'texto') : 'texto'
+        const modo: Espera = forcarTexto ? 'texto' : base
+
+        if (pensando) return null
+
+        /* Passo: escolher produto do estoque */
+        if (modo === 'produto') return (
+          <div className="shrink-0 border-t border-zinc-800 pt-3 flex flex-col gap-2">
+            <button onClick={abrirPicker}
+              className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+              📦 Escolher produtos do estoque
+            </button>
+            <button onClick={() => setForcarTexto(true)} className="text-[11px] text-zinc-500 hover:text-zinc-300 self-center cursor-pointer">prefiro escrever</button>
+          </div>
+        )
+
+        /* Passo: subir foto (ou seguir sem) — antes de gerar a copy */
+        if (modo === 'foto') return (
+          <div className="shrink-0 border-t border-zinc-800 pt-3 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <button onClick={() => fileRef.current?.click()} disabled={enviandoFoto}
+                className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                {enviandoFoto ? '⏳ Subindo...' : '📷 Subir foto do produto'}
+              </button>
+              <button onClick={() => enviar('Seguir sem foto, pode gerar a copy.')} disabled={enviandoFoto}
+                className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm font-medium transition cursor-pointer">
+                Seguir sem foto
+              </button>
+            </div>
+            <button onClick={() => setForcarTexto(true)} className="text-[11px] text-zinc-500 hover:text-zinc-300 self-center cursor-pointer">prefiro escrever</button>
+          </div>
+        )
+
+        /* Passo: escolha clicável — as opções aparecem embaixo da mensagem;
+           aqui só um atalho pra escrever, caso queira */
+        if (modo === 'opcoes') return (
+          <div className="shrink-0 border-t border-zinc-800 pt-3">
+            <button onClick={() => setForcarTexto(true)} className="text-[11px] text-zinc-500 hover:text-zinc-300 cursor-pointer">responder escrevendo →</button>
+          </div>
+        )
+
+        /* Padrão: campo de texto */
+        return (
+          <div className="flex gap-2 shrink-0 border-t border-zinc-800 pt-3">
+            <textarea autoFocus value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
+              placeholder="Responde a consultora..." rows={1}
+              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+            <button onClick={() => enviar()} disabled={!input.trim()}
+              className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer">Enviar</button>
+          </div>
+        )
+      })()}
 
       {/* Modal do picker de produtos (multi-seleção) */}
       {pickerAberto && (
