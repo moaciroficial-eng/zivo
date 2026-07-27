@@ -24,6 +24,7 @@ type Proposta = {
   intensidade?: string | null
   copy_descritor: string
   copy_texto: string
+  copy_texto_preco?: string | null
   produtos_destaque: string[]
   desconto: string | null
 }
@@ -86,6 +87,8 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [buscando, setBuscando] = useState(false)
   const [selecionados, setSelecionados] = useState<SelProduto[]>([])
   const [produtoIds, setProdutoIds] = useState<string[]>([])  // IDs dos produtos da campanha (pra fotos automáticas)
+  const [generoCampanha, setGeneroCampanha] = useState<string | null>(null)  // gênero autoritativo do produto
+  const [comPreco, setComPreco] = useState(false)  // toggle copy com/sem preço
 
   /* Detalhe/resultado de campanha */
   const [detalhe, setDetalhe] = useState<DetalheCampanha | null>(null)
@@ -158,6 +161,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
     }).join('\n')
     const g = generoDominante(validos)
     const nota = g ? `\n(Produto ${g === 'M' ? 'masculino' : 'feminino'} — não oferecer pro gênero oposto.)` : ''
+    if (g) setGeneroCampanha(g)
     setProdutoIds(prev => [...new Set([...prev, ...validos.map(s => s.produto.id)])])
     setPickerAberto(false)
     setSelecionados([])
@@ -192,7 +196,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
     try {
       const res = await fetch('/api/campanhas/consultora', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null }),
+        body: JSON.stringify({ mensagem: conteudo, historico: msgs, foto: fotoVision ?? null, genero_produto: generoCampanha }),
       })
       const data = await res.json()
       if (!data.ok) { setErro('A consultora tropeçou. Tenta de novo.'); return }
@@ -200,7 +204,8 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       if (data.proposta) {
         setProposta(data.proposta)
         setPublico(data.publico ?? [])
-        setCopyEditada(data.proposta.copy_texto ?? '')
+        setComPreco(false)
+        setCopyEditada(data.proposta.copy_texto ?? '')   // padrão: sem preço
       }
     } catch { setErro('Erro de conexão.') } finally { setPensando(false) }
   }
@@ -237,7 +242,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           created_at: new Date().toISOString(),
         }, ...prev])
       }
-      setProposta(null); setPublico([]); setFotoUrl(null); setProdutoIds([])
+      setProposta(null); setPublico([]); setFotoUrl(null); setProdutoIds([]); setGeneroCampanha(null)
     } catch { setErro('Erro de conexão.') } finally { setDisparando(false) }
   }
 
@@ -351,10 +356,20 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
             )}
 
             <div>
-              <p className="text-xs font-semibold text-zinc-400 mb-1">💬 Copy (edite à vontade — {'{nome}'} vira o primeiro nome)</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-zinc-400">💬 Copy (edite à vontade — {'{nome}'} vira o primeiro nome)</p>
+                {proposta.copy_texto_preco && (
+                  <div className="flex bg-zinc-900 border border-zinc-700 rounded-lg p-0.5">
+                    <button onClick={() => { setComPreco(false); setCopyEditada(proposta.copy_texto ?? '') }}
+                      className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${!comPreco ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>Sem preço</button>
+                    <button onClick={() => { setComPreco(true); setCopyEditada(proposta.copy_texto_preco ?? '') }}
+                      className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${comPreco ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>Com preço</button>
+                  </div>
+                )}
+              </div>
               <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={4}
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
-              <p className="mt-1.5 text-[11px] text-zinc-600">Quer outro tom ou ajuste? É só pedir na conversa (&quot;deixa mais agressiva&quot;).</p>
+              <p className="mt-1.5 text-[11px] text-zinc-600">Sem preço = só instiga (&quot;consigo uma oferta especial&quot;) e o cliente pergunta. Quer outro tom? Pede na conversa.</p>
             </div>
 
             <div className="flex gap-2 pt-1">

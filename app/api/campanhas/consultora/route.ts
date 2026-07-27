@@ -45,7 +45,7 @@ const TOOLS = [
   },
 ]
 
-async function execTool(admin: any, userId: string, nome: string, input: any): Promise<unknown> {
+async function execTool(admin: any, userId: string, nome: string, input: any, generoProduto: string | null): Promise<unknown> {
   try {
     if (nome === 'buscar_produtos') {
       let q = admin.from('estoque').select('nome, marca, categoria, cor, tamanhos, preco_venda').eq('user_id', userId)
@@ -60,7 +60,8 @@ async function execTool(admin: any, userId: string, nome: string, input: any): P
       return { total: itens.length, itens: itens.slice(0, 25) }
     }
     if (nome === 'casar_clientes') {
-      const casados = await casarClientesPorTamanho(admin, userId, input.tamanhos ?? [], input.marca ?? null, input.genero ?? null)
+      /* gênero do produto (do picker) manda; só cai no do modelo se não veio */
+      const casados = await casarClientesPorTamanho(admin, userId, input.tamanhos ?? [], input.marca ?? null, generoProduto ?? input.genero ?? null)
       return {
         total: casados.length,
         com_afinidade_marca: casados.filter(c => c.afinidadeMarca).length,
@@ -78,8 +79,13 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { mensagem, historico = [], foto = null } = await request.json()
+  const { mensagem, historico = [], foto = null, genero_produto = null } = await request.json()
   if (!mensagem && !foto) return NextResponse.json({ ok: false }, { status: 400 })
+
+  /* Gênero AUTORITATIVO do produto selecionado (vem do picker). Não dependemos
+     do modelo lembrar de setar — é o servidor que garante o filtro. */
+  const gProd = String(genero_produto ?? '').trim().toUpperCase().charAt(0)
+  const generoProduto: string | null = gProd === 'M' || gProd === 'F' ? gProd : null
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: config } = await admin.from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
@@ -107,9 +113,17 @@ GÊNERO: produto 'M' ou 'F' → a oferta NÃO vai pro gênero oposto. Sempre pas
 
 FOTO (visão): se o dono ANEXOU uma foto (você vê a imagem), comente rápido se ela vende bem (luz, enquadramento) e use o que vê pra deixar a copy concreta. A foto vai junto na oferta.
 
-TOM:
-- SUAVE: convite leve, sem pressão. Ex: "Oi {nome}, tudo bem? 😊 Chegou uma novidade da Aramis muito com a sua cara, quer que eu te mande as fotos?"
-- AGRESSIVA: direta, peça específica + gancho de urgência + PREÇO ESPECIAL pra fechar hoje. Ex: "Bom dia {nome}, tudo bem? Chegou um embarque novo da Aramis e essa camiseta eu achei muito a sua cara — se tiver interesse, faço um preço especial pra você hoje 😉". Nunca invente desconto não autorizado.
+COMO ESCREVER A COPY (O MAIS IMPORTANTE): é um WhatsApp de dono de loja pra cliente conhecido. CURTA (2 a 3 linhas). Leve, como GENTE falando — nunca anúncio nem vendedor empurrando. PROIBIDO: empilhar adjetivos ("tecido encorpado, mas fresco, caimento impecável"), fazer discurso, e principalmente MOSTRAR A CONTA ("tá saindo por R$269 e consigo por R$215", "20% off"). Isso afasta.
+
+PREÇO: por padrão NEM FALA de preço — só instiga e deixa o cliente perguntar. O jeito certo é "se você tiver interesse, consigo uma oferta especial nela". Quando houver desconto, gere DUAS versões da copy:
+- copy_texto (PADRÃO, SEM preço): instiga sem número. Ex: "...se tiver interesse, consigo uma oferta especial nela pra você."
+- copy_texto_preco (opcional, COM preço): mostra "de R$269 por R$250" (você calcula o valor final; NUNCA a %). Só essa versão cita valor.
+Se NÃO houver desconto, copy_texto é o convite normal e copy_texto_preco = null.
+
+TOM (as duas versões seguem o tom):
+- SUAVE: convite gentil. Ex: "Oi {nome}, tudo bem? 😊 Chegou uma camiseta nova da Aramis aqui que lembrei de você. Quer que eu te mande as fotos?"
+- AGRESSIVA: um tico mais direta, instigando a condição especial, mas leve e SEM escancarar preço. Ex: "Oi {nome}, tudo bem? Chegou uma camiseta da Aramis muito a sua cara 😊 Se tiver interesse, consigo uma oferta especial nela pra você. Quer ver as fotos?"
+Nunca invente desconto que o dono não autorizou.
 
 Use casar_clientes assim que souber tamanhos (marca e gênero) pra dizer QUANTOS clientes casam — isso valida.
 
@@ -138,12 +152,13 @@ Enquanto entrevista, "proposta": null. Quando fechar (JÁ com tom escolhido E a 
     "genero": "M | F | null (null = unissex)",
     "intensidade": "leve | agressiva (o tom que o dono escolheu)",
     "copy_descritor": "descrição humana curta pro cliente (ex: 'da Aramis', 'de camisa social') — SEM código",
-    "copy_texto": "a mensagem pra cliente QUENTE no tom escolhido. Use {nome} pro primeiro nome. Natural, brasileira. NUNCA robótica, NUNCA com código de produto.",
+    "copy_texto": "copy CURTA no tom escolhido, SEM preço (instiga). Use {nome}. Natural, brasileira, NUNCA com código de produto.",
+    "copy_texto_preco": "MESMA copy porém COM o preço ('de R$X por R$Y'). null se não houver desconto.",
     "produtos_destaque": ["descrição limpa dos produtos"],
-    "desconto": "ex: '20%' ou null"
+    "desconto": "ex: '20%', 'R$50' ou null"
   }
 }
-A copy tem que soar como GENTE conversando, não anúncio.`
+Copy curtíssima, humana, sem discurso e sem escancarar preço.`
 
   const conteudoAtual: any = foto
     ? [
@@ -176,7 +191,7 @@ A copy tem que soar como GENTE conversando, não anúncio.`
     const toolResults: any[] = []
     for (const block of res.content) {
       if (block.type === 'tool_use') {
-        const r = await execTool(admin, user.id, block.name, block.input)
+        const r = await execTool(admin, user.id, block.name, block.input, generoProduto)
         toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(r) })
       }
     }
@@ -200,7 +215,9 @@ A copy tem que soar como GENTE conversando, não anúncio.`
   /* Se fechou a proposta, resolve o público REAL (código, não modelo) */
   let publico: { id: string; nome: string; telefone: string | null; motivo: string }[] = []
   if (parsed.proposta?.tamanhos?.length) {
-    const casados = await casarClientesPorTamanho(admin, user.id, parsed.proposta.tamanhos, parsed.proposta.marca ?? null, parsed.proposta.genero ?? null)
+    /* gênero do produto (picker) é o autoritativo; garante o filtro mesmo se o modelo esquecer */
+    const generoFiltro = generoProduto ?? parsed.proposta.genero ?? null
+    const casados = await casarClientesPorTamanho(admin, user.id, parsed.proposta.tamanhos, parsed.proposta.marca ?? null, generoFiltro)
     publico = casados.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone, motivo: c.motivo }))
   }
 
