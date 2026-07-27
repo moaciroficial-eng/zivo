@@ -214,8 +214,23 @@ Copy curtíssima, humana, sem discurso e sem escancarar preço.`
     if (!parsed.resposta) parsed.resposta = parsed.proposta ? 'Prontinho, montei a campanha aqui embaixo — dá uma olhada 👇' : 'Me conta um pouco mais pra eu montar a melhor oferta.'
   }
   const opcoes: string[] = Array.isArray(parsed.opcoes) ? parsed.opcoes.filter((o: unknown) => typeof o === 'string' && o.trim()).slice(0, 4) : []
-  const espera: string = ['texto', 'produto', 'foto', 'opcoes', 'desconto'].includes(parsed.espera) ? parsed.espera
-    : opcoes.length > 0 ? 'opcoes' : 'texto'
+
+  /* Espera: o modelo às vezes esquece de setar 'foto'/'desconto' (manda
+     'texto'). DETECTA o passo pela própria pergunta e SOBREPÕE nesses casos. */
+  const modelEspera = ['texto', 'produto', 'foto', 'opcoes', 'desconto'].includes(parsed.espera) ? parsed.espera : ''
+  let heur = ''
+  if (!parsed.proposta) {
+    const r = String(parsed.resposta || '').toLowerCase()
+    if (/sem foto|segue sem|manda(r)?\s+(uma\s+)?foto|me\s+manda.*foto|foto d[ao]\s|uma foto/.test(r)) heur = 'foto'
+    else if (/desconto|pre[çc]o cheio/.test(r)) heur = 'desconto'
+    else if (/(escolh|seleci|mostra|mostre).*estoque|no estoque/.test(r)) heur = 'produto'
+  }
+  let espera: string = modelEspera
+  /* sinais fortes (foto/desconto/produto) mandam mais que um 'texto' fraco/ausente */
+  if ((heur === 'foto' || heur === 'desconto' || heur === 'produto') && (modelEspera === '' || modelEspera === 'texto')) {
+    espera = heur
+  }
+  if (!espera) espera = opcoes.length > 0 ? 'opcoes' : 'texto'
 
   /* Se fechou a proposta, resolve o público REAL (código, não modelo) */
   let publico: { id: string; nome: string; telefone: string | null; motivo: string }[] = []
