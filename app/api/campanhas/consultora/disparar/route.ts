@@ -33,15 +33,18 @@ export async function POST(request: NextRequest) {
 
   const alvo = publico_ids.slice(0, MAX_POR_DISPARO)
 
-  /* Campanha SEM foto: resolve as fotos dos produtos na biblioteca pra
-     mandar automaticamente quando o cliente responder (fica pendente no
-     contato). Só faz sentido quando NÃO anexamos foto no disparo. */
-  let fotosPendentes: string[] = []
-  if (!foto_url && Array.isArray(produto_ids) && produto_ids.length > 0) {
+  /* Fotos que o cliente recebe QUANDO RESPONDER (a copy pergunta "quer que
+     eu te mande as fotos?"). Prioridade pra foto de venda que o DONO subiu;
+     se ele não subiu, cai na foto da biblioteca do produto (fallback). */
+  let fotosResposta: string[] = []
+  if (foto_url) {
+    fotosResposta = [foto_url]
+  } else if (Array.isArray(produto_ids) && produto_ids.length > 0) {
     const { data: fotos } = await admin.from('biblioteca_fotos')
       .select('url').eq('user_id', user.id).overlaps('estoque_ids', produto_ids).limit(6)
-    fotosPendentes = [...new Set((fotos ?? []).map((f: { url: string }) => f.url).filter(Boolean))].slice(0, 5)
+    fotosResposta = [...new Set((fotos ?? []).map((f: { url: string }) => f.url).filter(Boolean))].slice(0, 5)
   }
+  let comFotoNaResposta = 0
 
   /* Cria a campanha ANTES do disparo pra linkar os leads (rastrear resultado) */
   const { data: campanhaRow } = await admin.from('campanhas').insert({
@@ -93,6 +96,12 @@ export async function POST(request: NextRequest) {
     if (!r.ok) { falhas++; continue }
     if (r.via === 'template') porTemplate++; else porTexto++
 
+    /* Marca foto pendente pra quem NÃO recebeu a imagem inline: os frios
+       (template não leva imagem) e os quentes quando não houve foto subida.
+       Quente que já recebeu a imagem (via='texto' + foto_url) não precisa. */
+    const jaRecebeuInline = r.via === 'texto' && !!foto_url
+    const pendentes = jaRecebeuInline ? [] : fotosResposta
+
     /* lead da campanha (rastreia resultado depois) */
     if (campanhaId) {
       try {
@@ -102,8 +111,9 @@ export async function POST(request: NextRequest) {
         })
         if (contatoId) await admin.from('whatsapp_contatos').update({
           campanha_id: campanhaId,
-          ...(fotosPendentes.length ? { fotos_pendentes: fotosPendentes } : {}),
+          ...(pendentes.length ? { fotos_pendentes: pendentes } : {}),
         }).eq('id', contatoId)
+        if (pendentes.length) comFotoNaResposta++
       } catch { /* lead é secundário */ }
     }
 
@@ -119,7 +129,7 @@ export async function POST(request: NextRequest) {
     enviados: porTemplate + porTexto,
     por_template: porTemplate,
     por_texto: porTexto,
-    fotos_no_retorno: fotosPendentes.length,
+    fotos_no_retorno: comFotoNaResposta,
     falhas,
     excedente: publico_ids.length - alvo.length,
   })

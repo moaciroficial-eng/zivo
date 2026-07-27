@@ -221,10 +221,11 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
-      const extra = fotoUrl ? ' — com foto pros quentes'
-        : data.fotos_no_retorno > 0 ? ` — e quando o cliente responder, o atendimento manda ${data.fotos_no_retorno} foto(s) automático 📸`
+      const naResposta = (data.fotos_no_retorno ?? 0) > 0
+        ? ` Pros que receberem sem imagem, a foto vai automático quando responderem 📸 (${data.fotos_no_retorno}).`
         : ''
-      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes)${extra}. O resultado aparece no histórico.`)
+      const comFoto = fotoUrl ? ' A foto foi junto pros clientes quentes.' : ''
+      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes).${comFoto}${naResposta} O resultado aparece no histórico.`)
       if (data.campanhaId) {
         setCampanhas(prev => [{
           id: data.campanhaId, nome: proposta.titulo, objetivo: proposta.objetivo,
