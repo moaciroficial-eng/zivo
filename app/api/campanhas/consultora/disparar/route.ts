@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url } = await request.json()
+  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url, produto_ids } = await request.json()
   if (!copy_texto || !Array.isArray(publico_ids) || publico_ids.length === 0) {
     return NextResponse.json({ ok: false, erro: 'Faltou copy ou público.' }, { status: 400 })
   }
@@ -32,6 +32,16 @@ export async function POST(request: NextRequest) {
   const nomeLoja = loja?.nomeLoja || 'a loja'
 
   const alvo = publico_ids.slice(0, MAX_POR_DISPARO)
+
+  /* Campanha SEM foto: resolve as fotos dos produtos na biblioteca pra
+     mandar automaticamente quando o cliente responder (fica pendente no
+     contato). Só faz sentido quando NÃO anexamos foto no disparo. */
+  let fotosPendentes: string[] = []
+  if (!foto_url && Array.isArray(produto_ids) && produto_ids.length > 0) {
+    const { data: fotos } = await admin.from('biblioteca_fotos')
+      .select('url').eq('user_id', user.id).overlaps('estoque_ids', produto_ids).limit(6)
+    fotosPendentes = [...new Set((fotos ?? []).map((f: { url: string }) => f.url).filter(Boolean))].slice(0, 5)
+  }
 
   /* Cria a campanha ANTES do disparo pra linkar os leads (rastrear resultado) */
   const { data: campanhaRow } = await admin.from('campanhas').insert({
@@ -90,7 +100,10 @@ export async function POST(request: NextRequest) {
           user_id: user.id, campanha_id: campanhaId, cliente_id: cli.id,
           contato_id: contatoId, phone, nome: cli.nome ?? null, status: 'novo',
         })
-        if (contatoId) await admin.from('whatsapp_contatos').update({ campanha_id: campanhaId }).eq('id', contatoId)
+        if (contatoId) await admin.from('whatsapp_contatos').update({
+          campanha_id: campanhaId,
+          ...(fotosPendentes.length ? { fotos_pendentes: fotosPendentes } : {}),
+        }).eq('id', contatoId)
       } catch { /* lead é secundário */ }
     }
 
@@ -106,6 +119,7 @@ export async function POST(request: NextRequest) {
     enviados: porTemplate + porTexto,
     por_template: porTemplate,
     por_texto: porTexto,
+    fotos_no_retorno: fotosPendentes.length,
     falhas,
     excedente: publico_ids.length - alvo.length,
   })

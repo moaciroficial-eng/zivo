@@ -81,6 +81,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [resultados, setResultados] = useState<Produto[]>([])
   const [buscando, setBuscando] = useState(false)
   const [selecionados, setSelecionados] = useState<SelProduto[]>([])
+  const [produtoIds, setProdutoIds] = useState<string[]>([])  // IDs dos produtos da campanha (pra fotos automáticas)
 
   /* Detalhe/resultado de campanha */
   const [detalhe, setDetalhe] = useState<DetalheCampanha | null>(null)
@@ -153,6 +154,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
     }).join('\n')
     const g = generoDominante(validos)
     const nota = g ? `\n(Produto ${g === 'M' ? 'masculino' : 'feminino'} — não oferecer pro gênero oposto.)` : ''
+    setProdutoIds(prev => [...new Set([...prev, ...validos.map(s => s.produto.id)])])
     setPickerAberto(false)
     setSelecionados([])
     enviar(`Selecionei do estoque pra campanha:\n${linhas}${nota}\nMonta a campanha em cima desses produtos.`)
@@ -214,11 +216,15 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           copy_descritor: proposta.copy_descritor,
           publico_ids: publico.map(p => p.id),
           foto_url: fotoUrl,
+          produto_ids: produtoIds,
         }),
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
-      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes)${fotoUrl ? ' — com foto pros quentes' : ''}. O resultado aparece no histórico.`)
+      const extra = fotoUrl ? ' — com foto pros quentes'
+        : data.fotos_no_retorno > 0 ? ` — e quando o cliente responder, o atendimento manda ${data.fotos_no_retorno} foto(s) automático 📸`
+        : ''
+      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes)${extra}. O resultado aparece no histórico.`)
       if (data.campanhaId) {
         setCampanhas(prev => [{
           id: data.campanhaId, nome: proposta.titulo, objetivo: proposta.objetivo,
@@ -226,7 +232,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           created_at: new Date().toISOString(),
         }, ...prev])
       }
-      setProposta(null); setPublico([]); setFotoUrl(null)
+      setProposta(null); setPublico([]); setFotoUrl(null); setProdutoIds([])
     } catch { setErro('Erro de conexão.') } finally { setDisparando(false) }
   }
 

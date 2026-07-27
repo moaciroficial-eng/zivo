@@ -1,7 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage, humanoAtivoNaConversa } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendWhatsAppImage, humanoAtivoNaConversa } from '@/lib/whatsapp'
 import { carregarConhecimento } from '@/lib/conhecimento'
 import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
 
@@ -105,7 +105,7 @@ async function handleAtendimento(request: NextRequest) {
 
   const [{ data: config }, { data: contato }, { data: mensagens }, { data: insights }, conhecimento, { data: tarefaAtiva }] = await Promise.all([
     admin.from('loja_config').select('*').eq('user_id', userId).maybeSingle(),
-    admin.from('whatsapp_contatos').select('nome, phone, cliente_id, clientes(genero, observacoes)').eq('id', contatoId).single(),
+    admin.from('whatsapp_contatos').select('nome, phone, cliente_id, fotos_pendentes, clientes(genero, observacoes)').eq('id', contatoId).single(),
     admin.from('whatsapp_mensagens')
       .select('direcao, conteudo, timestamp, raw')
       .eq('contato_id', contatoId)
@@ -140,6 +140,35 @@ async function handleAtendimento(request: NextRequest) {
      NÃO responde por cima. Exceção: instrução explícita do dono. */
   if (!instrucaoOwner && humanoAtivoNaConversa(mensagens ?? [])) {
     return NextResponse.json({ ok: true, skipped: 'dono ativo na conversa — IA em silêncio' })
+  }
+
+  /* ── CAMPANHA SEM FOTO: o cliente respondeu → manda as fotos do produto
+     que ficaram pendentes (a copy prometeu "quer que eu te mande as fotos?").
+     Envia, grava no histórico e limpa a pendência. */
+  const fotosPendentes: string[] = Array.isArray((contato as { fotos_pendentes?: unknown }).fotos_pendentes)
+    ? ((contato as { fotos_pendentes?: string[] }).fotos_pendentes ?? []).filter(u => typeof u === 'string' && u)
+    : []
+  if (!instrucaoOwner && fotosPendentes.length > 0 && contato.phone) {
+    try {
+      for (const url of fotosPendentes.slice(0, 5)) {
+        await sendWhatsAppImage({ phone: contato.phone, imageUrl: url })
+      }
+      const legenda = 'Aqui as fotos 😍 o que achou? Qualquer dúvida de tamanho ou preço é só me falar!'
+      const msgId = (await sendWhatsAppMessage({ phone: contato.phone, message: legenda })).messageId
+      const ts = new Date().toISOString()
+      await admin.from('whatsapp_mensagens').insert({
+        user_id: userId, contato_id: contatoId, message_id: msgId ?? null,
+        direcao: 'enviada', tipo: 'texto', conteudo: legenda, status: 'enviada',
+        timestamp: ts, raw: { origem: 'ia', via: 'fotos_campanha' },
+      })
+      await admin.from('whatsapp_contatos').update({
+        fotos_pendentes: [], ultima_mensagem: legenda, ultima_mensagem_at: ts,
+      }).eq('id', contatoId)
+      return NextResponse.json({ ok: true, via: 'fotos_campanha', enviadas: fotosPendentes.length })
+    } catch {
+      /* se falhar o envio das fotos, limpa pra não repetir e segue o fluxo normal */
+      await admin.from('whatsapp_contatos').update({ fotos_pendentes: [] }).eq('id', contatoId).then(() => {}, () => {})
+    }
   }
 
   /* ── MODO TAREFA: cliente interagiu durante uma missão do Gerente ──
