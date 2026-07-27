@@ -3,8 +3,15 @@
 import { useState, useRef, useEffect } from 'react'
 
 type CampanhaRow = {
-  id: string; nome: string; objetivo: string | null
+  id: string; nome: string; objetivo: string | null; produto_marca?: string | null
   copy_whatsapp: string | null; status: string; created_at: string
+}
+type DataProxima = { nome: string; dias: number; data: string; aprox?: boolean }
+type Metricas = { enviados: number; respostas: number; conversoes: number; receita: number; taxaConversao: number; taxaResposta: number }
+type DetalheCampanha = {
+  campanha: CampanhaRow
+  metricas: Metricas
+  leads: { nome: string | null; status: string; converteu: boolean }[]
 }
 
 type Proposta = {
@@ -31,7 +38,8 @@ const SUGESTOES = [
   'Quero reativar clientes que sumiram',
 ]
 
-export default function CampanhasClient({ campanhas }: { campanhas: CampanhaRow[] }) {
+export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }: { campanhas: CampanhaRow[]; datas?: DataProxima[] }) {
+  const [campanhas, setCampanhas] = useState<CampanhaRow[]>(campanhasInit)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [pensando, setPensando] = useState(false)
@@ -50,7 +58,40 @@ export default function CampanhasClient({ campanhas }: { campanhas: CampanhaRow[
   const [buscando, setBuscando] = useState(false)
   const [produtoSel, setProdutoSel] = useState<Produto | null>(null)
 
+  /* Detalhe/resultado de campanha (histórico tipo conversa) */
+  const [detalhe, setDetalhe] = useState<DetalheCampanha | null>(null)
+  const [carregandoDet, setCarregandoDet] = useState(false)
+  const [acaoDet, setAcaoDet] = useState(false)
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, pensando])
+
+  async function abrirDetalhe(id: string) {
+    setCarregandoDet(true); setDetalhe(null)
+    try {
+      const res = await fetch(`/api/campanhas/${id}`)
+      const data = await res.json()
+      if (data.ok) setDetalhe(data)
+    } catch { /* ignora */ } finally { setCarregandoDet(false) }
+  }
+
+  async function salvarCampanha(id: string) {
+    setAcaoDet(true)
+    try {
+      await fetch(`/api/campanhas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'salva' }) })
+      setCampanhas(prev => prev.map(c => c.id === id ? { ...c, status: 'salva' } : c))
+      setDetalhe(d => d ? { ...d, campanha: { ...d.campanha, status: 'salva' } } : d)
+    } catch { /* ignora */ } finally { setAcaoDet(false) }
+  }
+
+  async function apagarCampanha(id: string) {
+    if (!confirm('Apagar essa campanha do histórico? Não dá pra desfazer.')) return
+    setAcaoDet(true)
+    try {
+      await fetch(`/api/campanhas/${id}`, { method: 'DELETE' })
+      setCampanhas(prev => prev.filter(c => c.id !== id))
+      setDetalhe(null)
+    } catch { /* ignora */ } finally { setAcaoDet(false) }
+  }
 
   /* Busca no estoque com debounce enquanto o picker está aberto */
   useEffect(() => {
@@ -120,8 +161,15 @@ export default function CampanhasClient({ campanhas }: { campanhas: CampanhaRow[
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
-      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes). As respostas caem no atendimento.`)
-      setProposta(null); setPublico([])
+      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes). As respostas caem no atendimento — o resultado aparece aqui no histórico.`)
+      if (data.campanhaId) {
+        setCampanhas(prev => [{
+          id: data.campanhaId, nome: proposta.titulo, objetivo: proposta.objetivo,
+          produto_marca: proposta.marca, copy_whatsapp: copyEditada, status: 'ativa',
+          created_at: new Date().toISOString(),
+        }, ...prev])
+      }
+      setProposta(null); setPublico([]); setProdutoSel(null)
     } catch { setErro('Erro de conexão.') } finally { setDisparando(false) }
   }
 
@@ -151,6 +199,25 @@ export default function CampanhasClient({ campanhas }: { campanhas: CampanhaRow[
                 </button>
               ))}
             </div>
+
+            {/* Datas chegando — não deixa passar */}
+            {datas.length > 0 && (
+              <div className="mt-6 max-w-sm mx-auto text-left">
+                <p className="text-[11px] font-semibold text-zinc-500 mb-2 px-1">📅 Tá chegando — monta antes que passe</p>
+                <div className="flex flex-col gap-2">
+                  {datas.slice(0, 3).map(d => (
+                    <button key={d.nome}
+                      onClick={() => enviar(`Quero montar uma campanha pro ${d.nome}, que é em ${d.dias} dias. Me ajuda a pensar a melhor oferta pra essa data.`)}
+                      className="flex items-center justify-between gap-2 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-left px-3 py-2.5 rounded-lg transition cursor-pointer">
+                      <span className="text-sm text-amber-200 font-medium">{d.nome}</span>
+                      <span className="text-[11px] text-amber-400/80 shrink-0">
+                        {d.dias === 0 ? 'é hoje!' : d.dias === 1 ? 'amanhã' : `em ${d.dias} dias`}{d.aprox ? ' ~' : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {msgs.map((m, i) => (
@@ -274,19 +341,103 @@ export default function CampanhasClient({ campanhas }: { campanhas: CampanhaRow[
         </div>
       )}
 
-      {/* Histórico compacto */}
+      {/* Histórico de campanhas — clica pra ver o resultado */}
       {campanhas.length > 0 && (
         <details className="shrink-0 text-xs text-zinc-500">
-          <summary className="cursor-pointer hover:text-zinc-300">Campanhas anteriores ({campanhas.length})</summary>
-          <div className="flex flex-col gap-1.5 mt-2 max-h-40 overflow-y-auto">
+          <summary className="cursor-pointer hover:text-zinc-300">📜 Campanhas ({campanhas.length}) — clica pra ver o resultado</summary>
+          <div className="flex flex-col gap-1.5 mt-2 max-h-44 overflow-y-auto">
             {campanhas.map(c => (
-              <div key={c.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-                <span className="text-zinc-300 truncate">{c.nome}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${c.status === 'ativa' ? 'bg-[#00D4AA]/15 text-[#00D4AA]' : 'bg-zinc-700 text-zinc-400'}`}>{c.status}</span>
-              </div>
+              <button key={c.id} onClick={() => abrirDetalhe(c.id)}
+                className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/60 px-3 py-2 text-left transition cursor-pointer">
+                <div className="min-w-0">
+                  <span className="text-zinc-300 truncate block">{c.nome}</span>
+                  <span className="text-[10px] text-zinc-600">{new Date(c.created_at).toLocaleDateString('pt-BR')}{c.produto_marca ? ` · ${c.produto_marca}` : ''}</span>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                  c.status === 'salva' ? 'bg-violet-500/15 text-violet-300' : c.status === 'ativa' ? 'bg-[#00D4AA]/15 text-[#00D4AA]' : 'bg-zinc-700 text-zinc-400'
+                }`}>{c.status}</span>
+              </button>
             ))}
           </div>
         </details>
+      )}
+
+      {/* Modal de detalhe/resultado da campanha */}
+      {(carregandoDet || detalhe) && (
+        <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/60 p-0 lg:p-4" onClick={() => { if (!acaoDet) setDetalhe(null) }}>
+          <div onClick={e => e.stopPropagation()}
+            className="w-full lg:max-w-lg bg-zinc-900 border border-zinc-700 rounded-t-2xl lg:rounded-2xl flex flex-col max-h-[85dvh]">
+            {carregandoDet && <p className="text-center text-sm text-zinc-500 py-10 animate-pulse">carregando resultado...</p>}
+            {detalhe && (
+              <>
+                <div className="p-4 border-b border-zinc-800 shrink-0 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-base font-bold text-white truncate">{detalhe.campanha.nome}</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      {new Date(detalhe.campanha.created_at).toLocaleDateString('pt-BR')}
+                      {detalhe.campanha.produto_marca ? ` · ${detalhe.campanha.produto_marca}` : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => setDetalhe(null)} className="text-zinc-500 hover:text-zinc-300 cursor-pointer shrink-0">✕</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col gap-4">
+                  {/* Métricas */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 p-3 text-center">
+                      <p className="text-xl font-bold text-white">{detalhe.metricas.enviados}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">enviados</p>
+                    </div>
+                    <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 p-3 text-center">
+                      <p className="text-xl font-bold text-white">{detalhe.metricas.respostas}<span className="text-xs text-zinc-500"> · {detalhe.metricas.taxaResposta}%</span></p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">responderam</p>
+                    </div>
+                    <div className="rounded-xl bg-[#00D4AA]/10 border border-[#00D4AA]/30 p-3 text-center">
+                      <p className="text-xl font-bold text-[#00D4AA]">{detalhe.metricas.taxaConversao}%</p>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">converteram ({detalhe.metricas.conversoes})</p>
+                    </div>
+                  </div>
+                  {detalhe.metricas.receita > 0 && (
+                    <p className="text-center text-sm text-zinc-300">
+                      💰 Receita atribuída: <span className="font-bold text-[#00D4AA]">R$ {detalhe.metricas.receita.toFixed(2).replace('.', ',')}</span>
+                    </p>
+                  )}
+
+                  {/* Copy enviada */}
+                  {detalhe.campanha.copy_whatsapp && (
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-500 mb-1">💬 Mensagem enviada</p>
+                      <p className="text-sm text-zinc-300 bg-zinc-800/40 border border-zinc-700/40 rounded-lg p-3 whitespace-pre-wrap">{detalhe.campanha.copy_whatsapp}</p>
+                    </div>
+                  )}
+
+                  {/* Quem converteu */}
+                  {detalhe.leads.some(l => l.converteu) && (
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-500 mb-1">✅ Compraram depois</p>
+                      <div className="flex flex-wrap gap-1">
+                        {detalhe.leads.filter(l => l.converteu).map((l, i) => (
+                          <span key={i} className="text-[11px] bg-[#00D4AA]/15 text-[#00D4AA] px-2 py-0.5 rounded-full">{(l.nome ?? 'Cliente').split(' ')[0]}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 border-t border-zinc-800 shrink-0 flex gap-2">
+                  <button onClick={() => salvarCampanha(detalhe.campanha.id)} disabled={acaoDet || detalhe.campanha.status === 'salva'}
+                    className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                    {detalhe.campanha.status === 'salva' ? '⭐ Salva' : '⭐ Salvar campanha'}
+                  </button>
+                  <button onClick={() => apagarCampanha(detalhe.campanha.id)} disabled={acaoDet}
+                    className="px-4 py-2.5 bg-zinc-800 hover:bg-red-500/20 text-zinc-400 hover:text-red-300 rounded-xl text-sm transition cursor-pointer">
+                    Apagar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
