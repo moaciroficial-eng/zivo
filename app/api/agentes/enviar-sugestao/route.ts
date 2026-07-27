@@ -1,7 +1,17 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { NextRequest, NextResponse } from 'next/server'
+import { enviarOferta } from '@/lib/agentes/envio'
+import { getLoja } from '@/lib/loja'
+
+/* Teaser curto (1 linha, sem quebra) pro {{3}} do template novidade_loja
+   — Meta não aceita quebra de linha em variável. Tira a saudação e corta. */
+function teaserTemplate(msg: string): string {
+  let t = String(msg || '').replace(/\s+/g, ' ').trim()
+  t = t.replace(/^(oi|ol[áa]|e a[íi]|opa)\b[^!.?]*[!.?]\s*/i, '')
+  if (t.length > 90) t = t.slice(0, 88).replace(/\s+\S*$/, '') + '…'
+  return t || 'novidades que combinam com o seu estilo'
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -16,46 +26,44 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  /* Busca telefone do contato */
   const { data: contato } = await admin
     .from('whatsapp_contatos')
-    .select('phone')
+    .select('phone, nome')
     .eq('id', contatoId)
     .single()
 
   if (!contato?.phone) return NextResponse.json({ ok: false, error: 'Contato sem telefone' }, { status: 400 })
 
-  /* Envia pelo WhatsApp */
-  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
+  const loja = await getLoja(admin, user.id).catch(() => null)
+  const nomeLoja = loja?.nomeLoja || 'a loja'
+  const primeiroNome = (contato.nome as string | null)?.split(' ')[0] || 'você'
 
-  /* Salva mensagem no banco (origem ia: aprovada pelo dono, enviada pelo sistema) */
-  const timestamp = new Date().toISOString()
-  await admin.from('whatsapp_mensagens').insert({
-    user_id:    user.id,
-    contato_id: contatoId,
-    message_id: messageId ?? null,
-    direcao:    'enviada',
-    tipo:       'texto',
-    conteudo:   mensagem,
-    status:     'enviada',
-    timestamp,
-    raw:        { origem: 'ia' },
+  /* Braço de execução: janela aberta → copy livre; fechada → template
+     "novidade_loja" (abridor aprovado). Nunca "some". */
+  const resultado = await enviarOferta(admin, {
+    userId: user.id,
+    contatoId,
+    phone: contato.phone,
+    texto: mensagem,
+    templateName: 'novidade_loja',
+    templateVars: [primeiroNome, nomeLoja, teaserTemplate(mensagem)],
+    creds: loja?.creds,
   })
-  await admin.from('whatsapp_contatos').update({
-    ultima_mensagem:    mensagem,
-    ultima_mensagem_at: timestamp,
-  }).eq('id', contatoId)
+
+  if (!resultado.ok) {
+    return NextResponse.json({ ok: false, error: resultado.erro ?? 'Falha no envio' }, { status: 502 })
+  }
 
   /* Marca log como executado */
   if (logId) {
-    await admin.from('agente_logs').update({ acao: `✓ ENVIADO — ${mensagem}` }).eq('id', logId)
+    await admin.from('agente_logs').update({ acao: `✓ ENVIADO (${resultado.via}) — ${mensagem}` }).eq('id', logId)
   }
 
-  /* Registra ação pra cadência (evita nova sugestão/envio pro mesmo cliente em poucos dias) */
+  /* Cadência: evita reenviar pro mesmo cliente em poucos dias */
   if (clienteId) {
     try {
       await admin.from('inteligencia_acoes').insert({
-        user_id: user.id, cliente_id: clienteId, mensagem, enviada_em: timestamp,
+        user_id: user.id, cliente_id: clienteId, mensagem, enviada_em: new Date().toISOString(),
       })
     } catch { /* ignora */ }
   }
@@ -66,5 +74,5 @@ export async function POST(request: NextRequest) {
       .eq('id', sugestaoId).eq('user_id', user.id)
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, via: resultado.via })
 }
