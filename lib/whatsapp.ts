@@ -217,6 +217,7 @@ export type TemplateOptions = {
   phone: string
   templateName: string
   variaveis?: string[]              // preenche {{1}}, {{2}}... na ordem
+  imagemHeader?: string | null      // URL pública p/ template com header de imagem
   idioma?: string                   // default 'pt_BR'
   creds?: WhatsAppCreds
 }
@@ -229,9 +230,13 @@ export async function sendWhatsAppTemplate(opts: TemplateOptions): Promise<{ mes
   }
 
   const number = normalizarTelefoneBR(opts.phone)
-  const componentes = (opts.variaveis && opts.variaveis.length > 0)
-    ? [{ type: 'body', parameters: opts.variaveis.map(v => ({ type: 'text', text: String(v ?? '') })) }]
-    : []
+  const componentes: unknown[] = []
+  if (opts.imagemHeader) {
+    componentes.push({ type: 'header', parameters: [{ type: 'image', image: { link: opts.imagemHeader } }] })
+  }
+  if (opts.variaveis && opts.variaveis.length > 0) {
+    componentes.push({ type: 'body', parameters: opts.variaveis.map(v => ({ type: 'text', text: String(v ?? '') })) })
+  }
 
   const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
     method: 'POST',

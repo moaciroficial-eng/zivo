@@ -91,16 +91,15 @@ export async function POST(request: NextRequest) {
       templateName: 'novidade_loja',
       templateVars: [primeiroNome, nomeLoja, teaser(textoPersonalizado)],
       fotoUrl: foto_url ?? null,
+      templateFotoName: 'oferta_com_foto',
       creds: loja?.creds,
     })
     if (!r.ok) { falhas++; continue }
     if (r.via === 'template') porTemplate++; else porTexto++
 
-    /* Marca foto pendente pra quem NÃO recebeu a imagem inline: os frios
-       (template não leva imagem) e os quentes quando não houve foto subida.
-       Quente que já recebeu a imagem (via='texto' + foto_url) não precisa. */
-    const jaRecebeuInline = r.via === 'texto' && !!foto_url
-    const pendentes = jaRecebeuInline ? [] : fotosResposta
+    /* Só fica pendente pra quem NÃO recebeu a foto agora (nem inline nem via
+       template com imagem). O enviarOferta já avisa com fotoInclusa. */
+    const pendentes = r.fotoInclusa ? [] : fotosResposta
 
     /* lead da campanha (rastreia resultado depois) */
     if (campanhaId) {
