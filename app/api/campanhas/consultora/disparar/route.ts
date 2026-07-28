@@ -55,12 +55,24 @@ export async function POST(request: NextRequest) {
   let comFotoNaResposta = 0
 
   /* Cria a campanha ANTES do disparo pra linkar os leads (rastrear resultado) */
-  const { data: campanhaRow } = await admin.from('campanhas').insert({
+  const baseCampanha = {
     user_id: user.id, nome: titulo || 'Campanha', objetivo: objetivo ?? null,
     produto_marca: marca ?? null, copy_whatsapp: copy_texto, tipo: 'interna', status: 'ativa',
-    intensidade: intensidade ?? null, desconto: desconto ?? null,
-    com_foto: !!com_foto, publico_criterio: publico_criterio ?? null,
-  }).select('id').single()
+  }
+  /* Tenta gravar os atributos de aprendizado; se a migração ainda não rodou
+     (colunas ausentes), cai no insert base pra NUNCA quebrar o disparo. */
+  let campanhaRow: { id: string } | null = null
+  {
+    const r = await admin.from('campanhas').insert({
+      ...baseCampanha,
+      intensidade: intensidade ?? null, desconto: desconto ?? null,
+      com_foto: !!com_foto, publico_criterio: publico_criterio ?? null,
+    }).select('id').single()
+    if (r.error) {
+      const r2 = await admin.from('campanhas').insert(baseCampanha).select('id').single()
+      campanhaRow = r2.data ?? null
+    } else campanhaRow = r.data ?? null
+  }
   const campanhaId: string | null = campanhaRow?.id ?? null
 
   const [{ data: clientes }, { data: contatos }] = await Promise.all([
