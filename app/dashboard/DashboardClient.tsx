@@ -185,44 +185,131 @@ const IconEyeOff = () => (
 
 /* ── Sub-components ───────────────────────────────────────────── */
 
+type ClienteCasado = { clienteId: string; nome: string; telefone: string | null; tamanho: string; motivo: string; copy: string }
+
 function ProdutoCard({ p }: { p: ProdutoPriorizar }) {
   const isDesconto = p.estrategia === 'desconto'
+  const [aberto, setAberto] = useState(false)
+  const [carregando, setCarregando] = useState(false)
+  const [carregado, setCarregado] = useState(false)
+  const [clientes, setClientes] = useState<ClienteCasado[]>([])
+  const [nomeLimpo, setNomeLimpo] = useState('')
+  /* adicionar cliente manualmente */
+  const [busca, setBusca] = useState('')
+  const [resultados, setResultados] = useState<{ id: string; nome: string; telefone: string | null }[]>([])
+  const [manual, setManual] = useState<ClienteCasado | null>(null)
+
+  async function toggle() {
+    const novo = !aberto
+    setAberto(novo)
+    if (novo && !carregado) {
+      setCarregando(true)
+      try {
+        const res = await fetch('/api/plano/produto-clientes', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ produtoId: p.produto_id, produtoNome: p.nome }),
+        })
+        const data = await res.json()
+        setClientes(data.clientes ?? []); setNomeLimpo(data.nomeLimpo ?? '')
+      } catch { /* ignora */ } finally { setCarregando(false); setCarregado(true) }
+    }
+  }
+
+  useEffect(() => {
+    if (!aberto || clientes.length > 0) return
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/clientes/buscar?termo=${encodeURIComponent(busca)}`)
+        const data = await res.json(); setResultados(data.clientes ?? [])
+      } catch { /* ignora */ }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [busca, aberto, clientes.length])
+
+  function copyPara(nome: string, tam?: string) {
+    const primeiro = nome.split(' ')[0]
+    const alvo = nomeLimpo || p.nome
+    return `Oi ${primeiro}! Chegou ${alvo} aqui na loja${tam ? ` no ${tam}` : ''} e achei que ia curtir. Passa pra ver ou me fala que te mando as fotos!`
+  }
+
   return (
-    <div className={`border rounded-xl p-3.5 flex gap-3 transition ${p.vendido ? 'bg-emerald-900/20 border-emerald-700/40 opacity-70' : 'bg-zinc-800/60 border-zinc-700/60'}`}>
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${p.vendido ? 'bg-emerald-500/20 text-emerald-400' : isDesconto ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-        {p.vendido ? <span className="text-base">✓</span> : isDesconto ? <IconTag /> : <IconStar />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className={`text-sm font-medium leading-snug ${p.vendido ? 'line-through text-zinc-500' : ''}`}>{p.nome}</p>
-          {p.vendido && <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded shrink-0">Vendido ✓</span>}
+    <div className={`border rounded-xl transition ${p.vendido ? 'bg-emerald-900/20 border-emerald-700/40 opacity-70' : 'bg-zinc-800/60 border-zinc-700/60'}`}>
+      <button onClick={toggle} disabled={p.vendido} className="w-full flex gap-3 p-3.5 text-left cursor-pointer disabled:cursor-default">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${p.vendido ? 'bg-emerald-500/20 text-emerald-400' : isDesconto ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+          {p.vendido ? <span className="text-base">✓</span> : isDesconto ? <IconTag /> : <IconStar />}
         </div>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {isDesconto && p.preco_com_desconto != null ? (
-            <>
-              <span className="text-xs text-zinc-500 line-through">{fmtNum(p.preco_venda)}</span>
-              <span className="text-sm font-bold text-amber-400">{fmtNum(p.preco_com_desconto)}</span>
-              <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                -{p.desconto_sugerido}%
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className={`text-sm font-medium leading-snug ${p.vendido ? 'line-through text-zinc-500' : ''}`}>{p.nome}</p>
+            {p.vendido && <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded shrink-0">Vendido ✓</span>}
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {isDesconto && p.preco_com_desconto != null ? (
+              <>
+                <span className="text-xs text-zinc-500 line-through">{fmtNum(p.preco_venda)}</span>
+                <span className="text-sm font-bold text-amber-400">{fmtNum(p.preco_com_desconto)}</span>
+                <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">-{p.desconto_sugerido}%</span>
+              </>
+            ) : (
+              <span className="text-sm font-bold text-emerald-400">{fmtNum(p.preco_venda)}</span>
+            )}
+            {!p.vendido && (
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded border ${isDesconto ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'}`}>
+                {isDesconto ? 'Desconto' : 'Preço cheio'}
               </span>
-            </>
-          ) : (
-            <span className="text-sm font-bold text-emerald-400">{fmtNum(p.preco_venda)}</span>
-          )}
-          {!p.vendido && (
-            <span className={`text-xs font-medium px-1.5 py-0.5 rounded border ${isDesconto ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'}`}>
-              {isDesconto ? 'Desconto' : 'Preço cheio'}
-            </span>
+            )}
+          </div>
+          {!p.vendido && <p className="text-xs text-zinc-500 mt-1">{p.motivo}</p>}
+        </div>
+        {!p.vendido && <span className="text-zinc-600 text-xs mt-1 shrink-0">{aberto ? '▲' : '▼ oferecer'}</span>}
+      </button>
+
+      {aberto && !p.vendido && (
+        <div className="px-3.5 pb-3.5 pl-[3.4rem] flex flex-col gap-2.5">
+          {carregando && <p className="text-xs text-zinc-500 animate-pulse">buscando clientes certos...</p>}
+
+          {!carregando && clientes.length > 0 && clientes.map(cl => (
+            <div key={cl.clienteId} className="rounded-lg bg-zinc-900/50 border border-zinc-700/40 p-2.5">
+              <p className="text-xs font-medium text-zinc-200">{cl.nome} <span className="text-zinc-500 font-normal">· {cl.motivo}</span></p>
+              <div className="mt-1.5"><EnviarContato clienteId={cl.clienteId} nome={cl.nome} telefone={cl.telefone} mensagemInicial={cl.copy} /></div>
+            </div>
+          ))}
+
+          {/* Nenhum casado OU adicionar outro cliente manualmente */}
+          {!carregando && (
+            <div className="rounded-lg bg-zinc-900/40 border border-dashed border-zinc-700/60 p-2.5">
+              {manual ? (
+                <div>
+                  <p className="text-xs font-medium text-zinc-200 mb-1.5">{manual.nome}</p>
+                  <EnviarContato clienteId={manual.clienteId} nome={manual.nome} telefone={manual.telefone} mensagemInicial={manual.copy} />
+                  <button onClick={() => setManual(null)} className="text-[11px] text-zinc-500 hover:text-zinc-300 mt-1.5 cursor-pointer">← escolher outro</button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-[11px] text-zinc-500 mb-1.5">{clientes.length > 0 ? 'Oferecer pra outro cliente:' : 'Nenhum cliente casou. Escolher manualmente:'}</p>
+                  <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar cliente por nome..."
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500" />
+                  {resultados.length > 0 && (
+                    <div className="flex flex-col mt-1 max-h-32 overflow-y-auto">
+                      {resultados.map(r => (
+                        <button key={r.id} onClick={() => setManual({ clienteId: r.id, nome: r.nome, telefone: r.telefone, tamanho: '', motivo: '', copy: copyPara(r.nome) })}
+                          className="text-left text-xs text-zinc-300 hover:bg-zinc-800 rounded px-2 py-1.5 cursor-pointer">{r.nome}</button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
-        {!p.vendido && <p className="text-xs text-zinc-500 mt-1">{p.motivo}</p>}
-      </div>
+      )}
     </div>
   )
 }
 
-function ClienteCard({ c }: { c: ClienteContatar }) {
-  const [msg, setMsg] = useState(c.mensagem_whatsapp ?? '')
+/* Caixa reutilizável: mensagem editável + foto + envio pelo Zivo */
+function EnviarContato({ clienteId, nome, telefone, mensagemInicial }: { clienteId: string | null; nome: string; telefone: string | null; mensagemInicial: string }) {
+  const [msg, setMsg] = useState(mensagemInicial)
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [subindo, setSubindo] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -252,7 +339,7 @@ function ClienteCard({ c }: { c: ClienteContatar }) {
     try {
       const res = await fetch('/api/plano/contatar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId: c.cliente_id, nome: c.nome, telefone: c.telefone, mensagem: msg, foto_url: fotoUrl }),
+        body: JSON.stringify({ clienteId, nome, telefone, mensagem: msg, foto_url: fotoUrl }),
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
@@ -261,46 +348,56 @@ function ClienteCard({ c }: { c: ClienteContatar }) {
   }
 
   if (enviado) {
-    return (
-      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5 flex items-center gap-2 text-sm text-emerald-300">
-        ✓ Enviado pra {c.nome.split(' ')[0]}{via === 'template' ? ' (via template — cliente frio)' : ''}
-      </div>
-    )
+    return <p className="text-sm text-emerald-300 py-1">✓ Enviado pra {nome.split(' ')[0]}{via === 'template' ? ' (template — cliente frio)' : ''}</p>
   }
 
   return (
-    <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3.5 flex gap-3">
-      <div className="w-8 h-8 rounded-lg bg-[#3B6FFF]/10 text-[#3B6FFF] flex items-center justify-center shrink-0 mt-0.5">
-        <IconPhone />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{c.nome}</p>
-        <p className="text-xs text-zinc-500 mt-0.5">{c.motivo}</p>
-
-        <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={3}
-          className="w-full mt-2 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-200 resize-y focus:outline-none focus:border-emerald-500 [color-scheme:dark]" />
-
-        {fotoUrl && (
-          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-zinc-400">
-            <img src={fotoUrl} alt="" className="h-8 w-8 rounded object-cover" />
-            📷 foto vai junto
-            <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
-          </div>
-        )}
-
-        <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
-        <div className="flex items-center gap-2 mt-2">
-          <button onClick={enviar} disabled={enviando || !msg.trim()}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer">
-            {enviando ? 'Enviando...' : '📤 Enviar pelo Zivo'}
-          </button>
-          <button onClick={() => fileRef.current?.click()} disabled={subindo || enviando}
-            className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
-            {subindo ? '⏳' : '📷 Foto'}
-          </button>
+    <div>
+      <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={3}
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-200 resize-y focus:outline-none focus:border-emerald-500 [color-scheme:dark]" />
+      {fotoUrl && (
+        <div className="flex items-center gap-2 mt-1.5 text-[11px] text-zinc-400">
+          <img src={fotoUrl} alt="" className="h-8 w-8 rounded object-cover" />
+          📷 foto vai junto
+          <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
         </div>
-        {erro && <p className="text-[11px] text-red-300 mt-1.5">{erro}</p>}
+      )}
+      <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={enviar} disabled={enviando || !msg.trim()}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer">
+          {enviando ? 'Enviando...' : '📤 Enviar pelo Zivo'}
+        </button>
+        <button onClick={() => fileRef.current?.click()} disabled={subindo || enviando}
+          className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
+          {subindo ? '⏳' : '📷 Foto'}
+        </button>
       </div>
+      {erro && <p className="text-[11px] text-red-300 mt-1.5">{erro}</p>}
+    </div>
+  )
+}
+
+/* Card de cliente do plano — fechado por padrão, expande no clique */
+function ClienteCard({ c }: { c: ClienteContatar }) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3.5">
+      <button onClick={() => setAberto(a => !a)} className="w-full flex gap-3 text-left cursor-pointer">
+        <div className="w-8 h-8 rounded-lg bg-[#3B6FFF]/10 text-[#3B6FFF] flex items-center justify-center shrink-0 mt-0.5">
+          <IconPhone />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">{c.nome}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{c.motivo}</p>
+        </div>
+        <span className="text-zinc-600 text-xs mt-1">{aberto ? '▲' : '▼ enviar'}</span>
+      </button>
+      {aberto && (
+        <div className="mt-2.5 pl-11">
+          <EnviarContato clienteId={c.cliente_id} nome={c.nome} telefone={c.telefone} mensagemInicial={c.mensagem_whatsapp ?? ''} />
+        </div>
+      )}
     </div>
   )
 }

@@ -7,8 +7,7 @@ import { clienteServeProduto } from '@/lib/tamanhos'
    Fonte ÚNICA que casa produto×cliente em CÓDIGO (determinístico), com um
    score real: afinidade de marca × temperatura × tamanho serve × "só compra
    em desconto" (pra peça parada). Alimenta o plano diário e a Inteligência.
-   A IA depois só escreve a mensagem — nunca escolhe o match (era o que fazia
-   parecer "produto aleatório pra pessoa aleatória").
+   A IA depois só escreve a mensagem — nunca escolhe o match.
    ══════════════════════════════════════════════════════════════ */
 
 export type Oportunidade = {
@@ -20,12 +19,12 @@ export type Oportunidade = {
   marca: string | null
   cor: string | null
   preco: number | null
-  tamanho: string           // o tamanho do cliente que casou
+  tamanho: string
   diasParado: number
   tipo: 'fa_marca' | 'reativacao' | 'girar_desconto' | 'novidade' | 'match'
   score: number
-  motivo: string            // curto, humano, pro dono entender NA HORA
-  nota_dono: string | null  // observação do dono (verdade máxima), se houver
+  motivo: string
+  nota_dono: string | null
 }
 
 type Tam = { tamanho: string; qtd: number }
@@ -34,21 +33,75 @@ type EstoqueRow = {
   genero: string | null; tamanhos: Tam[] | null; preco_venda: number | null
   created_at: string | null; status: string | null
 }
-type ClienteRow = { id: string; nome: string; telefone: string | null; genero: string | null }
+type ClienteRow = {
+  id: string; nome: string; telefone: string | null; genero: string | null
+  tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
+}
 
 function generoOposto(produtoGen: string | null, clienteGen: string | null): boolean {
   const p = String(produtoGen ?? '').toUpperCase().charAt(0)
   const c = String(clienteGen ?? '').toUpperCase().charAt(0)
-  if (p !== 'M' && p !== 'F') return false        // produto unissex/sem gênero → não filtra
-  if (c !== 'M' && c !== 'F') return false        // cliente sem gênero → não exclui
+  if (p !== 'M' && p !== 'F') return false
+  if (c !== 'M' && c !== 'F') return false
   return p !== c
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function gerarOportunidades(admin: any, userId: string, opts: { limite?: number; excluirContatadosDias?: number } = {}): Promise<Oportunidade[]> {
-  const limite = opts.limite ?? 30
-  const excluirDias = opts.excluirContatadosDias ?? 5
+/* Pontua UM par produto×cliente. Retorna a oportunidade ou null (não casa /
+   fraca demais). scoreMin=0 pra visão do produto (mostra todos os que servem). */
+function avaliarMatch(prod: EstoqueRow, perfil: PerfilCliente, cli: ClienteRow, scoreMin = 30): Oportunidade | null {
+  if (!cli.telefone) return null
+  if (generoOposto(prod.genero, cli.genero)) return null
 
+  const tamsProduto = (prod.tamanhos ?? []).filter(t => (Number(t.qtd) || 0) > 0).map(t => String(t.tamanho))
+  if (!tamsProduto.length) return null
+  const tamsCliente = [cli.tamanho_camiseta, cli.tamanho_calca, cli.tamanho_tenis].filter(Boolean) as string[]
+  if (!tamsCliente.length) return null
+  if (!clienteServeProduto(tamsCliente, tamsProduto)) return null
+  const tamCasou = tamsCliente.find(tc => clienteServeProduto([tc], tamsProduto)) ?? tamsProduto[0]
+
+  const marcaLow = (prod.marca ?? '').toLowerCase().trim()
+  const diasParado = prod.created_at ? Math.floor((Date.now() - new Date(prod.created_at).getTime()) / 86400000) : 0
+  const novidade = diasParado <= 14
+  const parado = diasParado >= 30
+
+  let score = 0
+  let tipo: Oportunidade['tipo'] = 'match'
+  const motivos: string[] = []
+
+  const top = perfil.marcasTop?.[0]
+  const obs = String(perfil.observacoes ?? '').toLowerCase()
+  const faMarca = marcaLow && top && top.marca.toLowerCase() === marcaLow && top.pct >= 60 && top.n >= 3
+  const gostaMarca = marcaLow && perfil.marcasTop?.some(m => m.marca.toLowerCase() === marcaLow)
+  const obsMarca = marcaLow && obs.includes(marcaLow)
+  if (faMarca) { score += 55; tipo = 'fa_marca'; motivos.push(`fã de ${prod.marca}`) }
+  else if (gostaMarca) { score += 28; motivos.push(`curte ${prod.marca}`) }
+  else if (obsMarca) { score += 24; motivos.push(`nota do dono cita ${prod.marca}`) }
+
+  if (perfil.temperatura === 'frio' && perfil.qtdCompras >= 1 && perfil.diasSemComprar >= 20) {
+    score += 32; if (tipo === 'match') tipo = 'reativacao'; motivos.push(`sumido há ${perfil.diasSemComprar}d`)
+  } else if (perfil.temperatura === 'quente') { score += 12 }
+  else if (perfil.temperatura === 'morno') { score += 16 }
+
+  if (parado && perfil.perfilPromo) { score += 26; tipo = 'girar_desconto'; motivos.push('só compra em promo') }
+  else if (parado) { score += 6 }
+
+  if (novidade && perfil.cacaNovidades) { score += 14; if (tipo === 'match') tipo = 'novidade'; motivos.push('gosta de novidade') }
+  if (perfil.ticketMedio && prod.preco_venda && prod.preco_venda <= perfil.ticketMedio * 1.6) score += 8
+
+  if (score < scoreMin) return null
+
+  return {
+    clienteId: perfil.clienteId, clienteNome: perfil.nome, telefone: cli.telefone,
+    produtoId: prod.id, produtoNome: prod.nome, marca: prod.marca, cor: prod.cor,
+    preco: prod.preco_venda, tamanho: tamCasou, diasParado,
+    tipo, score, motivo: `Veste ${tamCasou}${motivos.length ? ' · ' + motivos.slice(0, 2).join(' · ') : ''}`,
+    nota_dono: perfil.observacoes || null,
+  }
+}
+
+/* Carrega o contexto compartilhado (perfis + índices). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function carregarContexto(admin: any, userId: string, excluirDias: number) {
   const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: acoes }] = await Promise.all([
     admin.from('vendas').select('id, cliente_id, cliente_nome, valor, data_venda, produtos, forma_pagamento, created_at')
       .eq('user_id', userId).order('data_venda', { ascending: true }).limit(4000),
@@ -59,89 +112,59 @@ export async function gerarOportunidades(admin: any, userId: string, opts: { lim
     admin.from('inteligencia_acoes').select('cliente_id, enviada_em')
       .eq('user_id', userId).gte('enviada_em', new Date(Date.now() - excluirDias * 86400000).toISOString()),
   ])
-
   const perfis = calcularPerfis(vendas ?? [], clientes ?? [], estoque ?? [])
-  const perfilPorId = new Map<string, PerfilCliente>(perfis.map(p => [p.clienteId, p]))
-
   const infoCliente = new Map<string, ClienteRow>()
   for (const c of (clientes ?? []) as ClienteRow[]) infoCliente.set(c.id, c)
-
-  /* clientes contatados há pouco: não sugere de novo (cadência) */
   const contatadoRecente = new Set<string>()
   for (const a of (acoes ?? []) as { cliente_id: string | null }[]) if (a.cliente_id) contatadoRecente.add(a.cliente_id)
-
-  const hoje = Date.now()
   const produtos = (estoque ?? []).filter((e: EstoqueRow) =>
     e.status !== 'vendido' && Array.isArray(e.tamanhos) && e.tamanhos.some(t => (Number(t.qtd) || 0) > 0)
   ) as EstoqueRow[]
+  return { perfis, infoCliente, contatadoRecente, produtos }
+}
 
-  /* Melhor oportunidade por CLIENTE (não spamma o mesmo com vários produtos) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function gerarOportunidades(admin: any, userId: string, opts: { limite?: number; excluirContatadosDias?: number } = {}): Promise<Oportunidade[]> {
+  const limite = opts.limite ?? 30
+  const { perfis, infoCliente, contatadoRecente, produtos } = await carregarContexto(admin, userId, opts.excluirContatadosDias ?? 5)
+
   const melhorPorCliente = new Map<string, Oportunidade>()
-
   for (const prod of produtos) {
-    const tamsProduto = (prod.tamanhos ?? []).filter(t => (Number(t.qtd) || 0) > 0).map(t => String(t.tamanho))
-    if (!tamsProduto.length) continue
-    const marcaLow = (prod.marca ?? '').toLowerCase().trim()
-    const diasParado = prod.created_at ? Math.floor((hoje - new Date(prod.created_at).getTime()) / 86400000) : 0
-    const novidade = diasParado <= 14
-    const parado = diasParado >= 30
-
     for (const perfil of perfis) {
-      const cli = infoCliente.get(perfil.clienteId)
-      if (!cli || !cli.telefone) continue
       if (contatadoRecente.has(perfil.clienteId)) continue
-      if (generoOposto(prod.genero, cli.genero)) continue
-
-      /* tamanho tem que servir (senão não é "produto certo") */
-      const tamsCliente = [cli['tamanho_camiseta' as keyof ClienteRow], cli['tamanho_calca' as keyof ClienteRow], cli['tamanho_tenis' as keyof ClienteRow]].filter(Boolean) as string[]
-      if (!tamsCliente.length) continue
-      if (!clienteServeProduto(tamsCliente, tamsProduto)) continue
-      const tamCasou = tamsCliente.find(tc => clienteServeProduto([tc], tamsProduto)) ?? tamsProduto[0]
-
-      /* ── SCORE ── */
-      let score = 0
-      let tipo: Oportunidade['tipo'] = 'match'
-      const motivos: string[] = []
-
-      /* afinidade de marca (via marcasTop/fidelidade do perfil ou observação) */
-      const top = perfil.marcasTop?.[0]
-      const obs = String(perfil.observacoes ?? '').toLowerCase()
-      const faMarca = marcaLow && top && top.marca.toLowerCase() === marcaLow && top.pct >= 60 && top.n >= 3
-      const gostaMarca = marcaLow && perfil.marcasTop?.some(m => m.marca.toLowerCase() === marcaLow)
-      const obsMarca = marcaLow && obs.includes(marcaLow)
-      if (faMarca) { score += 55; tipo = 'fa_marca'; motivos.push(`fã de ${prod.marca}`) }
-      else if (gostaMarca) { score += 28; motivos.push(`curte ${prod.marca}`) }
-      else if (obsMarca) { score += 24; motivos.push(`nota do dono cita ${prod.marca}`) }
-
-      /* temperatura: sumido com histórico = ouro pra reativar */
-      if (perfil.temperatura === 'frio' && perfil.qtdCompras >= 1 && perfil.diasSemComprar >= 20) {
-        score += 32; if (tipo === 'match') tipo = 'reativacao'; motivos.push(`sumido há ${perfil.diasSemComprar}d`)
-      } else if (perfil.temperatura === 'quente') { score += 12 }
-      else if (perfil.temperatura === 'morno') { score += 16 }
-
-      /* peça parada + cliente que só compra em desconto = casamento perfeito */
-      if (parado && perfil.perfilPromo) { score += 26; tipo = 'girar_desconto'; motivos.push('só compra em promo → gira parado') }
-      else if (parado) { score += 6 }
-
-      /* novidade pra quem caça novidade */
-      if (novidade && perfil.cacaNovidades) { score += 14; if (tipo === 'match') tipo = 'novidade'; motivos.push('gosta de novidade') }
-
-      /* ticket alto compatível com o preço da peça (não oferecer caro pra quem gasta pouco) */
-      if (perfil.ticketMedio && prod.preco_venda && prod.preco_venda <= perfil.ticketMedio * 1.6) score += 8
-
-      if (score < 30) continue   // só oportunidade FORTE
-
-      const motivo = `Veste ${tamCasou}${motivos.length ? ' · ' + motivos.slice(0, 2).join(' · ') : ''}`
-      const op: Oportunidade = {
-        clienteId: perfil.clienteId, clienteNome: perfil.nome, telefone: cli.telefone,
-        produtoId: prod.id, produtoNome: prod.nome, marca: prod.marca, cor: prod.cor,
-        preco: prod.preco_venda, tamanho: tamCasou, diasParado,
-        tipo, score, motivo, nota_dono: perfil.observacoes || null,
-      }
+      const cli = infoCliente.get(perfil.clienteId)
+      if (!cli) continue
+      const op = avaliarMatch(prod, perfil, cli)
+      if (!op) continue
       const atual = melhorPorCliente.get(perfil.clienteId)
       if (!atual || op.score > atual.score) melhorPorCliente.set(perfil.clienteId, op)
     }
   }
-
   return [...melhorPorCliente.values()].sort((a, b) => b.score - a.score).slice(0, limite)
+}
+
+/* Todos os clientes que casam com UM produto (visão do produto, sem dedup).
+   scoreMin menor (18) — mostra também matches medianos, o dono decide. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function clientesParaProduto(admin: any, userId: string, produtoId: string): Promise<Oportunidade[]> {
+  const { perfis, infoCliente, contatadoRecente, produtos } = await carregarContexto(admin, userId, 3)
+  const prod = produtos.find(p => p.id === produtoId)
+  if (!prod) return []
+  const out: Oportunidade[] = []
+  for (const perfil of perfis) {
+    if (contatadoRecente.has(perfil.clienteId)) continue
+    const cli = infoCliente.get(perfil.clienteId)
+    if (!cli) continue
+    const op = avaliarMatch(prod, perfil, cli, 18)
+    if (op) out.push(op)
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 25)
+}
+
+/* Nome do produto limpo pra copy (tira códigos entre parênteses e tamanho no fim) */
+export function limparNomeProduto(nome: string, marca?: string | null): string {
+  let n = String(nome || '').replace(/\([^)]*\)/g, ' ')
+  n = n.replace(/\b(PP|P|M|G|GG|XG|XGG|XGGG|U|UN|\d{2})\b\s*$/i, '')
+  n = n.replace(/\bC\/\s*\w+/gi, '').replace(/\s+/g, ' ').trim()
+  return n || (marca ? `peça ${marca}` : 'peça nova')
 }
