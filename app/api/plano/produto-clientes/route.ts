@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
   const saud = saudacaoBR()
   const marcaTxt = (marca ?? casados[0]?.marca) ? ` da ${marca ?? casados[0]?.marca}` : ''
 
-  const clientes = casados.map(o => {
+  /* Só os 5 que MAIS se encaixam (já vem ordenado por score) */
+  const clientes = casados.slice(0, 5).map(o => {
     const primeiro = o.clienteNome.split(' ')[0]
     const copy = `${saud} ${primeiro}! Chegou ${nomeLimpo}${marcaTxt} aqui na loja no ${o.tamanho} e achei muito a sua cara. Passa pra ver ou me fala que te mando as fotos!`
     return { clienteId: o.clienteId, nome: o.clienteNome, telefone: o.telefone, tamanho: o.tamanho, motivo: o.motivo, copy }

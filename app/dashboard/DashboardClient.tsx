@@ -270,7 +270,11 @@ function ProdutoCard({ p }: { p: ProdutoPriorizar }) {
 
           {!carregando && clientes.length > 0 && clientes.map(cl => (
             <div key={cl.clienteId} className="rounded-lg bg-zinc-900/50 border border-zinc-700/40 p-2.5">
-              <p className="text-xs font-medium text-zinc-200">{cl.nome} <span className="text-zinc-500 font-normal">· {cl.motivo}</span></p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-medium text-zinc-200">{cl.nome} <span className="text-zinc-500 font-normal">· {cl.motivo}</span></p>
+                <button onClick={() => setClientes(prev => prev.filter(x => x.clienteId !== cl.clienteId))}
+                  title="Não oferecer pra esse" className="text-zinc-500 hover:text-red-300 text-xs leading-none px-1 cursor-pointer shrink-0">✕</button>
+              </div>
               <div className="mt-1.5"><EnviarContato clienteId={cl.clienteId} nome={cl.nome} telefone={cl.telefone} mensagemInicial={cl.copy} /></div>
             </div>
           ))}
