@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import MetaModal from './MetaModal'
@@ -222,9 +222,51 @@ function ProdutoCard({ p }: { p: ProdutoPriorizar }) {
 }
 
 function ClienteCard({ c }: { c: ClienteContatar }) {
-  const waUrl = c.telefone
-    ? `https://wa.me/55${c.telefone.replace(/\D/g, '')}${c.mensagem_whatsapp ? `?text=${encodeURIComponent(c.mensagem_whatsapp)}` : ''}`
-    : null
+  const [msg, setMsg] = useState(c.mensagem_whatsapp ?? '')
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [subindo, setSubindo] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
+  const [via, setVia] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function subirFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (e.target) e.target.value = ''
+    if (!file) return
+    setSubindo(true); setErro(null)
+    try {
+      const supabase = createClient()
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `campanhas/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'image/jpeg' })
+      if (error) { setErro('Não consegui subir a foto.'); return }
+      setFotoUrl(supabase.storage.from('biblioteca').getPublicUrl(path).data.publicUrl)
+    } catch { setErro('Falha ao subir a foto.') } finally { setSubindo(false) }
+  }
+
+  async function enviar() {
+    if (!msg.trim() || enviando) return
+    setEnviando(true); setErro(null)
+    try {
+      const res = await fetch('/api/plano/contatar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: c.cliente_id, nome: c.nome, telefone: c.telefone, mensagem: msg, foto_url: fotoUrl }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
+      setVia(data.via ?? null); setEnviado(true)
+    } catch { setErro('Erro de conexão.') } finally { setEnviando(false) }
+  }
+
+  if (enviado) {
+    return (
+      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5 flex items-center gap-2 text-sm text-emerald-300">
+        ✓ Enviado pra {c.nome.split(' ')[0]}{via === 'template' ? ' (via template — cliente frio)' : ''}
+      </div>
+    )
+  }
 
   return (
     <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3.5 flex gap-3">
@@ -234,19 +276,30 @@ function ClienteCard({ c }: { c: ClienteContatar }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">{c.nome}</p>
         <p className="text-xs text-zinc-500 mt-0.5">{c.motivo}</p>
-        {c.mensagem_whatsapp && (
-          <p className="text-xs text-zinc-600 mt-1 italic leading-relaxed">&ldquo;{c.mensagem_whatsapp}&rdquo;</p>
+
+        <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={3}
+          className="w-full mt-2 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-200 resize-y focus:outline-none focus:border-emerald-500 [color-scheme:dark]" />
+
+        {fotoUrl && (
+          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-zinc-400">
+            <img src={fotoUrl} alt="" className="h-8 w-8 rounded object-cover" />
+            📷 foto vai junto
+            <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
+          </div>
         )}
-        {waUrl && (
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1 transition"
-          >
-            <IconPhone /> Enviar no WhatsApp
-          </a>
-        )}
+
+        <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
+        <div className="flex items-center gap-2 mt-2">
+          <button onClick={enviar} disabled={enviando || !msg.trim()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer">
+            {enviando ? 'Enviando...' : '📤 Enviar pelo Zivo'}
+          </button>
+          <button onClick={() => fileRef.current?.click()} disabled={subindo || enviando}
+            className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
+            {subindo ? '⏳' : '📷 Foto'}
+          </button>
+        </div>
+        {erro && <p className="text-[11px] text-red-300 mt-1.5">{erro}</p>}
       </div>
     </div>
   )
