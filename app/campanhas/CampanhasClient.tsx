@@ -49,6 +49,15 @@ const SUGESTOES = [
   'Quero reativar clientes que sumiram',
 ]
 
+/* {saudacao} → Bom dia/Boa tarde/Boa noite pela hora atual (a IA nunca chumba) */
+function saudacaoAgora(): string {
+  const h = new Date().getHours()
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
+function comSaudacao(txt: string): string {
+  return String(txt || '').replace(/\{saudacao\}/gi, saudacaoAgora())
+}
+
 function generoLabel(g: string | null | undefined): string {
   const c = String(g ?? '').toUpperCase().charAt(0)
   return c === 'M' ? 'masculino' : c === 'F' ? 'feminino' : 'unissex'
@@ -212,11 +221,11 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         setProposta(data.proposta); setPlano(null)
         setPublico(data.publico ?? [])
         setComPreco(false)
-        setCopyEditada(data.proposta.copy_texto ?? '')   // padrão: sem preço
+        setCopyEditada(comSaudacao(data.proposta.copy_texto ?? ''))   // padrão: sem preço
       } else if (data.plano) {
         setPlano(data.plano); setProposta(null)
         setPublico(data.publico ?? [])
-        setCopyEditada(data.plano.copy_whatsapp ?? '')
+        setCopyEditada(comSaudacao(data.plano.copy_whatsapp ?? ''))
       }
     } catch { setErro('Erro de conexão.') } finally { setPensando(false) }
   }
@@ -373,9 +382,9 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 <p className="text-xs font-semibold text-zinc-400">💬 Copy (edite à vontade — {'{nome}'} vira o primeiro nome)</p>
                 {proposta.copy_texto_preco && (
                   <div className="flex bg-zinc-900 border border-zinc-700 rounded-lg p-0.5">
-                    <button onClick={() => { setComPreco(false); setCopyEditada(proposta.copy_texto ?? '') }}
+                    <button onClick={() => { setComPreco(false); setCopyEditada(comSaudacao(proposta.copy_texto ?? '')) }}
                       className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${!comPreco ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>Sem preço</button>
-                    <button onClick={() => { setComPreco(true); setCopyEditada(proposta.copy_texto_preco ?? '') }}
+                    <button onClick={() => { setComPreco(true); setCopyEditada(comSaudacao(proposta.copy_texto_preco ?? '')) }}
                       className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${comPreco ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>Com preço</button>
                   </div>
                 )}
@@ -451,10 +460,14 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 </div>
               )}
 
-              <button onClick={aprovarEnviar} disabled={disparando || publico.length === 0}
-                className="w-full py-2.5 bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
-                {disparando ? 'Enviando...' : `📤 Enviar no WhatsApp (${publico.length})`}
-              </button>
+              <div className="flex gap-2">
+                <button onClick={aprovarEnviar} disabled={disparando || publico.length === 0}
+                  className="flex-1 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                  {disparando ? 'Enviando...' : `📤 Enviar no WhatsApp (${publico.length})`}
+                </button>
+                <button onClick={() => { setPlano(null); enviar('Não curti a copy de divulgação, me gera outra versão com um approach diferente (mantém o resto do plano).') }} disabled={disparando || pensando}
+                  className="px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">🔄 Outra copy</button>
+              </div>
             </div>
 
             {/* ── BLOCO INSTAGRAM: roteiro de posts ── */}

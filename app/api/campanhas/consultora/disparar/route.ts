@@ -9,6 +9,13 @@ export const maxDuration = 120
 
 const MAX_POR_DISPARO = 50
 
+/* {saudacao} → Bom dia/Boa tarde/Boa noite pela hora do BRASIL (rede de
+   segurança; o app já troca antes de enviar). */
+function saudacaoBR(): string {
+  const h = Number(new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hour12: false, timeZone: 'America/Sao_Paulo' }).format(new Date()))
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
 /* Teaser 1 linha pro {{3}} do template (Meta não aceita quebra) */
 function teaser(msg: string): string {
   let t = String(msg || '').replace(/\s+/g, ' ').trim()
@@ -70,7 +77,7 @@ export async function POST(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const cli of (clientes ?? []) as any[]) {
     const primeiroNome = (cli.nome as string | null)?.split(' ')[0] || 'você'
-    const textoPersonalizado = String(copy_texto).replace(/\{nome\}/gi, primeiroNome)
+    const textoPersonalizado = String(copy_texto).replace(/\{saudacao\}/gi, saudacaoBR()).replace(/\{nome\}/gi, primeiroNome)
 
     /* resolve telefone + contato */
     let phone: string | null = null
