@@ -29,9 +29,29 @@ export type Oportunidade = {
 
 type Tam = { tamanho: string; qtd: number }
 type EstoqueRow = {
-  id: string; nome: string; marca: string | null; cor: string | null
+  id: string; nome: string; marca: string | null; cor: string | null; categoria: string | null
   genero: string | null; tamanhos: Tam[] | null; preco_venda: number | null
   created_at: string | null; status: string | null
+}
+
+const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'com', 'sem', 'pra', 'para', 'que', 'muito', 'essa', 'esse', 'peca', 'peça', 'roupa', 'cor', 'tipo', 'nada', 'mais', 'aqui', 'loja'])
+
+/* A NOTA DO DONO manda: se ele anotou "não curte X / não usa Y", não oferece
+   um produto que bata com X/Y (marca, cor, categoria ou palavra do nome). */
+function produtoRejeitadoPorNota(observacoes: string | null, prod: EstoqueRow): boolean {
+  const obs = String(observacoes ?? '').toLowerCase()
+  if (!obs) return false
+  const negRe = /(n[ãa]o\s+(?:curte|gosta(?:\s+de)?|usa|quer|veste|serve|combina)|odeia|detesta|evita|nunca\s+usa)\s+([a-zà-ú0-9/\s]{2,32})/gi
+  const palavrasProduto = new Set(
+    `${prod.marca ?? ''} ${prod.cor ?? ''} ${prod.categoria ?? ''} ${prod.nome ?? ''}`
+      .toLowerCase().replace(/\([^)]*\)/g, ' ').split(/[^a-zà-ú0-9]+/).filter(w => w.length >= 3 && !STOP.has(w))
+  )
+  let m: RegExpExecArray | null
+  while ((m = negRe.exec(obs)) !== null) {
+    const termo = m[2].split(/[^a-zà-ú0-9]+/).filter(w => w.length >= 3 && !STOP.has(w))
+    if (termo.some(w => palavrasProduto.has(w))) return true
+  }
+  return false
 }
 type ClienteRow = {
   id: string; nome: string; telefone: string | null; genero: string | null
@@ -51,6 +71,7 @@ function generoOposto(produtoGen: string | null, clienteGen: string | null): boo
 function avaliarMatch(prod: EstoqueRow, perfil: PerfilCliente, cli: ClienteRow, scoreMin = 30): Oportunidade | null {
   if (!cli.telefone) return null
   if (generoOposto(prod.genero, cli.genero)) return null
+  if (produtoRejeitadoPorNota(perfil.observacoes, prod)) return null   // dono anotou que não curte
 
   const tamsProduto = (prod.tamanhos ?? []).filter(t => (Number(t.qtd) || 0) > 0).map(t => String(t.tamanho))
   if (!tamsProduto.length) return null
@@ -107,7 +128,7 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
       .eq('user_id', userId).order('data_venda', { ascending: true }).limit(4000),
     admin.from('clientes').select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
       .eq('user_id', userId).limit(3000),
-    admin.from('estoque').select('id, nome, marca, cor, genero, tamanhos, preco_venda, created_at, status')
+    admin.from('estoque').select('id, nome, marca, cor, categoria, genero, tamanhos, preco_venda, created_at, status')
       .eq('user_id', userId).limit(5000),
     admin.from('inteligencia_acoes').select('cliente_id, enviada_em')
       .eq('user_id', userId).gte('enviada_em', new Date(Date.now() - excluirDias * 86400000).toISOString()),
