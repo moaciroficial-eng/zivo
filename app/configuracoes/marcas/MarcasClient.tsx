@@ -39,6 +39,29 @@ export default function MarcasClient({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [normalizando, setNormalizando] = useState(false)
+  const [mergeDest, setMergeDest] = useState<Record<string, string>>({})
+
+  /* Une uma marca "origem" (nome no estoque) numa marca de destino:
+     renomeia os produtos, salva a origem como APELIDO do destino (pra
+     importação futura mapear) e apaga a marca duplicada. */
+  async function unirMarca(origem: string, destino: string) {
+    if (!destino) return
+    setNormalizando(true); setError('')
+    try {
+      await supabase.from('estoque').update({ marca: destino }).eq('user_id', user.id).eq('marca', origem)
+      const dest = marcas.find(m => m.nome === destino)
+      if (dest) {
+        const { data } = await supabase.from('marcas').select('apelidos').eq('id', dest.id).maybeSingle()
+        const novos = Array.from(new Set([...(((data?.apelidos as string[] | null)) ?? []), origem]))
+        await supabase.from('marcas').update({ apelidos: novos }).eq('id', dest.id)
+      }
+      /* apaga a marca duplicada, se ela existir como cadastro */
+      await supabase.from('marcas').delete().eq('user_id', user.id).eq('nome', origem)
+      setMarcas(ms => ms.filter(m => m.nome.toLowerCase() !== origem.toLowerCase()))
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao unir.') }
+    setNormalizando(false)
+    router.refresh()
+  }
 
   function fuzzyMatch(emitente: string, canonical: string) {
     const e = emitente.toLowerCase()
@@ -274,10 +297,24 @@ export default function MarcasClient({
 
             {semCorrespondencia.length > 0 && (
               <div className="px-5 py-3 border-t border-zinc-800/60 bg-zinc-800/20">
-                <p className="text-xs text-zinc-500 mb-2">Sem correspondência (cadastre a marca para normalizar):</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-xs text-zinc-500 mb-2">Nomes no estoque sem marca — <span className="text-zinc-400">una com a marca certa</span> (ex: VCI Vanguard → Aramis) ou cadastre acima:</p>
+                <div className="flex flex-col gap-2">
                   {semCorrespondencia.map(m => (
-                    <span key={m} className="text-xs bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-1 rounded-lg">{m}</span>
+                    <div key={m} className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-zinc-300 font-medium truncate flex-1 min-w-[8rem]">{m}</span>
+                      <span className="text-zinc-600 text-xs">unir com</span>
+                      <select value={mergeDest[m] ?? ''} onChange={e => setMergeDest(d => ({ ...d, [m]: e.target.value }))}
+                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-violet-500 [color-scheme:dark]">
+                        <option value="">escolher marca…</option>
+                        {marcas.filter(mk => mk.nome.toLowerCase() !== m.toLowerCase()).map(mk => (
+                          <option key={mk.id} value={mk.nome}>{mk.nome}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => unirMarca(m, mergeDest[m] ?? '')} disabled={normalizando || !mergeDest[m]}
+                        className="text-xs font-semibold px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 rounded-lg transition cursor-pointer shrink-0">
+                        {normalizando ? '...' : 'Unir'}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
