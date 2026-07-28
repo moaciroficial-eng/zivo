@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url, produto_ids } = await request.json()
+  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url, produto_ids, data_evento, lembretes } = await request.json()
   if (!copy_texto || !Array.isArray(publico_ids) || publico_ids.length === 0) {
     return NextResponse.json({ ok: false, erro: 'Faltou copy ou público.' }, { status: 400 })
   }
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
   for (const c of (contatos ?? []) as any[]) if (c.phone) contatoPorFone.set(String(c.phone).replace(/\D/g, '').slice(-8), c.id)
 
   let porTemplate = 0, porTexto = 0, falhas = 0
+  const enviadosCli: string[] = []   // clientes que receberam (pra agendar os lembretes)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const cli of (clientes ?? []) as any[]) {
@@ -127,6 +128,38 @@ export async function POST(request: NextRequest) {
     try {
       await admin.from('inteligencia_acoes').insert({ user_id: user.id, cliente_id: cli.id, mensagem: textoPersonalizado, enviada_em: new Date().toISOString() })
     } catch { /* ignora */ }
+
+    enviadosCli.push(cli.id)
+  }
+
+  /* ── Agenda os LEMBRETES da cadência (o cron dispara no dia certo) ──
+     enviar_em = data do evento - dias_antes, às 09:00 do Brasil (=12:00 UTC). */
+  let lembretesAgendados = 0
+  if (campanhaId && data_evento && Array.isArray(lembretes) && lembretes.length && enviadosCli.length) {
+    const agora = Date.now()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = []
+    for (const lem of lembretes as { dias_antes: number; copy: string; fotoUrl?: string | null }[]) {
+      if (!lem?.copy?.trim()) continue
+      const base = new Date(`${String(data_evento).slice(0, 10)}T12:00:00.000Z`)
+      if (isNaN(base.getTime())) continue
+      base.setUTCDate(base.getUTCDate() - (Number(lem.dias_antes) || 0))
+      if (base.getTime() <= agora) continue  // já passou
+      const enviarEm = base.toISOString()
+      for (const cid of enviadosCli) {
+        rows.push({
+          user_id: user.id, tipo: 'campanha_lembrete', cliente_id: cid, campanha_id: campanhaId,
+          conteudo: lem.copy, foto_url: lem.fotoUrl ?? null, enviar_em: enviarEm, enviada: false,
+        })
+      }
+    }
+    if (rows.length) {
+      /* insere em lotes pra não estourar o payload */
+      for (let i = 0; i < rows.length; i += 500) {
+        try { await admin.from('mensagens_agendadas').insert(rows.slice(i, i + 500)) } catch { /* segue */ }
+      }
+      lembretesAgendados = new Set(rows.map(r => r.enviar_em)).size
+    }
   }
 
   return NextResponse.json({
@@ -136,6 +169,7 @@ export async function POST(request: NextRequest) {
     por_template: porTemplate,
     por_texto: porTexto,
     fotos_no_retorno: comFotoNaResposta,
+    lembretes_agendados: lembretesAgendados,
     falhas,
     excedente: publico_ids.length - alvo.length,
   })

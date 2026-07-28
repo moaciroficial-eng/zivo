@@ -211,10 +211,18 @@ Pra CAMPANHA DE DATA/GERAL, em vez de "proposta", preencha "plano" (proposta fic
     "posts_instagram": [
       {"data":"data REAL do post (ex: '06/08')","formato":"Feed | Carrossel | Story | Reels","objetivo":"teaser | oferta | prova social | bastidores | urgência","tema":"conceito do post em 1 linha","visual":"o que aparece na imagem/vídeo (direção de arte concreta)","legenda":"legenda profissional: 1ª linha um HOOK forte, corpo curto com benefício, CTA claro","hashtags":"5-8 hashtags relevantes de moda + a data + local"}
     ],
+    "data_evento": "YYYY-MM-DD da data da campanha (ex do Dia dos Pais deste ano). null se for campanha geral sem data fixa.",
+    "lembretes": [
+      {"dias_antes": 3, "copy": "lembrete curto e humano pro WhatsApp, com {saudacao} e {nome} — reforça a campanha sem repetir igual à 1ª mensagem"},
+      {"dias_antes": 1, "copy": "lembrete de véspera, com senso de urgência leve"},
+      {"dias_antes": 0, "copy": "mensagem no dia (ex: 'é hoje!')"}
+    ],
     "dica": "1 dica de execução (melhor horário de postar, stories no dia, etc.)"
   }
 }
-O CALENDÁRIO DO INSTAGRAM tem que ser NÍVEL PROFISSIONAL — você é social media sênior. Faça 5 a 6 posts distribuídos ao longo da campanha, com VARIEDADE real de formato e objetivo: começe com teaser/expectativa, depois revele a oferta, use prova social ou bastidores no meio, e feche com urgência/último dia. Cada legenda com HOOK na 1ª linha (nada de "chegou a data!"), benefício claro e CTA ("chama no direct", "link na bio", "passa na loja"). Datas REAIS calculadas a partir do evento. Nada genérico nem preguiçoso.`
+O CALENDÁRIO DO INSTAGRAM tem que ser NÍVEL PROFISSIONAL — você é social media sênior. Faça 5 a 6 posts distribuídos ao longo da campanha, com VARIEDADE real de formato e objetivo: começe com teaser/expectativa, depois revele a oferta, use prova social ou bastidores no meio, e feche com urgência/último dia. Cada legenda com HOOK na 1ª linha (nada de "chegou a data!"), benefício claro e CTA ("chama no direct", "link na bio", "passa na loja"). Datas REAIS calculadas a partir do evento. Nada genérico nem preguiçoso.
+
+LEMBRETES (cadência de WhatsApp): monte 2 a 3 lembretes que o Zivo vai disparar AUTOMÁTICO conforme a data chega (ex: 3 dias antes, 1 dia antes, no dia). Cada um com uma copy DIFERENTE (não repita a 1ª mensagem), curta e humana, com {saudacao} e {nome}. Preencha data_evento com a data real (pra calcular quando disparar). Campanha geral sem data → data_evento null e lembretes [].`
 
   const conteudoAtual: any = foto
     ? [

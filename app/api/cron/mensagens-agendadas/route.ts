@@ -1,7 +1,14 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendWhatsAppMessage, type WhatsAppCreds } from '@/lib/whatsapp'
+import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
+
+/* {saudacao} → saudação pela hora do Brasil */
+function saudacaoBR(): string {
+  const h = Number(new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hour12: false, timeZone: 'America/Sao_Paulo' }).format(new Date()))
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
 
 export async function GET(request: NextRequest) {
   /* Só a Vercel (cron) pode chamar quando CRON_SECRET está configurado */
@@ -15,12 +22,16 @@ export async function GET(request: NextRequest) {
   )
 
   /* Busca mensagens pendentes com enviar_em já vencido */
+  /* Só lembretes de campanha: o agradecimento pós-venda já é enviado na hora
+     por /api/pos-venda (window-aware). Processar pos_venda aqui duplicaria. */
   const { data: pendentes } = await admin
     .from('mensagens_agendadas')
-    .select('id, user_id, tipo, cliente_id, venda_id')
+    .select('id, user_id, tipo, cliente_id, venda_id, conteudo, foto_url')
     .eq('enviada', false)
+    .eq('tipo', 'campanha_lembrete')
     .lte('enviar_em', new Date().toISOString())
-    .limit(50)
+    .order('enviar_em', { ascending: true })
+    .limit(80)
 
   if (!pendentes?.length) {
     return NextResponse.json({ ok: true, processadas: 0 })
@@ -44,7 +55,7 @@ export async function GET(request: NextRequest) {
       /* Busca o whatsapp_contato vinculado ao cliente */
       const { data: contato } = await admin
         .from('whatsapp_contatos')
-        .select('phone, nome')
+        .select('id, phone, nome')
         .eq('user_id', msg.user_id)
         .eq('cliente_id', msg.cliente_id)
         .maybeSingle()
@@ -63,6 +74,28 @@ export async function GET(request: NextRequest) {
 
       const nomeLoja = config?.nome_loja ?? 'MADS'
       const nomeCliente = contato.nome?.split(' ')[0] ?? 'você'
+      const creds = await credsDaLoja(msg.user_id)
+
+      /* ── LEMBRETE DE CAMPANHA: usa a copy salva, window-aware (quente=texto,
+         frio=template) e manda a foto do lembrete se tiver. ── */
+      if (msg.tipo === 'campanha_lembrete') {
+        const texto = String(msg.conteudo || '').replace(/\{saudacao\}/gi, saudacaoBR()).replace(/\{nome\}/gi, nomeCliente)
+        if (!texto.trim()) {
+          await admin.from('mensagens_agendadas').update({ enviada: true, enviada_em: new Date().toISOString(), erro: 'sem conteudo' }).eq('id', msg.id)
+          continue
+        }
+        const r = await enviarOferta(admin, {
+          userId: msg.user_id, contatoId: contato.id, phone: contato.phone,
+          texto, templateName: 'novidade_loja',
+          templateVars: [nomeCliente, nomeLoja, texto.replace(/\s+/g, ' ').slice(0, 88)],
+          fotoUrl: msg.foto_url ?? null, templateFotoName: 'oferta_com_foto', creds,
+        })
+        await admin.from('mensagens_agendadas').update({
+          enviada: true, enviada_em: new Date().toISOString(), erro: r.ok ? null : (r.erro ?? 'falha'),
+        }).eq('id', msg.id)
+        if (r.ok) enviadas++; else erros++
+        continue
+      }
 
       let mensagem = ''
       if (msg.tipo === 'pos_venda') {
@@ -71,7 +104,6 @@ export async function GET(request: NextRequest) {
 
       if (!mensagem) continue
 
-      const creds = await credsDaLoja(msg.user_id)
       const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem, creds })
 
       /* Salva mensagem no histórico */

@@ -29,11 +29,14 @@ type Proposta = {
   desconto: string | null
 }
 type PostInsta = { data?: string; quando?: string; formato: string; objetivo?: string; tema: string; visual?: string; legenda: string; hashtags?: string }
+type LembreteIA = { dias_antes: number; copy: string }
 type Plano = {
   titulo: string; objetivo: string; estrategia: string; oferta: string | null
   publico_criterio: string; publico_descricao: string
   copy_whatsapp: string; posts_instagram: PostInsta[]; dica: string
+  data_evento?: string | null; lembretes?: LembreteIA[]
 }
+type LembreteEdit = { dias_antes: number; copy: string; fotoUrl: string | null }
 type Publico = { id: string; nome: string; telefone: string | null; motivo: string }
 type Espera = 'texto' | 'produto' | 'foto' | 'opcoes' | 'desconto'
 type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string; opcoes?: string[]; espera?: Espera }
@@ -77,6 +80,10 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [pensando, setPensando] = useState(false)
   const [proposta, setProposta] = useState<Proposta | null>(null)
   const [plano, setPlano] = useState<Plano | null>(null)
+  const [lembretes, setLembretes] = useState<LembreteEdit[]>([])
+  const [subindoLembrete, setSubindoLembrete] = useState<number | null>(null)
+  const lembreteFileRef = useRef<HTMLInputElement>(null)
+  const lembreteAlvo = useRef<number | null>(null)
   const [publico, setPublico] = useState<Publico[]>([])
   const [copyEditada, setCopyEditada] = useState('')
   const [disparando, setDisparando] = useState(false)
@@ -185,21 +192,40 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   }
 
   /* ─── foto ─── */
+  async function uploadFoto(file: File): Promise<string | null> {
+    const supabase = createClient()
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const path = `campanhas/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'image/jpeg' })
+    if (error) return null
+    return supabase.storage.from('biblioteca').getPublicUrl(path).data.publicUrl
+  }
+
   async function onFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (e.target) e.target.value = ''
     if (!file) return
     setEnviandoFoto(true); setErro(null)
     try {
-      const supabase = createClient()
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-      const path = `campanhas/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const { error } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'image/jpeg' })
-      if (error) { setErro('Não consegui subir a foto. Tenta de novo.'); return }
-      const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(path)
+      const publicUrl = await uploadFoto(file)
+      if (!publicUrl) { setErro('Não consegui subir a foto. Tenta de novo.'); return }
       setFotoUrl(publicUrl)
       enviar('Anexei a foto do produto. Dá uma olhada e usa ela pra deixar a campanha melhor.', publicUrl)
     } catch { setErro('Falha ao enviar a foto.') } finally { setEnviandoFoto(false) }
+  }
+
+  /* Foto de um lembrete específico */
+  async function onFotoLembrete(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const idx = lembreteAlvo.current
+    if (e.target) e.target.value = ''
+    if (!file || idx == null) return
+    setSubindoLembrete(idx); setErro(null)
+    try {
+      const url = await uploadFoto(file)
+      if (!url) { setErro('Não consegui subir a foto do lembrete.'); return }
+      setLembretes(prev => prev.map((l, i) => i === idx ? { ...l, fotoUrl: url } : l))
+    } catch { setErro('Falha ao enviar a foto.') } finally { setSubindoLembrete(null) }
   }
 
   /* ─── conversa ─── */
@@ -226,6 +252,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         setPlano(data.plano); setProposta(null)
         setPublico(data.publico ?? [])
         setCopyEditada(comSaudacao(data.plano.copy_whatsapp ?? ''))
+        setLembretes((data.plano.lembretes ?? []).map((l: LembreteIA) => ({ dias_antes: Number(l.dias_antes) || 0, copy: l.copy ?? '', fotoUrl: null })))
       }
     } catch { setErro('Erro de conexão.') } finally { setPensando(false) }
   }
@@ -247,6 +274,8 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           publico_ids: publico.map(p => p.id),
           foto_url: fotoUrl,
           produto_ids: proposta ? produtoIds : [],
+          data_evento: plano?.data_evento ?? null,
+          lembretes: plano ? lembretes.filter(l => l.copy.trim()) : [],
         }),
       })
       const data = await res.json()
@@ -256,7 +285,8 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         : ''
       const comFoto = (proposta && fotoUrl) ? ' A foto foi junto pros clientes quentes.' : ''
       const posInsta = plano ? ' O roteiro do Instagram fica salvo aqui pra você postar.' : ''
-      setResultado(`✅ Enviado para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes).${comFoto}${naResposta}${posInsta} O resultado aparece no histórico.`)
+      const posLembrete = (data.lembretes_agendados ?? 0) > 0 ? ` ⏰ ${data.lembretes_agendados} lembrete(s) agendado(s) — o Zivo dispara sozinho conforme a data chega.` : ''
+      setResultado(`✅ Enviado para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes).${comFoto}${naResposta}${posInsta}${posLembrete} O resultado aparece no histórico.`)
       if (data.campanhaId) {
         setCampanhas(prev => [{
           id: data.campanhaId, nome: ativo.titulo, objetivo: ativo.objetivo,
@@ -264,7 +294,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           created_at: new Date().toISOString(),
         }, ...prev])
       }
-      setProposta(null); setPlano(null); setPublico([]); setFotoUrl(null); setProdutoIds([]); setGeneroCampanha(null)
+      setProposta(null); setPlano(null); setLembretes([]); setPublico([]); setFotoUrl(null); setProdutoIds([]); setGeneroCampanha(null)
     } catch { setErro('Erro de conexão.') } finally { setDisparando(false) }
   }
 
@@ -457,6 +487,40 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                   <img src={fotoUrl} alt="" className="h-10 w-10 rounded object-cover" />
                   📷 Arte vai junto na divulgação
                   <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
+                </div>
+              )}
+
+              {/* Cadência de lembretes — editáveis, com foto própria */}
+              {lembretes.length > 0 && (
+                <div className="border-t border-[#25D366]/20 pt-2">
+                  <p className="text-xs font-semibold text-zinc-400 mb-1.5">⏰ Lembretes automáticos <span className="text-zinc-600 font-normal">— o Zivo dispara conforme a data chega</span></p>
+                  <input ref={lembreteFileRef} type="file" accept="image/*" onChange={onFotoLembrete} className="hidden" />
+                  <div className="flex flex-col gap-2">
+                    {lembretes.map((l, i) => (
+                      <div key={i} className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-bold text-[#25D366]">{l.dias_antes === 0 ? 'No dia' : `${l.dias_antes} dia(s) antes`}</span>
+                          <button onClick={() => setLembretes(prev => prev.filter((_, j) => j !== i))}
+                            className="text-[11px] text-zinc-500 hover:text-red-300 cursor-pointer">remover</button>
+                        </div>
+                        <textarea value={l.copy} onChange={e => setLembretes(prev => prev.map((x, j) => j === i ? { ...x, copy: e.target.value } : x))} rows={2}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-[12px] text-zinc-200 resize-y focus:outline-none focus:border-[#25D366] [color-scheme:dark]" />
+                        <div className="flex items-center gap-2 mt-1.5">
+                          {l.fotoUrl ? (
+                            <>
+                              <img src={l.fotoUrl} alt="" className="h-8 w-8 rounded object-cover" />
+                              <button onClick={() => setLembretes(prev => prev.map((x, j) => j === i ? { ...x, fotoUrl: null } : x))}
+                                className="text-[11px] text-zinc-500 hover:text-zinc-300 cursor-pointer">tirar foto</button>
+                            </>
+                          ) : (
+                            <button onClick={() => { lembreteAlvo.current = i; lembreteFileRef.current?.click() }} disabled={subindoLembrete === i}
+                              className="text-[11px] text-[#25D366]/80 hover:text-[#25D366] cursor-pointer">{subindoLembrete === i ? '⏳ subindo...' : '📷 anexar foto'}</button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1">{'{saudacao}'} e {'{nome}'} são preenchidos na hora do envio.</p>
                 </div>
               )}
 
