@@ -202,6 +202,9 @@ export default function ImportNFeModal({
   const [numNfe,     setNumNfe]     = useState<string | null>(null)
   const [markupUsed, setMarkupUsed] = useState<number | null>(null)
   const [items,      setItems]      = useState<NFeItem[]>([])
+  /* Resolução de marca: quando o emitente não bate com marca nem apelido */
+  const [marcasList,      setMarcasList]      = useState<{ nome: string; markup: number; apelidos: string[] }[]>([])
+  const [precisaResolver, setPrecisaResolver] = useState(false)
 
   async function resolveNFe(file: File): Promise<ParsedNFe | { error: string }> {
     if (isImage(file.name)) {
@@ -253,21 +256,24 @@ export default function ImportNFeModal({
       const { emitente: emit, num_nfe, items: rawItems } = result
       if (!rawItems.length) { setError('Nenhum produto encontrado no documento.'); return }
 
-      // Busca markup pela marca/emitente
-      let markup: number | null = null
-      const { data: marcas } = await supabase.from('marcas').select('nome, markup')
-      if (marcas && emit) {
-        const emitLow = emit.toLowerCase()
-        const match   = marcas.find(m => {
-          const mLow = m.nome.toLowerCase()
-          return emitLow.includes(mLow) || mLow.includes(emitLow)
-        })
-        if (match && match.markup > 0) markup = match.markup
-      }
+      // Busca a marca pelo emitente: nome OU apelido cadastrado
+      const { data: marcasRaw } = await supabase.from('marcas').select('nome, markup, apelidos')
+      const marcas = (marcasRaw ?? []).map(m => ({ nome: m.nome as string, markup: Number(m.markup) || 0, apelidos: (m.apelidos as string[] | null) ?? [] }))
+      setMarcasList(marcas)
 
-      const marcaCanonica = marcas && emit
-        ? (marcas.find(m => { const mL = m.nome.toLowerCase(); const eL = emit.toLowerCase(); return eL.includes(mL) || mL.includes(eL) })?.nome ?? emit)
-        : emit
+      const emitLow = (emit ?? '').toLowerCase().trim()
+      const marcaMatch = emit
+        ? marcas.find(m => {
+            const mLow = m.nome.toLowerCase()
+            if (emitLow.includes(mLow) || mLow.includes(emitLow)) return true
+            return m.apelidos.some(a => a.toLowerCase().trim() === emitLow)  // apelido salvo
+          })
+        : undefined
+
+      const markup: number | null = marcaMatch && marcaMatch.markup > 0 ? marcaMatch.markup : null
+      const marcaCanonica = marcaMatch?.nome ?? emit
+      /* Sem match E temos marcas cadastradas → pergunta pro dono qual é */
+      setPrecisaResolver(!!emit && !marcaMatch && marcas.length > 0)
 
       const nfeItems: NFeItem[] = rawItems.map((raw, i) => ({
         ...raw,
@@ -295,6 +301,31 @@ export default function ImportNFeModal({
 
   function updateItem<K extends keyof NFeItem>(key: string, field: K, value: NFeItem[K]) {
     setItems(prev => prev.map(it => it.key === key ? { ...it, [field]: value } : it))
+  }
+
+  /* Emitente = marca JÁ existente → aplica a marca/markup nos itens e SALVA
+     o apelido (emitente) pra próxima nota mapear sozinha. */
+  async function resolverComExistente(nome: string) {
+    const marca = marcasList.find(m => m.nome === nome)
+    setItems(prev => prev.map(it => ({
+      ...it, marca: nome,
+      preco_venda: marca && marca.markup > 0 && it.preco_custo != null
+        ? parseFloat((it.preco_custo * marca.markup).toFixed(2)) : it.preco_venda,
+    })))
+    setMarkupUsed(marca && marca.markup > 0 ? marca.markup : null)
+    if (emitente && marca) {
+      const novos = Array.from(new Set([...(marca.apelidos ?? []), emitente]))
+      try { await supabase.from('marcas').update({ apelidos: novos }).eq('user_id', userId).eq('nome', nome) } catch { /* segue */ }
+    }
+    setPrecisaResolver(false)
+  }
+
+  /* Emitente é uma marca NOVA → registra pra ser reconhecida nas próximas. */
+  async function resolverComoNova() {
+    if (emitente) {
+      try { await supabase.from('marcas').insert({ user_id: userId, nome: emitente, markup: 0 }) } catch { /* já existe */ }
+    }
+    setPrecisaResolver(false)
   }
 
   async function handleImport() {
@@ -385,10 +416,30 @@ export default function ImportNFeModal({
                 )}
               </div>
             </div>
-            {step === 'preview' && markupUsed && (
+            {step === 'preview' && markupUsed && !precisaResolver && (
               <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
                 <IconCheck size={14}/>
                 Markup {markupUsed}× aplicado — preço de venda = custo × {markupUsed}
+              </div>
+            )}
+
+            {/* Resolver marca: emitente não bateu com nenhuma marca cadastrada */}
+            {step === 'preview' && precisaResolver && (
+              <div className="text-sm bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2.5">
+                <p className="text-amber-200 font-medium">A nota veio como <span className="font-bold">&ldquo;{emitente}&rdquo;</span>. Essa é qual marca?</p>
+                <p className="text-[11px] text-amber-400/80 mt-0.5 mb-2">Ex: a Aramis emite como &ldquo;VCI Vanguard&rdquo;. Diz uma vez e o Zivo lembra nas próximas notas.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {marcasList.map(m => (
+                    <button key={m.nome} onClick={() => resolverComExistente(m.nome)}
+                      className="text-xs bg-zinc-800 hover:bg-amber-600 hover:text-white border border-zinc-700 text-zinc-200 px-2.5 py-1 rounded-lg transition cursor-pointer">
+                      é {m.nome}
+                    </button>
+                  ))}
+                  <button onClick={resolverComoNova}
+                    className="text-xs bg-zinc-800 hover:bg-zinc-700 border border-dashed border-zinc-600 text-zinc-300 px-2.5 py-1 rounded-lg transition cursor-pointer">
+                    + é marca nova
+                  </button>
+                </div>
               </div>
             )}
           </div>
