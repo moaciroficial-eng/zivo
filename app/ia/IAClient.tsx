@@ -759,6 +759,24 @@ function OportunidadeCard({ o, onResolvido }: { o: OportunidadeFeed; onResolvido
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  /* observação do dono (a IA aprende com isso) */
+  const [obs, setObs] = useState('')
+  const [salvandoObs, setSalvandoObs] = useState(false)
+  const [obsSalva, setObsSalva] = useState(false)
+
+  async function salvarObs() {
+    const texto = obs.trim()
+    if (!texto || salvandoObs) return
+    setSalvandoObs(true)
+    try {
+      const res = await fetch('/api/clientes/observacao', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: o.clienteId, texto }),
+      })
+      const data = await res.json()
+      if (data.ok) { setObsSalva(true); setObs('') }
+    } catch { /* ignora */ } finally { setSalvandoObs(false) }
+  }
 
   async function subirFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -823,6 +841,24 @@ function OportunidadeCard({ o, onResolvido }: { o: OportunidadeFeed; onResolvido
             </button>
           </div>
           {erro && <p className="text-[11px] text-red-300 mt-1.5">{erro}</p>}
+
+          {/* Observação do dono — a IA aprende com isso */}
+          <div className="mt-2.5 border-t border-zinc-800 pt-2">
+            {obsSalva ? (
+              <p className="text-[11px] text-[#00D4AA]">📝 anotado — a IA vai levar isso em conta</p>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input value={obs} onChange={e => setObs(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); salvarObs() } }}
+                  placeholder="📝 anote algo (ex: não curte essa peça)"
+                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-[#00D4AA]" />
+                <button onClick={salvarObs} disabled={!obs.trim() || salvandoObs}
+                  className="text-[11px] text-zinc-300 hover:text-white border border-zinc-700 rounded-lg px-2.5 py-1.5 disabled:opacity-40 transition cursor-pointer">
+                  {salvandoObs ? '...' : 'salvar'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
