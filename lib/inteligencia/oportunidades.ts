@@ -58,6 +58,17 @@ type ClienteRow = {
   tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
 }
 
+/* Parte do corpo da peça → define QUAL tamanho do cliente usar.
+   Camiseta casa com tamanho de camisa, calça com numeração de calça,
+   calçado com número do pé. Sem isso, camiseta casava com 40/42 (calça). */
+function parteDoCorpo(prod: EstoqueRow): 'camiseta' | 'calca' | 'tenis' | null {
+  const t = `${prod.categoria ?? ''} ${prod.nome ?? ''}`.toLowerCase()
+  if (/t[êe]nis|sapat|sand[áa]lia|chinelo|\bbota\b|botina|cal[çc]ado|mocassim|rasteir|papete|slide/.test(t)) return 'tenis'
+  if (/camiseta|camisa|polo|blusa|regata|jaqueta|moletom|casaco|body|cropped|t-shirt|malha|su[ée]ter|colete|corta.?vento|top\b/.test(t)) return 'camiseta'
+  if (/cal[çc]a|bermuda|short|jeans|legging|cal[çc][aã]o|jogger/.test(t)) return 'calca'
+  return null
+}
+
 function generoOposto(produtoGen: string | null, clienteGen: string | null): boolean {
   const p = String(produtoGen ?? '').toUpperCase().charAt(0)
   const c = String(clienteGen ?? '').toUpperCase().charAt(0)
@@ -75,10 +86,21 @@ function avaliarMatch(prod: EstoqueRow, perfil: PerfilCliente, cli: ClienteRow, 
 
   const tamsProduto = (prod.tamanhos ?? []).filter(t => (Number(t.qtd) || 0) > 0).map(t => String(t.tamanho))
   if (!tamsProduto.length) return null
-  const tamsCliente = [cli.tamanho_camiseta, cli.tamanho_calca, cli.tamanho_tenis].filter(Boolean) as string[]
-  if (!tamsCliente.length) return null
-  if (!clienteServeProduto(tamsCliente, tamsProduto)) return null
-  const tamCasou = tamsCliente.find(tc => clienteServeProduto([tc], tamsProduto)) ?? tamsProduto[0]
+
+  /* Usa SÓ o tamanho da parte do corpo certa (camiseta≠calça≠pé). */
+  const parte = parteDoCorpo(prod)
+  const tamDaParte = parte === 'camiseta' ? cli.tamanho_camiseta
+    : parte === 'calca' ? cli.tamanho_calca
+      : parte === 'tenis' ? cli.tamanho_tenis
+        : null
+  const tamsCliente = (parte
+    ? (tamDaParte ? [tamDaParte] : [])                                   // parte conhecida: só aquele campo
+    : [cli.tamanho_camiseta, cli.tamanho_calca, cli.tamanho_tenis]) as (string | null)[]
+  const tamsClienteOk = tamsCliente.filter(Boolean) as string[]
+  if (!tamsClienteOk.length) return null
+  if (!clienteServeProduto(tamsClienteOk, tamsProduto)) return null
+  /* mostra o tamanho do PRODUTO que serve (ex: "no M"), não o número cru */
+  const tamCasou = tamsProduto.find(tp => clienteServeProduto(tamsClienteOk, [tp])) ?? tamsProduto[0]
 
   const marcaLow = (prod.marca ?? '').toLowerCase().trim()
   const diasParado = prod.created_at ? Math.floor((Date.now() - new Date(prod.created_at).getTime()) / 86400000) : 0
