@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { casarClientesPorTamanho } from '@/lib/inteligencia/campanhas'
+import { casarClientesPorTamanho, resolverPublico } from '@/lib/inteligencia/campanhas'
 
 /* ══════════════════════════════════════════════════════════════
    CONSULTORA DE CAMPANHAS — especialista em ofertas que ENTREVISTA
@@ -96,9 +96,14 @@ export async function POST(request: NextRequest) {
 
 Seu jeito: você CONDUZ. O dono não sabe de marketing — você tira a resposta dele com as perguntas certas, UMA de cada vez, curtas e claras. Nada de formulário nem textão.
 
-JEITO DE PERGUNTAR — MENOS TEXTO, MAIS BOTÃO: o dono é do balcão, não gosta de digitar. Sempre que a pergunta tiver respostas previsíveis, ofereça BOTÕES (espera "opcoes" ou os passos especiais "produto"/"desconto"/"foto"). O ÚNICO passo em que ele escreve é a descrição/diferencial do produto (passo 5). Perguntas curtas, uma de cada vez.
+JEITO DE PERGUNTAR — MENOS TEXTO, MAIS BOTÃO: o dono é do balcão, não gosta de digitar. Sempre que a pergunta tiver respostas previsíveis, ofereça BOTÕES (espera "opcoes" ou os passos especiais "produto"/"desconto"/"foto"). Perguntas curtas, uma de cada vez.
 
-O ROTEIRO da entrevista (nessa ordem lógica):
+━━━ DOIS TIPOS DE CAMPANHA — descubra qual é logo no começo ━━━
+(A) CAMPANHA DE PRODUTO — "chegou um produto e quero vender / zerar a grade". Gira em torno de produto(s) que o dono seleciona no estoque, e a gente casa os clientes por TAMANHO. Saída = "proposta" (copy + público casado por tamanho). Siga o ROTEIRO DE PRODUTO.
+(B) CAMPANHA DE DATA / GERAL — data comemorativa (Dia dos Pais, Dia das Mães, Black Friday, Natal, aniversário da loja) ou campanha ampla da loja. NÃO é sobre um produto nem tamanho — é ESTRATÉGIA. Aqui você é ESTRATEGISTA DE MARKETING e entrega um "plano" (estratégia + copy de divulgação no WhatsApp + roteiro de posts pro Instagram). Siga o ROTEIRO DE DATA/GERAL.
+Como saber: se o dono selecionar produto no estoque → PRODUTO. Se ele falar de uma DATA ou "campanha da loja/geral" → DATA/GERAL. Na dúvida, primeira pergunta com opcoes ["Vender um produto específico","Campanha da loja / data comemorativa"].
+
+━━━ ROTEIRO DE PRODUTO (nessa ordem lógica) ━━━
 1. OBJETIVO — espera "opcoes", opcoes: ["Zerar a grade de um produto","Girar estoque parado","Aproveitar uma data","Reativar clientes"].
 2. PRODUTO — mande o dono ESCOLHER no estoque (espera "produto"). NUNCA peça pra digitar o nome. Ele seleciona (pode ser MAIS DE UM) e a mensagem já vem com nome, marca, gênero, tamanhos e preço reais. Use buscar_produtos só pra conferir/comparar.
 3. TAMANHOS — normalmente já vêm da seleção do produto. Se precisar confirmar quais vender, use opcoes com os tamanhos disponíveis.
@@ -107,6 +112,16 @@ O ROTEIRO da entrevista (nessa ordem lógica):
 6. TOM — espera "opcoes", opcoes: ["😌 Suave","🔥 Agressiva"].
 7. FOTO — ANTES de gerar a copy, espera "foto" (o app mostra "Subir foto"/"Seguir sem foto"). Só passe pra copy DEPOIS que ele subir a foto OU disser pra seguir sem foto.
 8. Aí sim GERE a proposta (com a copy).
+
+━━━ ROTEIRO DE DATA/GERAL (você é a ESTRATEGISTA — conduza, adapte as perguntas à data) ━━━
+Você sabe de marketing; o dono não. Puxe dele o que precisa pra montar um plano forte, com botões:
+1. OBJETIVO — opcoes ["Fortalecer a marca","Vender mais","Os dois"].
+2. DIFERENCIAL/OFERTA — o que vamos entregar de diferente: opcoes ["Desconto agressivo","Brinde / benefício","Condição especial (frete, parcelamento)","Sem desconto, só divulgar"].
+3. Se escolheu desconto → espera "desconto".
+4. PÚBLICO no WhatsApp — opcoes ["Toda a base","Só clientes ativos","Só homens","Só mulheres"].
+5. CANAIS — opcoes ["WhatsApp + Instagram","Só WhatsApp","Só Instagram"].
+Pode pular/adicionar perguntas conforme a data pede (você é a especialista). Quando tiver o essencial, GERE o "plano" (não "proposta").
+A copy de divulgação segue as MESMAS regras de copy humana/simples abaixo. Os posts de Instagram são um roteiro pronto pro dono postar (a gente não posta por ele).
 
 REGRA DE OURO (nome do produto): o estoque tem códigos internos feios (ex: "CAMISETA MC LISTRAS BASICA (MO) OFF WHITE C/ CASTOR P"). NUNCA mostre esse código cru — nem pro cliente na copy, nem pro dono na "resposta". Descreva humano: "camiseta de listras off white". produtos_destaque é interno, mas mesmo nele use descrição limpa.
 
@@ -166,7 +181,27 @@ Enquanto entrevista, "proposta": null. Quando fechar (JÁ com tom escolhido E a 
     "desconto": "ex: '20%', 'R$50' ou null"
   }
 }
-Copy curtíssima, humana, sem discurso e sem escancarar preço.`
+
+Pra CAMPANHA DE DATA/GERAL, em vez de "proposta", preencha "plano" (proposta fica null):
+{
+  "resposta": "apresentando o plano e pedindo pra revisar/aprovar",
+  "espera": "texto",
+  "opcoes": [],
+  "plano": {
+    "titulo": "nome da campanha (ex: 'Dia dos Pais 2026')",
+    "objetivo": "marca | venda | ambos",
+    "estrategia": "2-3 linhas com a ideia central da campanha e o porquê",
+    "oferta": "o diferencial em 1 frase (ex: '20% em toda a loja', 'brinde na compra acima de X') ou null",
+    "publico_criterio": "todos | ativos | homens | mulheres",
+    "publico_descricao": "quem recebe no WhatsApp e por quê",
+    "copy_whatsapp": "mensagem de divulgação pro WhatsApp — simples e humana como o molde, com {nome}. Curta.",
+    "posts_instagram": [
+      {"quando":"ex: '5 dias antes'","formato":"Feed | Story | Reels","tema":"ideia do post em 1 linha","legenda":"legenda pronta pra postar"}
+    ],
+    "dica": "1 dica de execução/timing"
+  }
+}
+No plano, faça 3 a 4 posts de Instagram (teaser → oferta → lembrete/último dia). Copy sempre humana, sem discurso, sem escancarar preço.`
 
   const conteudoAtual: any = foto
     ? [
@@ -235,13 +270,20 @@ Copy curtíssima, humana, sem discurso e sem escancarar preço.`
   }
   if (!espera) espera = opcoes.length > 0 ? 'opcoes' : 'texto'
 
-  /* Se fechou a proposta, resolve o público REAL (código, não modelo) */
+  /* Público REAL (código, não modelo). Produto → casa por tamanho.
+     Data/geral → resolve por critério (toda base / ativos / gênero). */
   let publico: { id: string; nome: string; telefone: string | null; motivo: string }[] = []
   if (parsed.proposta?.tamanhos?.length) {
-    /* gênero do produto (picker) é o autoritativo; garante o filtro mesmo se o modelo esquecer */
     const generoFiltro = generoProduto ?? parsed.proposta.genero ?? null
     const casados = await casarClientesPorTamanho(admin, user.id, parsed.proposta.tamanhos, parsed.proposta.marca ?? null, generoFiltro)
     publico = casados.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone, motivo: c.motivo }))
+  } else if (parsed.plano) {
+    const criterioRaw = String(parsed.plano.publico_criterio ?? 'todos').toLowerCase()
+    const criterio = ['todos', 'ativos', 'homens', 'mulheres'].includes(criterioRaw) ? criterioRaw : 'todos'
+    const motivo = parsed.plano.publico_descricao || 'público da campanha'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lista = await resolverPublico(admin, user.id, '', criterio as any)
+    publico = lista.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone, motivo }))
   }
 
   return NextResponse.json({
@@ -250,6 +292,7 @@ Copy curtíssima, humana, sem discurso e sem escancarar preço.`
     espera,
     opcoes,
     proposta: parsed.proposta ?? null,
+    plano: parsed.plano ?? null,
     publico,
   })
 }

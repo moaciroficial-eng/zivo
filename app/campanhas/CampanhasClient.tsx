@@ -28,6 +28,12 @@ type Proposta = {
   produtos_destaque: string[]
   desconto: string | null
 }
+type PostInsta = { quando: string; formato: string; tema: string; legenda: string }
+type Plano = {
+  titulo: string; objetivo: string; estrategia: string; oferta: string | null
+  publico_criterio: string; publico_descricao: string
+  copy_whatsapp: string; posts_instagram: PostInsta[]; dica: string
+}
 type Publico = { id: string; nome: string; telefone: string | null; motivo: string }
 type Espera = 'texto' | 'produto' | 'foto' | 'opcoes' | 'desconto'
 type Msg = { papel: 'dono' | 'consultora'; conteudo: string; foto?: string; opcoes?: string[]; espera?: Espera }
@@ -61,6 +67,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [input, setInput] = useState('')
   const [pensando, setPensando] = useState(false)
   const [proposta, setProposta] = useState<Proposta | null>(null)
+  const [plano, setPlano] = useState<Plano | null>(null)
   const [publico, setPublico] = useState<Publico[]>([])
   const [copyEditada, setCopyEditada] = useState('')
   const [disparando, setDisparando] = useState(false)
@@ -202,30 +209,35 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       if (!data.ok) { setErro('A consultora tropeçou. Tenta de novo.'); return }
       setMsgs(prev => [...prev, { papel: 'consultora', conteudo: data.resposta, opcoes: data.opcoes ?? [], espera: data.espera ?? 'texto' }])
       if (data.proposta) {
-        setProposta(data.proposta)
+        setProposta(data.proposta); setPlano(null)
         setPublico(data.publico ?? [])
         setComPreco(false)
         setCopyEditada(data.proposta.copy_texto ?? '')   // padrão: sem preço
+      } else if (data.plano) {
+        setPlano(data.plano); setProposta(null)
+        setPublico(data.publico ?? [])
+        setCopyEditada(data.plano.copy_whatsapp ?? '')
       }
     } catch { setErro('Erro de conexão.') } finally { setPensando(false) }
   }
 
   async function aprovarEnviar() {
-    if (!proposta || disparando) return
-    if (publico.length === 0) { setErro('Nenhum cliente casou com esses tamanhos.'); return }
+    const ativo = proposta ?? plano
+    if (!ativo || disparando) return
+    if (publico.length === 0) { setErro('Ninguém no público pra enviar.'); return }
     setDisparando(true); setErro(null)
     try {
       const res = await fetch('/api/campanhas/consultora/disparar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          titulo: proposta.titulo,
-          objetivo: proposta.objetivo,
-          marca: proposta.marca,
+          titulo: ativo.titulo,
+          objetivo: ativo.objetivo,
+          marca: proposta?.marca ?? null,
           copy_texto: copyEditada,
-          copy_descritor: proposta.copy_descritor,
+          copy_descritor: proposta?.copy_descritor ?? '',
           publico_ids: publico.map(p => p.id),
-          foto_url: fotoUrl,
-          produto_ids: produtoIds,
+          foto_url: proposta ? fotoUrl : null,
+          produto_ids: proposta ? produtoIds : [],
         }),
       })
       const data = await res.json()
@@ -233,16 +245,17 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       const naResposta = (data.fotos_no_retorno ?? 0) > 0
         ? ` Pros que receberem sem imagem, a foto vai automático quando responderem 📸 (${data.fotos_no_retorno}).`
         : ''
-      const comFoto = fotoUrl ? ' A foto foi junto pros clientes quentes.' : ''
-      setResultado(`✅ Oferta enviada para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes).${comFoto}${naResposta} O resultado aparece no histórico.`)
+      const comFoto = (proposta && fotoUrl) ? ' A foto foi junto pros clientes quentes.' : ''
+      const posInsta = plano ? ' O roteiro do Instagram fica salvo aqui pra você postar.' : ''
+      setResultado(`✅ Enviado para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes).${comFoto}${naResposta}${posInsta} O resultado aparece no histórico.`)
       if (data.campanhaId) {
         setCampanhas(prev => [{
-          id: data.campanhaId, nome: proposta.titulo, objetivo: proposta.objetivo,
-          produto_marca: proposta.marca, copy_whatsapp: copyEditada, status: 'ativa',
+          id: data.campanhaId, nome: ativo.titulo, objetivo: ativo.objetivo,
+          produto_marca: proposta?.marca ?? null, copy_whatsapp: copyEditada, status: 'ativa',
           created_at: new Date().toISOString(),
         }, ...prev])
       }
-      setProposta(null); setPublico([]); setFotoUrl(null); setProdutoIds([]); setGeneroCampanha(null)
+      setProposta(null); setPlano(null); setPublico([]); setFotoUrl(null); setProdutoIds([]); setGeneroCampanha(null)
     } catch { setErro('Erro de conexão.') } finally { setDisparando(false) }
   }
 
@@ -301,7 +314,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               {m.conteudo}
             </div>
             {/* Opções clicáveis (só na última mensagem da consultora, antes da proposta) */}
-            {m.papel === 'consultora' && i === msgs.length - 1 && (m.opcoes?.length ?? 0) > 0 && !proposta && !pensando && (
+            {m.papel === 'consultora' && i === msgs.length - 1 && (m.opcoes?.length ?? 0) > 0 && !proposta && !plano && !pensando && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {m.opcoes!.map(op => (
                   <button key={op} onClick={() => enviar(op)}
@@ -387,6 +400,86 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           </div>
         )}
 
+        {/* PLANO — campanha de data / geral */}
+        {plano && (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4 flex flex-col gap-3">
+            <div>
+              <p className="text-base font-bold text-white">📣 {plano.titulo}</p>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                objetivo: {plano.objetivo === 'marca' ? 'marca' : plano.objetivo === 'venda' ? 'venda' : 'marca + venda'}
+                {plano.oferta ? ` · ${plano.oferta}` : ''}
+              </p>
+            </div>
+
+            {plano.estrategia && (
+              <div className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
+                <p className="text-[11px] font-semibold text-zinc-500 mb-1">🎯 Estratégia</p>
+                <p className="text-sm text-zinc-300 whitespace-pre-wrap">{plano.estrategia}</p>
+              </div>
+            )}
+
+            {/* Público do WhatsApp */}
+            <div className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
+              <p className="text-xs font-semibold text-zinc-400 mb-2">📲 WhatsApp — {publico.length} vão receber <span className="text-zinc-600 font-normal">({plano.publico_descricao})</span></p>
+              {publico.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {publico.map(p => (
+                    <span key={p.id} className="flex items-center gap-1 text-[12px] bg-zinc-700/80 text-zinc-100 pl-2.5 pr-1 py-1 rounded-full">
+                      {p.nome.split(' ')[0]}
+                      <button onClick={() => setPublico(prev => prev.filter(x => x.id !== p.id))}
+                        title="Tirar da lista" className="text-zinc-400 hover:text-red-300 px-0.5 cursor-pointer leading-none">🗑️</button>
+                    </span>
+                  ))}
+                </div>
+              ) : <p className="text-[11px] text-zinc-500">Sem contatos nesse critério.</p>}
+            </div>
+
+            {/* Copy do WhatsApp */}
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 mb-1">💬 Copy de divulgação (WhatsApp — {'{nome}'} vira o primeiro nome)</p>
+              <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={3}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-amber-500 [color-scheme:dark]" />
+            </div>
+
+            {/* Roteiro do Instagram */}
+            {plano.posts_instagram?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1">📸 Roteiro de posts (Instagram)</p>
+                <div className="flex flex-col gap-2">
+                  {plano.posts_instagram.map((post, i) => (
+                    <div key={i} className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full">{post.formato}</span>
+                        <span className="text-[11px] text-zinc-500">{post.quando}</span>
+                      </div>
+                      <p className="text-xs text-zinc-300 font-medium">{post.tema}</p>
+                      {post.legenda && (
+                        <div className="mt-1.5 flex items-start gap-2">
+                          <p className="text-[12px] text-zinc-400 flex-1 whitespace-pre-wrap">{post.legenda}</p>
+                          <button onClick={() => navigator.clipboard?.writeText(post.legenda)}
+                            title="Copiar legenda" className="text-[10px] text-amber-400/80 hover:text-amber-300 shrink-0 cursor-pointer">copiar</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {plano.dica && <p className="text-[11px] text-zinc-500">💡 {plano.dica}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={aprovarEnviar} disabled={disparando || publico.length === 0}
+                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                {disparando ? 'Enviando...' : `📤 Enviar no WhatsApp (${publico.length})`}
+              </button>
+              <button onClick={() => setPlano(null)} disabled={disparando}
+                className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">Descartar</button>
+            </div>
+            <p className="text-[11px] text-zinc-600 self-center">O roteiro do Instagram é pra você postar — o Zivo não posta sozinho.</p>
+          </div>
+        )}
+
         {erro && <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-300">{erro}</div>}
         {resultado && <div className="rounded-xl border border-[#00D4AA]/30 bg-[#00D4AA]/5 p-4 text-sm text-zinc-200">{resultado}</div>}
         <div ref={bottomRef} />
@@ -405,7 +498,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       <input ref={fileRef} type="file" accept="image/*" onChange={onFoto} className="hidden" />
       {(() => {
         const ultima = msgs.length > 0 ? msgs[msgs.length - 1] : null
-        const base: Espera = (!pensando && !proposta && ultima?.papel === 'consultora') ? (ultima.espera ?? 'texto') : 'texto'
+        const base: Espera = (!pensando && !proposta && !plano && ultima?.papel === 'consultora') ? (ultima.espera ?? 'texto') : 'texto'
         const modo: Espera = forcarTexto ? 'texto' : base
 
         if (pensando) return null
