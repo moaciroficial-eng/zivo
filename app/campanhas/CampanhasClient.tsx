@@ -236,7 +236,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           copy_texto: copyEditada,
           copy_descritor: proposta?.copy_descritor ?? '',
           publico_ids: publico.map(p => p.id),
-          foto_url: proposta ? fotoUrl : null,
+          foto_url: fotoUrl,
           produto_ids: proposta ? produtoIds : [],
         }),
       })
@@ -418,39 +418,55 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               </div>
             )}
 
-            {/* Público do WhatsApp */}
-            <div className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
-              <p className="text-xs font-semibold text-zinc-400 mb-2">📲 WhatsApp — {publico.length} vão receber <span className="text-zinc-600 font-normal">({plano.publico_descricao})</span></p>
-              {publico.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                  {publico.map(p => (
-                    <span key={p.id} className="flex items-center gap-1 text-[12px] bg-zinc-700/80 text-zinc-100 pl-2.5 pr-1 py-1 rounded-full">
-                      {p.nome.split(' ')[0]}
-                      <button onClick={() => setPublico(prev => prev.filter(x => x.id !== p.id))}
-                        title="Tirar da lista" className="text-zinc-400 hover:text-red-300 px-0.5 cursor-pointer leading-none">🗑️</button>
-                    </span>
-                  ))}
-                </div>
-              ) : <p className="text-[11px] text-zinc-500">Sem contatos nesse critério.</p>}
-            </div>
+            {/* ── BLOCO WHATSAPP: público + copy + foto + ENVIAR ── */}
+            <div className="rounded-xl border border-[#25D366]/30 bg-[#25D366]/5 p-3 flex flex-col gap-3">
+              <p className="text-sm font-bold text-white">📲 WhatsApp</p>
 
-            {/* Copy do WhatsApp */}
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 mb-1">💬 Copy de divulgação (WhatsApp — {'{nome}'} vira o primeiro nome)</p>
-              <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={3}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-amber-500 [color-scheme:dark]" />
-            </div>
-
-            {/* Roteiro do Instagram — cada post recolhido; clica pra expandir */}
-            {plano.posts_instagram?.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-zinc-400 mb-1">📸 Roteiro de posts (Instagram) — {plano.posts_instagram.length} posts, clica pra abrir</p>
+                <p className="text-xs font-semibold text-zinc-400 mb-2">{publico.length} vão receber <span className="text-zinc-600 font-normal">({plano.publico_descricao})</span></p>
+                {publico.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                    {publico.map(p => (
+                      <span key={p.id} className="flex items-center gap-1 text-[12px] bg-zinc-700/80 text-zinc-100 pl-2.5 pr-1 py-1 rounded-full">
+                        {p.nome.split(' ')[0]}
+                        <button onClick={() => setPublico(prev => prev.filter(x => x.id !== p.id))}
+                          title="Tirar da lista" className="text-zinc-400 hover:text-red-300 px-0.5 cursor-pointer leading-none">🗑️</button>
+                      </span>
+                    ))}
+                  </div>
+                ) : <p className="text-[11px] text-zinc-500">Sem contatos nesse critério.</p>}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1">💬 Copy de divulgação ({'{nome}'} vira o primeiro nome)</p>
+                <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={3}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#25D366] [color-scheme:dark]" />
+              </div>
+
+              {fotoUrl && (
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <img src={fotoUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                  📷 Arte vai junto na divulgação
+                  <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
+                </div>
+              )}
+
+              <button onClick={aprovarEnviar} disabled={disparando || publico.length === 0}
+                className="w-full py-2.5 bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                {disparando ? 'Enviando...' : `📤 Enviar no WhatsApp (${publico.length})`}
+              </button>
+            </div>
+
+            {/* ── BLOCO INSTAGRAM: roteiro de posts ── */}
+            {plano.posts_instagram?.length > 0 && (
+              <div className="rounded-xl border border-pink-500/30 bg-pink-500/5 p-3">
+                <p className="text-sm font-bold text-white mb-2">📸 Instagram <span className="text-[11px] text-zinc-500 font-normal">— {plano.posts_instagram.length} posts, clica pra abrir</span></p>
                 <div className="flex flex-col gap-1.5">
                   {plano.posts_instagram.map((post, i) => (
                     <details key={i} className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 overflow-hidden">
                       <summary className="p-2.5 cursor-pointer list-none flex items-center gap-1.5 flex-wrap hover:bg-zinc-800/40">
-                        {(post.data || post.quando) && <span className="text-[11px] font-bold text-amber-300">{post.data || post.quando}</span>}
-                        <span className="text-[10px] font-bold bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full">{post.formato}</span>
+                        {(post.data || post.quando) && <span className="text-[11px] font-bold text-pink-300">{post.data || post.quando}</span>}
+                        <span className="text-[10px] font-bold bg-pink-500/15 text-pink-300 px-2 py-0.5 rounded-full">{post.formato}</span>
                         {post.objetivo && <span className="text-[10px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full">{post.objetivo}</span>}
                         <span className="text-xs text-zinc-300 flex-1 truncate min-w-0">{post.tema}</span>
                         <span className="text-zinc-600 text-[10px]">▾</span>
@@ -462,7 +478,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                             <div className="flex items-start gap-2">
                               <p className="text-[12px] text-zinc-300 flex-1 whitespace-pre-wrap">{post.legenda}</p>
                               <button onClick={() => navigator.clipboard?.writeText(post.legenda + (post.hashtags ? '\n\n' + post.hashtags : ''))}
-                                title="Copiar legenda + hashtags" className="text-[10px] text-amber-400/80 hover:text-amber-300 shrink-0 cursor-pointer">copiar</button>
+                                title="Copiar legenda + hashtags" className="text-[10px] text-pink-400/80 hover:text-pink-300 shrink-0 cursor-pointer">copiar</button>
                             </div>
                             {post.hashtags && <p className="text-[11px] text-sky-400/70 mt-1.5">{post.hashtags}</p>}
                           </div>
@@ -471,20 +487,14 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                     </details>
                   ))}
                 </div>
+                <p className="text-[11px] text-zinc-600 mt-2">O roteiro é pra você postar — o Zivo não posta sozinho.</p>
               </div>
             )}
 
             {plano.dica && <p className="text-[11px] text-zinc-500">💡 {plano.dica}</p>}
 
-            <div className="flex gap-2 pt-1">
-              <button onClick={aprovarEnviar} disabled={disparando || publico.length === 0}
-                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
-                {disparando ? 'Enviando...' : `📤 Enviar no WhatsApp (${publico.length})`}
-              </button>
-              <button onClick={() => setPlano(null)} disabled={disparando}
-                className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">Descartar</button>
-            </div>
-            <p className="text-[11px] text-zinc-600 self-center">O roteiro do Instagram é pra você postar — o Zivo não posta sozinho.</p>
+            <button onClick={() => setPlano(null)} disabled={disparando}
+              className="text-[11px] text-zinc-600 hover:text-zinc-400 self-center cursor-pointer">descartar campanha</button>
           </div>
         )}
 

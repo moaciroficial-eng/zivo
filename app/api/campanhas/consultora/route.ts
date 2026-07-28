@@ -125,14 +125,15 @@ Como saber: se o dono selecionar produto no estoque → PRODUTO. Se ele falar de
 8. Aí sim GERE a proposta (com a copy).
 
 ━━━ ROTEIRO DE DATA/GERAL (você é a ESTRATEGISTA — conduza, adapte as perguntas à data) ━━━
-Você sabe de marketing; o dono não. Puxe dele o que precisa pra montar um plano forte, com botões:
+Você sabe de marketing; o dono não. Puxe dele o que precisa pra montar um plano forte. OS PASSOS DE ESCOLHA SÃO BOTÕES — nos passos 1, 2, 4 e 5 você DEVE mandar "opcoes" (nunca deixe no texto):
 1. OBJETIVO — opcoes ["Fortalecer a marca","Vender mais","Os dois"].
-2. DIFERENCIAL/OFERTA — o que vamos entregar de diferente: opcoes ["Desconto agressivo","Brinde / benefício","Condição especial (frete, parcelamento)","Sem desconto, só divulgar"].
+2. DIFERENCIAL/OFERTA — opcoes ["Desconto agressivo","Brinde / benefício","Condição especial (frete, parcelamento)","Sem desconto, só divulgar"]. (Se ele detalhar o brinde em texto, tudo bem.)
 3. Se escolheu desconto → espera "desconto".
 4. PÚBLICO no WhatsApp — opcoes ["Toda a base","Só clientes ativos","Só homens","Só mulheres"].
 5. CANAIS — opcoes ["WhatsApp + Instagram","Só WhatsApp","Só Instagram"].
-Pode pular/adicionar perguntas conforme a data pede (você é a especialista). Quando tiver o essencial, GERE o "plano" (não "proposta").
-A copy de divulgação segue as MESMAS regras de copy humana/simples abaixo. Os posts de Instagram são um roteiro pronto pro dono postar (a gente não posta por ele).
+6. FOTO/ARTE da campanha — espera "foto" (o app mostra "Subir foto"/"Seguir sem foto"). A foto é a arte/banner da divulgação no WhatsApp. Só passe pro plano DEPOIS que ele subir OU disser pra seguir sem foto.
+Pode adaptar as perguntas conforme a data pede (você é a especialista). Quando tiver o essencial, GERE o "plano" (não "proposta").
+Os posts de Instagram são um roteiro pronto pro dono postar (a gente não posta por ele).
 
 REGRA DE OURO (nome do produto): o estoque tem códigos internos feios (ex: "CAMISETA MC LISTRAS BASICA (MO) OFF WHITE C/ CASTOR P"). NUNCA mostre esse código cru — nem pro cliente na copy, nem pro dono na "resposta". Descreva humano: "camiseta de listras off white". produtos_destaque é interno, mas mesmo nele use descrição limpa.
 
@@ -264,7 +265,17 @@ O CALENDÁRIO DO INSTAGRAM tem que ser NÍVEL PROFISSIONAL — você é social m
     parsed.resposta = parsed.resposta.replace(/```[\s\S]*?```/g, '').replace(/\{[\s\S]*$/g, '').trim()
     if (!parsed.resposta) parsed.resposta = (parsed.proposta || parsed.plano) ? 'Prontinho, montei aqui embaixo — dá uma olhada 👇' : 'Me conta um pouco mais pra eu montar a melhor campanha.'
   }
-  const opcoes: string[] = Array.isArray(parsed.opcoes) ? parsed.opcoes.filter((o: unknown) => typeof o === 'string' && o.trim()).slice(0, 4) : []
+  let opcoes: string[] = Array.isArray(parsed.opcoes) ? parsed.opcoes.filter((o: unknown) => typeof o === 'string' && o.trim()).slice(0, 4) : []
+
+  /* Fallback de BOTÕES: se o modelo fez uma pergunta de escolha conhecida
+     (canais/objetivo/público) mas esqueceu as opcoes, injeta os botões. */
+  if (opcoes.length === 0 && !parsed.proposta && !parsed.plano) {
+    const r = String(parsed.resposta || '').toLowerCase()
+    if (/canais|canal|instagram e whatsapp|whatsapp e instagram/.test(r)) opcoes = ['WhatsApp + Instagram', 'Só WhatsApp', 'Só Instagram']
+    else if (/foco principal|fortalecer a marca|marca ou (a )?venda|objetivo.*(marca|vend)/.test(r)) opcoes = ['Fortalecer a marca', 'Vender mais', 'Os dois']
+    else if (/pra quem.*(manda|envia)|qual p[úu]blico|toda a base/.test(r)) opcoes = ['Toda a base', 'Só clientes ativos', 'Só homens', 'Só mulheres']
+    else if (/entregar de diferente|diferencial|desconto ou/.test(r)) opcoes = ['Desconto agressivo', 'Brinde / benefício', 'Condição especial', 'Sem desconto, só divulgar']
+  }
 
   /* Espera: o modelo às vezes esquece de setar 'foto'/'desconto' (manda
      'texto'). DETECTA o passo pela própria pergunta e SOBREPÕE nesses casos. */
