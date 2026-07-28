@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .not('preco_venda', 'is', null)
       .not('status', 'eq', 'vendido')
-      .order('preco_venda', { ascending: false }).limit(20),
+      .order('created_at', { ascending: false }).limit(150),
     supabase.from('clientes').select('id, nome, telefone, data_nascimento')
       .eq('user_id', user.id).limit(50),
     supabase.from('vendas').select('cliente_id, data_venda')
@@ -153,6 +153,23 @@ export async function POST(request: NextRequest) {
     `• [id_cliente:${o.clienteId}] ${o.clienteNome} → [id_produto:${o.produtoId}] ${o.produtoNome}${o.marca ? ` (${o.marca})` : ''} R$${Number(o.preco ?? 0).toFixed(0)} | ${o.motivo}${o.nota_dono ? ` | NOTA DONO: ${o.nota_dono}` : ''}`
   )
 
+  /* Quantos clientes casaram com cada produto (DEMANDA real) */
+  const demandaPorProduto = new Map<string, number>()
+  for (const o of oportunidades) demandaPorProduto.set(o.produtoId, (demandaPorProduto.get(o.produtoId) ?? 0) + 1)
+
+  /* Rankeia os produtos por PRIORIDADE (não por preço): demanda real pesa
+     mais; depois parado (precisa girar), novidade e margem. */
+  const produtosRank = [...produtos].map(p => {
+    const demanda = demandaPorProduto.get(p.id) ?? 0
+    const dias = p.dias_em_estoque
+    let score = demanda * 100
+    if (dias >= 45) score += 40          // encalhado: girar
+    else if (dias >= 30) score += 25
+    else if (dias <= 14) score += 12     // novidade
+    if (p.margem_pct != null) score += Math.min(20, p.margem_pct / 5)
+    return { ...p, demanda, score }
+  }).sort((a, b) => b.score - a.score).slice(0, 25)
+
   /* ── Dados financeiros ──────────────────────────────────── */
   const meta        = Number(metaRow.valor_meta)
   const pct         = meta > 0 ? Math.round((vendido / meta) * 100) : 0
@@ -238,11 +255,12 @@ Restante: R$ ${restante.toFixed(2)}
 ${statusMsg}
 ${saudeLine}
 ${cruzamentosStr}${aniversariosStr}
-PRODUTOS EM ESTOQUE (${produtos.length} itens disponíveis):
-${produtos.map(p => {
+PRODUTOS PRA PRIORIZAR (já ordenados por PRIORIDADE = demanda real + giro, NÃO por preço):
+${produtosRank.map(p => {
   const custoStr  = p.preco_custo != null ? ` | custo: R$ ${p.preco_custo.toFixed(2)}` : ''
   const margemStr = p.margem_pct  != null ? ` | margem: ${p.margem_pct}%` : ''
-  return `- ID:${p.id} | ${p.nome} | preço: R$ ${p.preco_venda.toFixed(2)}${custoStr}${margemStr} | ${p.dias_em_estoque}d em estoque`
+  const demStr    = p.demanda > 0 ? ` | 🔥 ${p.demanda} cliente(s) casado(s)` : ''
+  return `- ID:${p.id} | ${p.nome} | preço: R$ ${p.preco_venda.toFixed(2)}${custoStr}${margemStr} | ${p.dias_em_estoque}d em estoque${demStr}`
 }).join('\n')}
 
 CLIENTES (ordenados por tempo sem comprar, com perfil completo):
@@ -257,12 +275,13 @@ COMO PENSAR O PLANO:
 - Varie os produtos dia a dia — não repita a mesma peça em dias consecutivos.
 - Seja CONCISO: motivo e dica com no máximo 60 caracteres.
 
-REGRA PRINCIPAL — PRODUTOS SÃO OBRIGATÓRIOS:
-- SE HÁ PRODUTOS NO ESTOQUE, todo dia do plano DEVE ter pelo menos 1 produto sugerido. Sem exceção.
-- Sáb/Dom: 2 produtos (mais movimento); dias úteis: 1 produto mínimo.
-- NUNCA deixe produtos_priorizar = [] quando há estoque disponível acima.
-- Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
-- Produtos com ≥30 dias em estoque → estrategia "desconto"
+REGRA PRINCIPAL — COMO PRIORIZAR PRODUTOS (NÃO é por preço):
+- A lista acima JÁ vem ordenada por prioridade. Prefira os do TOPO.
+- 1º critério: produtos com "🔥 cliente(s) casado(s)" — tem demanda real, priorize sempre.
+- 2º: produtos PARADOS (≥30d) — precisam girar, use estrategia "desconto".
+- 3º: novidades (≤14d) — estrategia "preco_cheio".
+- NÃO escolha um produto só porque é o mais caro. Um item de R$80 que vai vender é melhor que um de R$500 parado.
+- Todo dia DEVE ter ao menos 1 produto (Sáb/Dom: 2). Varie dia a dia, não repita a mesma peça em dias seguidos.
 
 SOBRE CLIENTES (REGRA DURA — nada de aleatório):
 - "clientes_contatar" SÓ pode usar os pares das OPORTUNIDADES REAIS acima (produto×cliente já casado). É PROIBIDO inventar um cliente pra um produto que não esteja casado ali.
