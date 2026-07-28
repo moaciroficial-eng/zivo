@@ -235,7 +235,7 @@ O CALENDÁRIO DO INSTAGRAM tem que ser NÍVEL PROFISSIONAL — você é social m
   while (true) {
     res = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
+      max_tokens: 4096,   // plano de campanha (5-6 posts) é grande — sem isso o JSON truncava e vazava
       system: systemPrompt,
       tools: TOOLS,
       messages,
@@ -257,10 +257,12 @@ O CALENDÁRIO DO INSTAGRAM tem que ser NÍVEL PROFISSIONAL — você é social m
   let parsed: any = { resposta: text, proposta: null }
   try { if (jsonMatch) parsed = JSON.parse(jsonMatch[0]) } catch { /* mantém texto cru */ }
 
-  /* Rede de segurança: a resposta pro dono nunca deve conter JSON/código cru */
+  /* Rede de segurança: a resposta pro dono NUNCA pode conter JSON/código cru.
+     Remove blocos ``` e QUALQUER coisa a partir do primeiro '{' (cobre JSON
+     completo E truncado, que era o que vazava no plano). */
   if (typeof parsed.resposta === 'string') {
-    parsed.resposta = parsed.resposta.replace(/```[\s\S]*?```/g, '').replace(/\{[\s\S]*\}/g, '').trim()
-    if (!parsed.resposta) parsed.resposta = parsed.proposta ? 'Prontinho, montei a campanha aqui embaixo — dá uma olhada 👇' : 'Me conta um pouco mais pra eu montar a melhor oferta.'
+    parsed.resposta = parsed.resposta.replace(/```[\s\S]*?```/g, '').replace(/\{[\s\S]*$/g, '').trim()
+    if (!parsed.resposta) parsed.resposta = (parsed.proposta || parsed.plano) ? 'Prontinho, montei aqui embaixo — dá uma olhada 👇' : 'Me conta um pouco mais pra eu montar a melhor campanha.'
   }
   const opcoes: string[] = Array.isArray(parsed.opcoes) ? parsed.opcoes.filter((o: unknown) => typeof o === 'string' && o.trim()).slice(0, 4) : []
 

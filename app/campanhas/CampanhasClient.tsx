@@ -441,31 +441,34 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-amber-500 [color-scheme:dark]" />
             </div>
 
-            {/* Roteiro do Instagram */}
+            {/* Roteiro do Instagram — cada post recolhido; clica pra expandir */}
             {plano.posts_instagram?.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-zinc-400 mb-1">📸 Roteiro de posts (Instagram)</p>
-                <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold text-zinc-400 mb-1">📸 Roteiro de posts (Instagram) — {plano.posts_instagram.length} posts, clica pra abrir</p>
+                <div className="flex flex-col gap-1.5">
                   {plano.posts_instagram.map((post, i) => (
-                    <div key={i} className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <details key={i} className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 overflow-hidden">
+                      <summary className="p-2.5 cursor-pointer list-none flex items-center gap-1.5 flex-wrap hover:bg-zinc-800/40">
                         {(post.data || post.quando) && <span className="text-[11px] font-bold text-amber-300">{post.data || post.quando}</span>}
                         <span className="text-[10px] font-bold bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full">{post.formato}</span>
                         {post.objetivo && <span className="text-[10px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full">{post.objetivo}</span>}
-                      </div>
-                      <p className="text-xs text-zinc-200 font-medium">{post.tema}</p>
-                      {post.visual && <p className="text-[11px] text-zinc-500 mt-0.5">🎬 {post.visual}</p>}
-                      {post.legenda && (
-                        <div className="mt-2 rounded bg-zinc-800/50 border border-zinc-700/40 p-2">
-                          <div className="flex items-start gap-2">
-                            <p className="text-[12px] text-zinc-300 flex-1 whitespace-pre-wrap">{post.legenda}</p>
-                            <button onClick={() => navigator.clipboard?.writeText(post.legenda + (post.hashtags ? '\n\n' + post.hashtags : ''))}
-                              title="Copiar legenda + hashtags" className="text-[10px] text-amber-400/80 hover:text-amber-300 shrink-0 cursor-pointer">copiar</button>
+                        <span className="text-xs text-zinc-300 flex-1 truncate min-w-0">{post.tema}</span>
+                        <span className="text-zinc-600 text-[10px]">▾</span>
+                      </summary>
+                      <div className="px-3 pb-3 pt-0">
+                        {post.visual && <p className="text-[11px] text-zinc-500 mb-2">🎬 {post.visual}</p>}
+                        {post.legenda && (
+                          <div className="rounded bg-zinc-800/50 border border-zinc-700/40 p-2">
+                            <div className="flex items-start gap-2">
+                              <p className="text-[12px] text-zinc-300 flex-1 whitespace-pre-wrap">{post.legenda}</p>
+                              <button onClick={() => navigator.clipboard?.writeText(post.legenda + (post.hashtags ? '\n\n' + post.hashtags : ''))}
+                                title="Copiar legenda + hashtags" className="text-[10px] text-amber-400/80 hover:text-amber-300 shrink-0 cursor-pointer">copiar</button>
+                            </div>
+                            {post.hashtags && <p className="text-[11px] text-sky-400/70 mt-1.5">{post.hashtags}</p>}
                           </div>
-                          {post.hashtags && <p className="text-[11px] text-sky-400/70 mt-1.5">{post.hashtags}</p>}
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    </details>
                   ))}
                 </div>
               </div>
