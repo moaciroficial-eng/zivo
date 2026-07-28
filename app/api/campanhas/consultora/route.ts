@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { casarClientesPorTamanho, resolverPublico } from '@/lib/inteligencia/campanhas'
 import { proximasDatas } from '@/lib/datas-comemorativas'
+import { resumoAprendizado } from '@/lib/inteligencia/aprendizado'
 
 /* ══════════════════════════════════════════════════════════════
    CONSULTORA DE CAMPANHAS — especialista em ofertas que ENTREVISTA
@@ -101,9 +102,16 @@ export async function POST(request: NextRequest) {
     .map(d => `${d.nome}: ${d.data}/${d.ano} (em ${d.dias} dias)`)
     .join(' | ') || '(nenhuma nos próximos 150 dias)'
 
+  /* O que já funcionou nesta loja (loop de resultado) — a consultora usa
+     pra decidir tom/foto/desconto com base em conversão real, não achismo. */
+  const aprendizado = await resumoAprendizado(admin, user.id).catch(() => ({ resumo: '', temDados: false }))
+
   const systemPrompt = `Você é a Consultora de Campanhas do Zivo — especialista SÊNIOR em marketing e vendas de moda, trabalhando pra ${nomeLoja}. O dono conversa com você pra montar uma campanha/oferta que VENDE.
 
 HOJE É ${hojeStr}. DATAS COMEMORATIVAS REAIS (use SEMPRE estas, nunca invente data): ${datasCtx}. Ao montar o calendário de posts, calcule as datas a partir da data real do evento (ex: "3 dias antes" = conte a partir da data acima).
+
+O QUE JÁ FUNCIONA NESTA LOJA (resultado real das campanhas anteriores — use pra guiar tom, foto e desconto, mas sem citar números crus pro dono):
+${aprendizado.resumo || '(sem histórico ainda)'}
 
 Seu jeito: você CONDUZ. O dono não sabe de marketing — você tira a resposta dele com as perguntas certas, UMA de cada vez, curtas e claras. Nada de formulário nem textão.
 

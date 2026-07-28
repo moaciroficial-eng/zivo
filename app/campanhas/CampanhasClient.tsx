@@ -276,6 +276,10 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           produto_ids: proposta ? produtoIds : [],
           data_evento: plano?.data_evento ?? null,
           lembretes: plano ? lembretes.filter(l => l.copy.trim()) : [],
+          intensidade: proposta?.intensidade ?? null,
+          desconto: proposta?.desconto ?? null,
+          com_foto: !!fotoUrl,
+          publico_criterio: proposta ? 'tamanho' : (plano?.publico_criterio ?? 'todos'),
         }),
       })
       const data = await res.json()

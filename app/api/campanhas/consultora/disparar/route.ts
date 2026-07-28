@@ -29,7 +29,8 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url, produto_ids, data_evento, lembretes } = await request.json()
+  const { titulo, objetivo, marca, copy_texto, publico_ids, foto_url, produto_ids, data_evento, lembretes,
+          intensidade, desconto, com_foto, publico_criterio } = await request.json()
   if (!copy_texto || !Array.isArray(publico_ids) || publico_ids.length === 0) {
     return NextResponse.json({ ok: false, erro: 'Faltou copy ou público.' }, { status: 400 })
   }
@@ -57,6 +58,8 @@ export async function POST(request: NextRequest) {
   const { data: campanhaRow } = await admin.from('campanhas').insert({
     user_id: user.id, nome: titulo || 'Campanha', objetivo: objetivo ?? null,
     produto_marca: marca ?? null, copy_whatsapp: copy_texto, tipo: 'interna', status: 'ativa',
+    intensidade: intensidade ?? null, desconto: desconto ?? null,
+    com_foto: !!com_foto, publico_criterio: publico_criterio ?? null,
   }).select('id').single()
   const campanhaId: string | null = campanhaRow?.id ?? null
 
