@@ -45,11 +45,17 @@ function fmtDate(d: string | null) {
 }
 
 /* ════════════════════════════════════════════════════════════ */
-export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, userId }: {
-  sugestoes: Sugestao[]; agentes: Agente[]; logs: Log[]; userId: string
+type OportunidadeFeed = {
+  clienteId: string; clienteNome: string; telefone: string | null
+  produtoNome: string; marca: string | null; tamanho: string; motivo: string; tipo: string; copy: string
+}
+
+export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, oportunidades: oportunidadesInit = [], userId }: {
+  sugestoes: Sugestao[]; agentes: Agente[]; logs: Log[]; oportunidades?: OportunidadeFeed[]; userId: string
 }) {
   const supabase = createClient()
-  const [tab, setTab] = useState<'socio' | 'acoes' | 'gerente' | 'aprendizado'>('gerente')
+  const [tab, setTab] = useState<'socio' | 'acoes' | 'gerente' | 'aprendizado' | 'oportunidades'>('gerente')
+  const [oportunidades, setOportunidades] = useState<OportunidadeFeed[]>(oportunidadesInit)
   const [sugestoes, setSugestoes] = useState(initialSugestoes)
   const router = useRouter()
 
@@ -294,6 +300,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
         <h1 className="text-lg font-bold text-white">IA</h1>
         <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
           <button className={tabCls('gerente')} onClick={() => setTab('gerente')}>🤖 Gerente</button>
+          <button className={tabCls('oportunidades')} onClick={() => setTab('oportunidades')}>💡 Oportunidades{oportunidades.length > 0 ? ` (${oportunidades.length})` : ''}</button>
           <button className={tabCls('aprendizado')} onClick={() => setTab('aprendizado')}>🧠</button>
         </div>
       </div>
@@ -639,6 +646,20 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
         </div>
       )}
 
+      {/* ── Tab: Oportunidades (motor) ──────────────────── */}
+      {tab === 'oportunidades' && (
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col gap-2.5 pr-1">
+          <p className="text-xs text-zinc-500 shrink-0">Cruzamentos do dia — produto certo × pessoa certa (tamanho, marca, temperatura). Envie pelo Zivo em 1 clique.</p>
+          {oportunidades.length === 0 && (
+            <div className="text-center py-10 text-sm text-zinc-500">Nenhuma oportunidade forte agora. Conforme os clientes ganham histórico e chega estoque novo, elas aparecem aqui.</div>
+          )}
+          {oportunidades.map((o, i) => (
+            <OportunidadeCard key={`${o.clienteId}-${i}`} o={o}
+              onResolvido={() => setOportunidades(prev => prev.filter((_, j) => j !== i))} />
+          ))}
+        </div>
+      )}
+
       {/* ── Tab: Aprendizado ────────────────────────────── */}
       {tab === 'aprendizado' && (
         <div className="flex-1 flex flex-col gap-3 min-h-0">
@@ -723,6 +744,85 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, u
               </button>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* Card de oportunidade do motor — editável, foto, envio pelo Zivo, remover */
+function OportunidadeCard({ o, onResolvido }: { o: OportunidadeFeed; onResolvido: () => void }) {
+  const [aberto, setAberto] = useState(false)
+  const [msg, setMsg] = useState(o.copy)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [subindo, setSubindo] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function subirFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (e.target) e.target.value = ''
+    if (!file) return
+    setSubindo(true); setErro(null)
+    try {
+      const supabase = createClient()
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `campanhas/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'image/jpeg' })
+      if (error) { setErro('Não consegui subir a foto.'); return }
+      setFotoUrl(supabase.storage.from('biblioteca').getPublicUrl(path).data.publicUrl)
+    } catch { setErro('Falha ao subir a foto.') } finally { setSubindo(false) }
+  }
+
+  async function enviar() {
+    if (!msg.trim() || enviando) return
+    setEnviando(true); setErro(null)
+    try {
+      const res = await fetch('/api/plano/contatar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: o.clienteId, nome: o.clienteNome, telefone: o.telefone, mensagem: msg, foto_url: fotoUrl }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
+      onResolvido()
+    } catch { setErro('Erro de conexão.') } finally { setEnviando(false) }
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 shrink-0">
+      <div className="flex items-start justify-between gap-2">
+        <button onClick={() => setAberto(a => !a)} className="flex-1 text-left cursor-pointer min-w-0">
+          <p className="text-sm font-medium text-zinc-100 truncate">{o.clienteNome} <span className="text-zinc-500 font-normal">→ {o.produtoNome}{o.marca ? ` (${o.marca})` : ''}</span></p>
+          <p className="text-xs text-zinc-500 mt-0.5">{o.motivo}</p>
+        </button>
+        <button onClick={onResolvido} title="Dispensar" className="text-zinc-600 hover:text-red-300 text-xs px-1 cursor-pointer shrink-0">✕</button>
+      </div>
+      {!aberto && (
+        <button onClick={() => setAberto(true)} className="text-[11px] text-emerald-400/80 hover:text-emerald-300 mt-1.5 cursor-pointer">▼ oferecer</button>
+      )}
+      {aberto && (
+        <div className="mt-2">
+          <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={3}
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-200 resize-y focus:outline-none focus:border-emerald-500 [color-scheme:dark]" />
+          {fotoUrl && (
+            <div className="flex items-center gap-2 mt-1.5 text-[11px] text-zinc-400">
+              <img src={fotoUrl} alt="" className="h-8 w-8 rounded object-cover" />📷 foto vai junto
+              <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 ml-auto cursor-pointer">remover</button>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
+          <div className="flex items-center gap-2 mt-2">
+            <button onClick={enviar} disabled={enviando || !msg.trim()}
+              className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer">
+              {enviando ? 'Enviando...' : '📤 Enviar pelo Zivo'}
+            </button>
+            <button onClick={() => fileRef.current?.click()} disabled={subindo || enviando}
+              className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
+              {subindo ? '⏳' : '📷 Foto'}
+            </button>
+          </div>
+          {erro && <p className="text-[11px] text-red-300 mt-1.5">{erro}</p>}
         </div>
       )}
     </div>
