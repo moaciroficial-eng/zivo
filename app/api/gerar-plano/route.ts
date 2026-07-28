@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import Anthropic from '@anthropic-ai/sdk'
+import { gerarOportunidades } from '@/lib/inteligencia/oportunidades'
 
 const anthropic = new Anthropic()
 
@@ -144,20 +145,13 @@ export async function POST(request: NextRequest) {
     .filter(a => a.dias >= 0 && a.dias <= 14)
     .sort((a, b) => a.dias - b.dias)
 
-  /* ── Cruzamentos estoque × perfil ──────────────────────── */
-  const cruzamentos: string[] = []
-  for (const prod of produtos) {
-    if (!prod.marca) continue
-    for (const cl of clientes.slice(0, 20)) {
-      const ins = insightsMap.get(cl.id)
-      if (!ins?.marcas_favoritas?.length) continue
-      const gostaDaMarca = ins.marcas_favoritas.some(m => m.toLowerCase() === prod.marca!.toLowerCase())
-      if (!gostaDaMarca) continue
-      const tamInfo = ins.tamanhos?.length ? `(${ins.tamanhos.join(', ')})` : ''
-      const urgStr  = ins.tendencia === 'desaparecendo' ? ' ⚠️ SUMINDO' : ins.tendencia === 'esfriando' ? ' esfriando' : ''
-      cruzamentos.push(`• ${prod.nome} → ${cl.nome} ${tamInfo} | ${cl.dias_sem_comprar}d sem comprar${urgStr}`)
-    }
-  }
+  /* ── OPORTUNIDADES REAIS (motor único: casa produto×cliente por tamanho +
+     afinidade + temperatura + perfil-promo, com score). Substitui o
+     cruzamento fraco que gerava "produto aleatório pra pessoa aleatória". ── */
+  const oportunidades = await gerarOportunidades(supabase, user.id, { limite: 20 }).catch(() => [])
+  const cruzamentos = oportunidades.map(o =>
+    `• [id_cliente:${o.clienteId}] ${o.clienteNome} → [id_produto:${o.produtoId}] ${o.produtoNome}${o.marca ? ` (${o.marca})` : ''} R$${Number(o.preco ?? 0).toFixed(0)} | ${o.motivo}${o.nota_dono ? ` | NOTA DONO: ${o.nota_dono}` : ''}`
+  )
 
   /* ── Dados financeiros ──────────────────────────────────── */
   const meta        = Number(metaRow.valor_meta)
@@ -227,8 +221,8 @@ REGRAS FINANCEIRAS:
   }).join('\n')
 
   const cruzamentosStr = cruzamentos.length > 0
-    ? `\nCRUZAMENTOS DETECTADOS (PRIORIZE esses nos dias certos):\n${cruzamentos.slice(0, 8).join('\n')}\n`
-    : ''
+    ? `\nOPORTUNIDADES REAIS — produto×cliente já casado pelo motor (tamanho serve, afinidade, temperatura). Use SÓ estes pares pra "clientes_contatar" — NÃO invente outro cliente pra um produto:\n${cruzamentos.slice(0, 20).join('\n')}\n`
+    : '\n(Sem oportunidades fortes de produto×cliente hoje — priorize produtos por margem/giro e só contate cliente se fizer sentido claro.)\n'
 
   const aniversariosStr = aniversariosProximos.length > 0
     ? `\nANIVERSÁRIOS PRÓXIMOS (14 dias):\n${aniversariosProximos.map(a =>
@@ -270,13 +264,12 @@ REGRA PRINCIPAL — PRODUTOS SÃO OBRIGATÓRIOS:
 - Produtos com ≤14 dias em estoque → estrategia "preco_cheio"
 - Produtos com ≥30 dias em estoque → estrategia "desconto"
 
-SOBRE CLIENTES (use o perfil para conectar produto certo ao cliente certo):
-- Cliente com a marca do produto em "Marcas" → alvo PRIORITÁRIO para esse produto
-- Cruzamentos já detectados acima → inclua obrigatoriamente esses clientes nos dias correspondentes
-- Tendência "esfriando" ou "desaparecendo" → prioridade máxima de contato esta semana
-- "Comprador de presentes" → abordar em datas comemorativas ou quando chegar item presente
-- Aniversário nos próximos dias → oportunidade de contato personalizado
-- mensagem_whatsapp: mensagem natural, mencione o produto específico e o motivo real do contato
+SOBRE CLIENTES (REGRA DURA — nada de aleatório):
+- "clientes_contatar" SÓ pode usar os pares das OPORTUNIDADES REAIS acima (produto×cliente já casado). É PROIBIDO inventar um cliente pra um produto que não esteja casado ali.
+- Use o cliente_id e o produto_id exatos que vieram no par (o produto do contato deve ser o produto casado com aquele cliente).
+- Distribua as oportunidades ao longo dos dias, as de maior prioridade primeiro. Se houver poucas, tem dia sem cliente pra contatar — tudo bem, melhor NENHUM contato que um contato aleatório.
+- Se um par tiver "NOTA DONO", respeite-a acima de tudo (é a verdade real do dono).
+- mensagem_whatsapp: natural, cite o produto casado e o motivo real (ex: "chegou Aramis do seu tamanho", "faz tempo que não te vejo e chegou uma peça com a sua cara").
 - Máximo 1 cliente por dia.
 ${regraFinanceira}
 
