@@ -1,7 +1,9 @@
 import { after } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage, donoAssumiuConversa } from '@/lib/whatsapp'
+import { donoAssumiuConversa } from '@/lib/whatsapp'
 import { juntarTamanhos } from '@/lib/tamanhos'
+import { enviarOferta } from '@/lib/agentes/envio'
+import { getLoja } from '@/lib/loja'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -248,23 +250,23 @@ ${regrasGenero}
     acao.proxima_mensagem = `Perfeito, ${nomeContato}! Anotei tudo aqui, cadastro atualizado ✅ Obrigado pela atenção! Qualquer coisa é só chamar 😊`
   }
 
-  /* Envia resposta ao cliente */
+  /* Envia resposta ao cliente — WINDOW-AWARE: se a conversa está aberta
+     (cliente já respondeu nas últimas 24h) manda texto livre; se está
+     fechada (a ABERTURA pra contato frio, ex: esposa que nunca escreveu)
+     manda o template 'atualizar_cadastro'. Sem isso, a Meta bloqueava o
+     texto livre e a mensagem "saía" mas nunca chegava. enviarOferta já
+     grava no histórico e atualiza o contato. */
   if (acao.proxima_mensagem) {
-    const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: acao.proxima_mensagem })
-    historico.push({ papel: 'agente', texto: acao.proxima_mensagem })
-
-    const timestamp = new Date().toISOString()
-    await admin.from('whatsapp_mensagens').insert({
-      user_id: userId, contato_id: contato.id,
-      message_id: messageId ?? null,
-      direcao: 'enviada', tipo: 'texto',
-      conteudo: acao.proxima_mensagem, status: 'enviada', timestamp,
-      raw: { origem: 'ia' },
+    const loja = await getLoja(admin, userId).catch(() => null)
+    const primeiroNome = String(nomeContato || 'você').split(' ')[0]
+    await enviarOferta(admin, {
+      userId, contatoId: contato.id, phone: contato.phone,
+      texto: acao.proxima_mensagem,
+      templateName: 'atualizar_cadastro',
+      templateVars: [primeiroNome, loja?.nomeLoja || 'a loja'],
+      creds: loja?.creds,
     })
-    await admin.from('whatsapp_contatos').update({
-      ultima_mensagem: acao.proxima_mensagem,
-      ultima_mensagem_at: timestamp,
-    }).eq('id', contato.id)
+    historico.push({ papel: 'agente', texto: acao.proxima_mensagem })
   }
 
   /* Resolve cliente_id (fallback: busca por telefone comparando SÓ dígitos —
