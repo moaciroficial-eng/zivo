@@ -7,7 +7,7 @@ type CampanhaRow = {
   id: string; nome: string; objetivo: string | null; produto_marca?: string | null
   copy_whatsapp: string | null; status: string; created_at: string
 }
-type DataProxima = { nome: string; dias: number; data: string; aprox?: boolean }
+type DataProxima = { nome: string; dias: number; data: string; dataISO?: string; ano?: number }
 type Metricas = { enviados: number; respostas: number; conversoes: number; receita: number; taxaConversao: number; taxaResposta: number }
 type DetalheCampanha = {
   campanha: CampanhaRow
@@ -28,7 +28,7 @@ type Proposta = {
   produtos_destaque: string[]
   desconto: string | null
 }
-type PostInsta = { quando: string; formato: string; tema: string; legenda: string }
+type PostInsta = { data?: string; quando?: string; formato: string; objetivo?: string; tema: string; visual?: string; legenda: string; hashtags?: string }
 type Plano = {
   titulo: string; objetivo: string; estrategia: string; oferta: string | null
   publico_criterio: string; publico_descricao: string
@@ -292,11 +292,11 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 <div className="flex flex-col gap-2">
                   {datas.slice(0, 3).map(d => (
                     <button key={d.nome}
-                      onClick={() => enviar(`Quero montar uma campanha pro ${d.nome}, que é em ${d.dias} dias. Me ajuda a pensar a melhor oferta pra essa data.`)}
+                      onClick={() => enviar(`Quero montar uma campanha pro ${d.nome}, que cai em ${d.data} (${d.dias} dias). Me ajuda a montar a melhor campanha pra essa data.`)}
                       className="flex items-center justify-between gap-2 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-left px-3 py-2.5 rounded-lg transition cursor-pointer">
                       <span className="text-sm text-amber-200 font-medium">{d.nome}</span>
                       <span className="text-[11px] text-amber-400/80 shrink-0">
-                        {d.dias === 0 ? 'é hoje!' : d.dias === 1 ? 'amanhã' : `em ${d.dias} dias`}{d.aprox ? ' ~' : ''}
+                        {d.data} · {d.dias === 0 ? 'é hoje!' : d.dias === 1 ? 'amanhã' : `${d.dias}d`}
                       </span>
                     </button>
                   ))}
@@ -448,16 +448,21 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 <div className="flex flex-col gap-2">
                   {plano.posts_instagram.map((post, i) => (
                     <div key={i} className="rounded-lg bg-zinc-900/60 border border-zinc-700/40 p-3">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        {(post.data || post.quando) && <span className="text-[11px] font-bold text-amber-300">{post.data || post.quando}</span>}
                         <span className="text-[10px] font-bold bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full">{post.formato}</span>
-                        <span className="text-[11px] text-zinc-500">{post.quando}</span>
+                        {post.objetivo && <span className="text-[10px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full">{post.objetivo}</span>}
                       </div>
-                      <p className="text-xs text-zinc-300 font-medium">{post.tema}</p>
+                      <p className="text-xs text-zinc-200 font-medium">{post.tema}</p>
+                      {post.visual && <p className="text-[11px] text-zinc-500 mt-0.5">🎬 {post.visual}</p>}
                       {post.legenda && (
-                        <div className="mt-1.5 flex items-start gap-2">
-                          <p className="text-[12px] text-zinc-400 flex-1 whitespace-pre-wrap">{post.legenda}</p>
-                          <button onClick={() => navigator.clipboard?.writeText(post.legenda)}
-                            title="Copiar legenda" className="text-[10px] text-amber-400/80 hover:text-amber-300 shrink-0 cursor-pointer">copiar</button>
+                        <div className="mt-2 rounded bg-zinc-800/50 border border-zinc-700/40 p-2">
+                          <div className="flex items-start gap-2">
+                            <p className="text-[12px] text-zinc-300 flex-1 whitespace-pre-wrap">{post.legenda}</p>
+                            <button onClick={() => navigator.clipboard?.writeText(post.legenda + (post.hashtags ? '\n\n' + post.hashtags : ''))}
+                              title="Copiar legenda + hashtags" className="text-[10px] text-amber-400/80 hover:text-amber-300 shrink-0 cursor-pointer">copiar</button>
+                          </div>
+                          {post.hashtags && <p className="text-[11px] text-sky-400/70 mt-1.5">{post.hashtags}</p>}
                         </div>
                       )}
                     </div>

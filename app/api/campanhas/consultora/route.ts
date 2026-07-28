@@ -3,6 +3,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { casarClientesPorTamanho, resolverPublico } from '@/lib/inteligencia/campanhas'
+import { proximasDatas } from '@/lib/datas-comemorativas'
 
 /* ══════════════════════════════════════════════════════════════
    CONSULTORA DE CAMPANHAS — especialista em ofertas que ENTREVISTA
@@ -92,7 +93,17 @@ export async function POST(request: NextRequest) {
   const { data: config } = await admin.from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
   const nomeLoja = config?.nome_loja || 'a loja'
 
+  /* Datas comemorativas REAIS (feriados móveis calculados) — a consultora
+     usa a data certa e agenda os posts a partir dela. */
+  const hojeD = new Date()
+  const hojeStr = hojeD.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const datasCtx = proximasDatas(150, hojeD)
+    .map(d => `${d.nome}: ${d.data}/${d.ano} (em ${d.dias} dias)`)
+    .join(' | ') || '(nenhuma nos próximos 150 dias)'
+
   const systemPrompt = `Você é a Consultora de Campanhas do Zivo — especialista SÊNIOR em marketing e vendas de moda, trabalhando pra ${nomeLoja}. O dono conversa com você pra montar uma campanha/oferta que VENDE.
+
+HOJE É ${hojeStr}. DATAS COMEMORATIVAS REAIS (use SEMPRE estas, nunca invente data): ${datasCtx}. Ao montar o calendário de posts, calcule as datas a partir da data real do evento (ex: "3 dias antes" = conte a partir da data acima).
 
 Seu jeito: você CONDUZ. O dono não sabe de marketing — você tira a resposta dele com as perguntas certas, UMA de cada vez, curtas e claras. Nada de formulário nem textão.
 
@@ -190,18 +201,18 @@ Pra CAMPANHA DE DATA/GERAL, em vez de "proposta", preencha "plano" (proposta fic
   "plano": {
     "titulo": "nome da campanha (ex: 'Dia dos Pais 2026')",
     "objetivo": "marca | venda | ambos",
-    "estrategia": "2-3 linhas com a ideia central da campanha e o porquê",
-    "oferta": "o diferencial em 1 frase (ex: '20% em toda a loja', 'brinde na compra acima de X') ou null",
+    "estrategia": "3-4 linhas: o conceito/tema criativo da campanha, o gancho emocional da data, e como isso conecta com vender. Nível de agência.",
+    "oferta": "o diferencial em 1 frase (ex: '20% OFF em toda a loja + brinde', 'kit presente com embalagem grátis') ou null",
     "publico_criterio": "todos | ativos | homens | mulheres",
     "publico_descricao": "quem recebe no WhatsApp e por quê",
-    "copy_whatsapp": "mensagem de divulgação pro WhatsApp — simples e humana como o molde, com {nome}. Curta.",
+    "copy_whatsapp": "mensagem de DIVULGAÇÃO pro WhatsApp. Diferente da mensagem 1:1 de produto: aqui pode ser mais TRABALHADA e PROFISSIONAL (é um broadcast da campanha) — gancho da data + o que a loja preparou + benefício/oferta claro + CTA. Ainda assim natural e brasileira, com {nome}. 3-4 linhas.",
     "posts_instagram": [
-      {"quando":"ex: '5 dias antes'","formato":"Feed | Story | Reels","tema":"ideia do post em 1 linha","legenda":"legenda pronta pra postar"}
+      {"data":"data REAL do post (ex: '06/08')","formato":"Feed | Carrossel | Story | Reels","objetivo":"teaser | oferta | prova social | bastidores | urgência","tema":"conceito do post em 1 linha","visual":"o que aparece na imagem/vídeo (direção de arte concreta)","legenda":"legenda profissional: 1ª linha um HOOK forte, corpo curto com benefício, CTA claro","hashtags":"5-8 hashtags relevantes de moda + a data + local"}
     ],
-    "dica": "1 dica de execução/timing"
+    "dica": "1 dica de execução (melhor horário de postar, stories no dia, etc.)"
   }
 }
-No plano, faça 3 a 4 posts de Instagram (teaser → oferta → lembrete/último dia). Copy sempre humana, sem discurso, sem escancarar preço.`
+O CALENDÁRIO DO INSTAGRAM tem que ser NÍVEL PROFISSIONAL — você é social media sênior. Faça 5 a 6 posts distribuídos ao longo da campanha, com VARIEDADE real de formato e objetivo: começe com teaser/expectativa, depois revele a oferta, use prova social ou bastidores no meio, e feche com urgência/último dia. Cada legenda com HOOK na 1ª linha (nada de "chegou a data!"), benefício claro e CTA ("chama no direct", "link na bio", "passa na loja"). Datas REAIS calculadas a partir do evento. Nada genérico nem preguiçoso.`
 
   const conteudoAtual: any = foto
     ? [
