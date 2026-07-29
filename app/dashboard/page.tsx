@@ -24,13 +24,29 @@ export default async function DashboardPage() {
     { data: vendasMes },
     { data: estoqueItems },
     { data: metaRow },
+    { count: clientesCount },
+    { count: marcasCount },
+    { data: cfg },
   ] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id),
     supabase.from('vendas').select('valor, data_venda, produtos').eq('user_id', user.id)
       .gte('data_venda', mesStart).lt('data_venda', nextMonth),
     supabase.from('estoque').select('nome, marca, preco_custo').eq('user_id', user.id),
     supabase.from('metas').select('*').eq('user_id', user.id).eq('mes', mes).maybeSingle(),
+    supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabase.from('marcas').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabase.from('loja_config').select('nome_loja, meta_phone_number_id, meta_access_token, whatsapp_provider').eq('user_id', user.id).maybeSingle(),
   ])
+
+  /* Estado do setup (partida a frio) — pro widget "Primeiros passos" */
+  const setup = {
+    loja:     !!cfg?.nome_loja,
+    clientes: (clientesCount ?? 0) > 0,
+    estoque:  (estoqueItems?.length ?? 0) > 0,
+    marcas:   (marcasCount ?? 0) > 0,
+    whatsapp: !!(cfg?.meta_phone_number_id && cfg?.meta_access_token) || cfg?.whatsapp_provider === 'meta',
+    meta:     !!metaRow,
+  }
 
   const totalReceita = (todasVendas ?? []).reduce((s, v) => s + Number(v.valor), 0)
   const vendidoMes   = (vendasMes   ?? []).reduce((s, v) => s + Number(v.valor), 0)
@@ -84,6 +100,7 @@ export default async function DashboardPage() {
       lucroParcial={itensSemCusto > 0}
       metaInicial={metaRow ?? null}
       vendasPorDia={vendasPorDia}
+      setup={setup}
     />
   )
 }

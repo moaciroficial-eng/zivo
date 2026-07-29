@@ -75,7 +75,10 @@ type Props = {
   lucroParcial: boolean
   metaInicial: MetaRow | null
   vendasPorDia: { day: number; valor: number }[]
+  setup?: SetupEstado
 }
+
+type SetupEstado = { loja: boolean; clientes: boolean; estoque: boolean; marcas: boolean; whatsapp: boolean; meta: boolean }
 
 const HIDDEN_LABEL = '••••'
 
@@ -451,8 +454,55 @@ function SkeletonPlan() {
 
 /* ── Main component ───────────────────────────────────────────── */
 
+/* Checklist de partida a frio — some quando tudo estiver feito */
+function PrimeirosPassos({ setup }: { setup: SetupEstado }) {
+  const [oculto, setOculto] = useState(false)
+  const passos = [
+    { ok: setup.loja,     titulo: 'Configurar a loja',      desc: 'Nome, endereço e horário',                    href: '/configuracoes/loja',   cta: 'Configurar' },
+    { ok: setup.clientes, titulo: 'Importar seus clientes',  desc: 'Cola a lista — a IA organiza',                 href: '/clientes',             cta: 'Importar' },
+    { ok: setup.estoque,  titulo: 'Subir seu estoque',       desc: 'Cola a lista ou importa a nota',               href: '/estoque',              cta: 'Importar' },
+    { ok: setup.marcas,   titulo: 'Cadastrar suas marcas',   desc: 'Com markup pra calcular preço',                href: '/configuracoes/marcas', cta: 'Cadastrar' },
+    { ok: setup.whatsapp, titulo: 'Conectar o WhatsApp',     desc: 'Pra IA atender e mandar campanhas',            href: '/whatsapp',             cta: 'Conectar' },
+    { ok: setup.meta,     titulo: 'Definir a meta do mês',   desc: 'Destrava o plano de vendas diário',            href: null,                    cta: 'Definir abaixo ↓' },
+  ]
+  const feitos = passos.filter(p => p.ok).length
+  if (feitos === passos.length || oculto) return null
+
+  return (
+    <div className="mb-6 rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-600/10 to-indigo-600/5 p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <p className="text-base font-bold text-white">🚀 Primeiros passos</p>
+          <p className="text-xs text-zinc-400 mt-0.5">Deixe o Zivo pronto pra trabalhar por você — {feitos} de {passos.length} concluídos.</p>
+        </div>
+        <button onClick={() => setOculto(true)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer shrink-0">ocultar</button>
+      </div>
+      <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden mb-4">
+        <div className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all" style={{ width: `${(feitos / passos.length) * 100}%` }} />
+      </div>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {passos.map((p, i) => (
+          <div key={i} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${p.ok ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/40'}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${p.ok ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'}`}>
+              {p.ok ? '✓' : i + 1}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-medium ${p.ok ? 'text-zinc-400 line-through' : 'text-zinc-100'}`}>{p.titulo}</p>
+              {!p.ok && <p className="text-[11px] text-zinc-500">{p.desc}</p>}
+            </div>
+            {!p.ok && (p.href
+              ? <Link href={p.href} className="text-[11px] font-semibold text-violet-300 hover:text-violet-200 border border-violet-500/30 rounded-lg px-2.5 py-1 transition shrink-0">{p.cta}</Link>
+              : <span className="text-[11px] text-zinc-500 shrink-0">{p.cta}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia,
+  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup,
 }: Props) {
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
@@ -591,6 +641,8 @@ export default function DashboardClient({
   return (
     <div className="min-h-screen bg-[#080B10] text-white">
       <div className="max-w-5xl mx-auto px-6 py-8">
+
+        {setup && <PrimeirosPassos setup={setup} />}
 
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">Dashboard</h1>
