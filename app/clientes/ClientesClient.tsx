@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export type Dependente = {
@@ -235,6 +236,8 @@ export default function ClientesClient({
   lojaConfig: { vende_tenis: boolean | null; vende_feminino: boolean | null } | null
 }) {
   const supabase = createClient()
+  const router = useRouter()
+  const [colarOpen, setColarOpen] = useState(false)
   const [clientes, setClientes] = useState(initialClientes)
   const [drawer, setDrawer] = useState(false)
   const [drawerTab, setDrawerTab] = useState<'dados' | 'historico' | 'ia'>('dados')
@@ -567,10 +570,16 @@ export default function ClientesClient({
           <div className="flex items-center gap-2">
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
             <button
+              onClick={() => setColarOpen(true)}
+              className="flex items-center gap-2 text-sm text-zinc-200 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/30 rounded-lg px-4 py-2 transition cursor-pointer"
+            >
+              📋 Colar lista
+            </button>
+            <button
               onClick={() => csvInput.current?.click()}
               className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
             >
-              <IconUpload /> Importar CSV
+              <IconUpload /> CSV
             </button>
             <button
               onClick={openNew}
@@ -592,6 +601,17 @@ export default function ClientesClient({
             {toast.type === 'success' ? <IconCheck size={15} /> : <IconX size={15} />}
             {toast.msg}
           </div>
+        )}
+
+        {colarOpen && (
+          <ColarListaModal
+            onClose={() => setColarOpen(false)}
+            onDone={(inseridos, duplicados) => {
+              setColarOpen(false)
+              showToast(`${inseridos} cliente(s) importado(s)${duplicados ? `, ${duplicados} já existiam` : ''}.`)
+              router.refresh()
+            }}
+          />
         )}
 
         {/* Search */}
@@ -1570,6 +1590,128 @@ export default function ClientesClient({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── Importar clientes por "cola aí" (IA lê qualquer formato) ── */
+type ClientePreview = {
+  nome: string; telefone: string | null; genero: string | null
+  tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
+  data_nascimento: string | null
+}
+
+function ColarListaModal({ onClose, onDone }: { onClose: () => void; onDone: (inseridos: number, duplicados: number) => void }) {
+  const [texto, setTexto] = useState('')
+  const [lendo, setLendo] = useState(false)
+  const [preview, setPreview] = useState<ClientePreview[] | null>(null)
+  const [importando, setImportando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function ler() {
+    if (!texto.trim() || lendo) return
+    setLendo(true); setErro(null)
+    try {
+      const res = await fetch('/api/clientes/importar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Não consegui ler a lista.'); return }
+      if (!data.clientes?.length) { setErro('Nenhum cliente encontrado no texto.'); return }
+      setPreview(data.clientes)
+    } catch { setErro('Erro de conexão.') } finally { setLendo(false) }
+  }
+
+  async function importar() {
+    if (!preview?.length || importando) return
+    setImportando(true); setErro(null)
+    try {
+      const res = await fetch('/api/clientes/importar/confirmar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientes: preview }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Falha ao importar.'); return }
+      onDone(data.inseridos ?? 0, data.duplicados ?? 0)
+    } catch { setErro('Erro de conexão.') } finally { setImportando(false) }
+  }
+
+  function upd(i: number, campo: keyof ClientePreview, valor: string) {
+    setPreview(prev => prev ? prev.map((c, j) => j === i ? { ...c, [campo]: valor || null } : c) : prev)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/60 p-0 lg:p-4" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="w-full lg:max-w-2xl bg-zinc-900 border border-zinc-700 rounded-t-2xl lg:rounded-2xl flex flex-col max-h-[88dvh]">
+        <div className="p-4 border-b border-zinc-800 shrink-0 flex items-center justify-between">
+          <div>
+            <p className="text-base font-bold text-white">📋 Importar clientes</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">Cola a lista de qualquer jeito — a IA organiza e você revisa.</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0 p-4">
+          {!preview ? (
+            <>
+              <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={10}
+                placeholder={"Cola aqui do Excel, do caderno, dos contatos...\nEx:\nJoão Silva  77 99999-8888  M  camiseta G  calça 40\nMaria Souza  (77) 98888-7777  aniversário 12/05"}
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+              <p className="text-[11px] text-zinc-600 mt-1.5">A IA identifica nome, telefone, gênero (pelo nome), tamanhos e aniversário. Você revisa antes de salvar.</p>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-zinc-400 mb-1">{preview.length} cliente(s) — revise e corrija o que precisar:</p>
+              {preview.map((c, i) => (
+                <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-2 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <input value={c.nome} onChange={e => upd(i, 'nome', e.target.value)} placeholder="nome"
+                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-violet-500" />
+                    <select value={c.genero ?? ''} onChange={e => upd(i, 'genero', e.target.value)}
+                      className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1 text-xs text-zinc-200 [color-scheme:dark]">
+                      <option value="">?</option><option value="M">M</option><option value="F">F</option>
+                    </select>
+                    <button onClick={() => setPreview(prev => prev ? prev.filter((_, j) => j !== i) : prev)}
+                      className="text-zinc-500 hover:text-red-300 text-xs px-1 cursor-pointer">✕</button>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <input value={c.telefone ?? ''} onChange={e => upd(i, 'telefone', e.target.value)} placeholder="telefone"
+                      className="w-32 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input value={c.tamanho_camiseta ?? ''} onChange={e => upd(i, 'tamanho_camiseta', e.target.value)} placeholder="camisa"
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input value={c.tamanho_calca ?? ''} onChange={e => upd(i, 'tamanho_calca', e.target.value)} placeholder="calça"
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input value={c.tamanho_tenis ?? ''} onChange={e => upd(i, 'tamanho_tenis', e.target.value)} placeholder="pé"
+                      className="w-14 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input value={c.data_nascimento ?? ''} onChange={e => upd(i, 'data_nascimento', e.target.value)} placeholder="nasc AAAA-MM-DD"
+                      className="w-36 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {erro && <p className="text-xs text-red-300 mt-2">{erro}</p>}
+        </div>
+
+        <div className="p-4 border-t border-zinc-800 shrink-0 flex gap-2">
+          {!preview ? (
+            <button onClick={ler} disabled={!texto.trim() || lendo}
+              className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+              {lendo ? 'Lendo a lista...' : '✨ Ler lista'}
+            </button>
+          ) : (
+            <>
+              <button onClick={() => { setPreview(null); setErro(null) }} disabled={importando}
+                className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">← Voltar</button>
+              <button onClick={importar} disabled={importando || !preview.length}
+                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                {importando ? 'Importando...' : `Importar ${preview.length} cliente(s)`}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
