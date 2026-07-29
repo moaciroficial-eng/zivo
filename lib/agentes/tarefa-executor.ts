@@ -262,7 +262,7 @@ ${regrasGenero}
     await enviarOferta(admin, {
       userId, contatoId: contato.id, phone: contato.phone,
       texto: acao.proxima_mensagem,
-      templateName: 'atualizar_cadastro',
+      templateName: 'atualizacao_cadastro',
       templateVars: [primeiroNome, loja?.nomeLoja || 'a loja'],
       creds: loja?.creds,
     })
