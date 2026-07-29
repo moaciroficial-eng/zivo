@@ -45,7 +45,7 @@ async function enviarEHistorico(
     userId, contatoId: contato?.id ?? null, phone,
     texto: mensagem,
     templateName: 'aniversario_cliente',
-    templateVars: [primeiroNome, nomeLoja],
+    templateVars: [primeiroNome],   // template só tem {{1}} = nome (desconto/data são fixos nele)
     creds,
   })
 }

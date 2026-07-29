@@ -38,7 +38,7 @@ async function enviarWpp(
   await enviarOferta(admin, {
     userId, contatoId: contato?.id ?? null, phone,
     texto: mensagem, templateName: 'aniversario_cliente',
-    templateVars: [primeiroNome, nomeLoja], creds,
+    templateVars: [primeiroNome], creds,   // template só tem {{1}} = nome
   })
   try {
     await admin.from('inteligencia_acoes').insert({ user_id: userId, cliente_id: clienteId, mensagem, enviada_em: new Date().toISOString() })
