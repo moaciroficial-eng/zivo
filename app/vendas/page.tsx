@@ -28,7 +28,7 @@ function calcResumoServer(vs: Array<{ forma_pagamento: string | null; valor: num
 export default async function VendasPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const today = new Date().toISOString().split('T')[0]
   const d = new Date(today + 'T00:00:00.000Z')

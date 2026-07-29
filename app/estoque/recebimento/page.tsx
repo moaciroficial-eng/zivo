@@ -5,7 +5,7 @@ import RecebimentoClient from './RecebimentoClient'
 export default async function RecebimentoPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const { data: produtos } = await supabase
     .from('estoque')

@@ -21,7 +21,7 @@ export type ScanData = {
 export async function processarEtiqueta(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const b64       = formData.get('imagem_b64') as string | null
   const mediaType = (formData.get('media_type') as string | null) || 'image/jpeg'

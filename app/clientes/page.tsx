@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Clientes — Zivo' }
 export default async function ClientesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const [{ data: clientes }, { data: lojaConfig }] = await Promise.all([
     supabase.from('clientes').select('*').eq('user_id', user.id).order('nome'),

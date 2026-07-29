@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Biblioteca — Zivo' }
 export default async function BibliotecaPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const [{ data: fotos }, { data: estoque }] = await Promise.all([
     supabase.from('biblioteca_fotos').select('*').order('created_at', { ascending: false }),

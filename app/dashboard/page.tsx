@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Dashboard — Zivo' }
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const now     = new Date()
   const year    = now.getUTCFullYear()

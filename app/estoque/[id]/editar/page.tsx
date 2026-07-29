@@ -15,7 +15,7 @@ export default async function EditarEstoquePage({
   const sp = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const { data: produto } = await supabase
     .from('estoque')

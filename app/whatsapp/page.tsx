@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'WhatsApp — Zivo' }
 export default async function WhatsAppPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const { data: contatos } = await supabase
     .from('whatsapp_contatos')

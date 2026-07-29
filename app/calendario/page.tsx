@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Calendário — Zivo' }
 export default async function CalendarioPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
+  if (!user) redirect('/login')
 
   const [{ data: eventos }, { data: clientes }] = await Promise.all([
     supabase.from('eventos').select('*').order('data'),
