@@ -1,4 +1,6 @@
-import { sendWhatsAppMessage, donoAssumiuConversa } from '@/lib/whatsapp'
+import { donoAssumiuConversa } from '@/lib/whatsapp'
+import { enviarOferta } from '@/lib/agentes/envio'
+import { getLoja } from '@/lib/loja'
 
 /* ══════════════════════════════════════════════════════════════
    LEMBRETE PARA QUEM NÃO RESPONDEU
@@ -70,21 +72,20 @@ export async function enviarLembretes(admin: any, userId: string): Promise<numbe
     /* respeita a trava: se o dono assumiu essa conversa, não manda */
     if (await donoAssumiuConversa(admin, e.contato_id)) continue
 
-    const nome = (e.whatsapp_contatos?.nome ?? '').split(' ')[0] || 'tudo bem'
-    const msg = `Oi ${nome}! 😊 Passando só pra lembrar daquelas perguntinhas rápidas pro cadastro. Quando puder me responder, é rapidinho! 🙏`
+    const primeiroNome = (e.whatsapp_contatos?.nome ?? '').split(' ')[0] || 'tudo bem'
+    const msg = `Oi ${primeiroNome}! 😊 Passando só pra lembrar daquelas perguntinhas rápidas pro cadastro. Quando puder me responder, é rapidinho! 🙏`
 
-    let messageId: string | undefined
-    try { messageId = (await sendWhatsAppMessage({ phone, message: msg })).messageId }
-    catch { continue }
+    /* Window-aware: se o contato ficou frio de novo (24h desde a abertura),
+       o texto livre falharia — reusa o template atualizacao_cadastro. */
+    const loja = await getLoja(admin, userId).catch(() => null)
+    const r = await enviarOferta(admin, {
+      userId, contatoId: e.contato_id, phone,
+      texto: msg, templateName: 'atualizacao_cadastro',
+      templateVars: [primeiroNome, loja?.nomeLoja || 'a loja'], creds: loja?.creds,
+    })
+    if (!r.ok) continue
 
     const ts = new Date().toISOString()
-    await admin.from('whatsapp_mensagens').insert({
-      user_id: userId, contato_id: e.contato_id, message_id: messageId ?? null,
-      direcao: 'enviada', tipo: 'texto', conteudo: msg, status: 'enviada', timestamp: ts,
-      raw: { origem: 'ia' },
-    })
-    await admin.from('whatsapp_contatos').update({ ultima_mensagem: msg, ultima_mensagem_at: ts }).eq('id', e.contato_id)
-
     /* mantém a conversa: adiciona ao histórico e atualiza o marcador
        pra o executor só considerar o que a pessoa mandar DEPOIS */
     const hist = [...(Array.isArray(e.historico) ? e.historico : []), { papel: 'agente', texto: msg }]

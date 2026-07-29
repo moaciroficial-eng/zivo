@@ -1,6 +1,6 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { enviarOferta } from '@/lib/agentes/envio'
 import { clienteServeProduto } from '@/lib/tamanhos'
 
 export const maxDuration = 60
@@ -22,21 +22,24 @@ async function enviarWpp(
   clienteId: string,
   phone: string,
   mensagem: string,
-  creds?: import('@/lib/whatsapp').ZapiCreds,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  creds?: any,
+  nomeLoja = 'a loja',
 ) {
-  const { messageId } = await sendWhatsAppMessage({ phone, message: mensagem, creds })
-  const { data: contato } = await admin
-    .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
-  if (contato?.id) {
-    const ts = new Date().toISOString()
-    await admin.from('whatsapp_mensagens').insert({
-      user_id: userId, contato_id: contato.id, message_id: messageId ?? null,
-      direcao: 'enviada', tipo: 'texto', conteudo: mensagem, status: 'enviada', timestamp: ts,
-      raw: { origem: 'ia' },
-    })
-    await admin.from('whatsapp_contatos').update({ ultima_mensagem: mensagem, ultima_mensagem_at: ts }).eq('id', contato.id)
+  let { data: contato } = await admin
+    .from('whatsapp_contatos').select('id, nome').eq('user_id', userId).eq('phone', phone).maybeSingle()
+  if (!contato?.id) {
+    const { data: novo } = await admin.from('whatsapp_contatos')
+      .insert({ user_id: userId, phone, cliente_id: clienteId }).select('id, nome').single()
+    contato = novo
   }
-  /* Registra ação pra evitar duplo disparo */
+  const primeiroNome = String(contato?.nome ?? '').split(' ')[0] || 'você'
+  /* Window-aware: frio recebe o template de aniversário; quente, o texto. */
+  await enviarOferta(admin, {
+    userId, contatoId: contato?.id ?? null, phone,
+    texto: mensagem, templateName: 'aniversario_cliente',
+    templateVars: [primeiroNome, nomeLoja], creds,
+  })
   try {
     await admin.from('inteligencia_acoes').insert({ user_id: userId, cliente_id: clienteId, mensagem, enviada_em: new Date().toISOString() })
   } catch { /* ignora */ }
@@ -464,7 +467,7 @@ async function processarLoja(
       ? `Oi ${nome}! Feliz aniversário! 🎂 Você tem ${descAniv} especial hoje aqui na ${nomeLoja}. Aproveite!`
       : `Oi ${nome}! Seu aniversário tá chegando em ${diasAniv} ${diasAniv === 1 ? 'dia' : 'dias'} 🎉 Passa aqui na ${nomeLoja} e garante ${descAniv} especial pra você.`
 
-    await enviarWpp(admin, userId, cliente.id, contato.phone, msg, creds)
+    await enviarWpp(admin, userId, cliente.id, contato.phone, msg, creds, nomeLoja)
     enviadas++
   }
 
