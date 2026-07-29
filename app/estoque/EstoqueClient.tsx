@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Produto } from './types'
 import SugestoesWidget from './_components/SugestoesWidget'
@@ -99,6 +100,8 @@ export default function EstoqueClient({
   fotoMap?: Record<string, string>
 }) {
   const supabase = createClient()
+  const router = useRouter()
+  const [colarOpen, setColarOpen] = useState(false)
   const [produtos, setProdutos] = useState(initialProdutos)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -210,10 +213,16 @@ export default function EstoqueClient({
           <div className="flex items-center gap-2">
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
             <button
+              onClick={() => setColarOpen(true)}
+              className="flex items-center gap-2 text-sm text-zinc-200 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/30 rounded-lg px-4 py-2 transition cursor-pointer"
+            >
+              📋 Colar lista
+            </button>
+            <button
               onClick={() => csvInput.current?.click()}
               className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
             >
-              <IconUpload /> Importar CSV
+              <IconUpload /> CSV
             </button>
             <button
               onClick={() => setShowNFeModal(true)}
@@ -487,6 +496,145 @@ export default function EstoqueClient({
           onClose={() => setShowNFeModal(false)}
         />
       )}
+
+      {colarOpen && (
+        <ColarProdutosModal
+          onClose={() => setColarOpen(false)}
+          onDone={(inseridos) => {
+            setColarOpen(false)
+            showToast(`${inseridos} produto(s) importado(s).`)
+            router.refresh()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Importar produtos por "cola aí" (IA lê qualquer formato + grade) ── */
+type TamQtd = { tamanho: string; qtd: number }
+type ProdutoPreview = {
+  nome: string; marca: string | null; cor: string | null; categoria: string | null
+  genero: string | null; tamanhos: TamQtd[]; preco_venda: number | null; preco_custo: number | null
+}
+
+function ColarProdutosModal({ onClose, onDone }: { onClose: () => void; onDone: (inseridos: number) => void }) {
+  const [texto, setTexto] = useState('')
+  const [lendo, setLendo] = useState(false)
+  const [preview, setPreview] = useState<ProdutoPreview[] | null>(null)
+  const [importando, setImportando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function ler() {
+    if (!texto.trim() || lendo) return
+    setLendo(true); setErro(null)
+    try {
+      const res = await fetch('/api/estoque/importar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Não consegui ler a lista.'); return }
+      if (!data.produtos?.length) { setErro('Nenhum produto encontrado.'); return }
+      setPreview(data.produtos)
+    } catch { setErro('Erro de conexão.') } finally { setLendo(false) }
+  }
+
+  async function importar() {
+    if (!preview?.length || importando) return
+    setImportando(true); setErro(null)
+    try {
+      const res = await fetch('/api/estoque/importar/confirmar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ produtos: preview }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Falha ao importar.'); return }
+      onDone(data.inseridos ?? 0)
+    } catch { setErro('Erro de conexão.') } finally { setImportando(false) }
+  }
+
+  function upd(i: number, campo: keyof ProdutoPreview, valor: string) {
+    setPreview(prev => prev ? prev.map((p, j) => j === i ? { ...p, [campo]: valor || null } : p) : prev)
+  }
+  function gradeStr(t: TamQtd[]) { return t.map(x => x.qtd > 1 ? `${x.tamanho}(${x.qtd})` : x.tamanho).join(' ') }
+  function updGrade(i: number, str: string) {
+    const grade: TamQtd[] = str.trim().split(/\s+/).filter(Boolean).map(tok => {
+      const m = tok.match(/^([A-Za-zÀ-ú0-9]+)\((\d+)\)$/)
+      return m ? { tamanho: m[1].toUpperCase(), qtd: Number(m[2]) } : { tamanho: tok.toUpperCase(), qtd: 1 }
+    })
+    setPreview(prev => prev ? prev.map((p, j) => j === i ? { ...p, tamanhos: grade } : p) : prev)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/60 p-0 lg:p-4" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="w-full lg:max-w-2xl bg-zinc-900 border border-zinc-700 rounded-t-2xl lg:rounded-2xl flex flex-col max-h-[88dvh]">
+        <div className="p-4 border-b border-zinc-800 shrink-0 flex items-center justify-between">
+          <div>
+            <p className="text-base font-bold text-white">📋 Importar produtos</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">Cola o estoque de qualquer jeito — a IA organiza a grade e você revisa.</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0 p-4">
+          {!preview ? (
+            <>
+              <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={10}
+                placeholder={"Cola aqui do Excel ou do caderno...\nEx:\nCamiseta Aramis Azul  M/G/GG  R$199\nCalça Jeans 38(2) 40(3) 42  custo 45 venda 149\nChinelo Havaianas 38 39 40  29,90"}
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+              <p className="text-[11px] text-zinc-600 mt-1.5">A IA identifica nome, marca, cor, categoria, gênero, a grade (tamanhos+qtd) e os preços.</p>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-zinc-400 mb-1">{preview.length} produto(s) — revise antes de salvar:</p>
+              {preview.map((p, i) => (
+                <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-2 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <input value={p.nome} onChange={e => upd(i, 'nome', e.target.value)} placeholder="nome"
+                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-violet-500" />
+                    <select value={p.genero ?? ''} onChange={e => upd(i, 'genero', e.target.value)}
+                      className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1 text-xs text-zinc-200 [color-scheme:dark]">
+                      <option value="">?</option><option value="M">M</option><option value="F">F</option><option value="U">Uni</option>
+                    </select>
+                    <button onClick={() => setPreview(prev => prev ? prev.filter((_, j) => j !== i) : prev)}
+                      className="text-zinc-500 hover:text-red-300 text-xs px-1 cursor-pointer">✕</button>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <input value={p.marca ?? ''} onChange={e => upd(i, 'marca', e.target.value)} placeholder="marca"
+                      className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input value={p.categoria ?? ''} onChange={e => upd(i, 'categoria', e.target.value)} placeholder="categoria"
+                      className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input defaultValue={gradeStr(p.tamanhos)} onBlur={e => updGrade(i, e.target.value)} placeholder="grade: M G(2) GG"
+                      className="w-32 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                    <input value={p.preco_venda ?? ''} onChange={e => upd(i, 'preco_venda', e.target.value)} placeholder="venda R$" inputMode="decimal"
+                      className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-[#00D4AA] focus:outline-none focus:border-violet-500" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {erro && <p className="text-xs text-red-300 mt-2">{erro}</p>}
+        </div>
+
+        <div className="p-4 border-t border-zinc-800 shrink-0 flex gap-2">
+          {!preview ? (
+            <button onClick={ler} disabled={!texto.trim() || lendo}
+              className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+              {lendo ? 'Lendo a lista...' : '✨ Ler lista'}
+            </button>
+          ) : (
+            <>
+              <button onClick={() => { setPreview(null); setErro(null) }} disabled={importando}
+                className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">← Voltar</button>
+              <button onClick={importar} disabled={importando || !preview.length}
+                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                {importando ? 'Importando...' : `Importar ${preview.length} produto(s)`}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
