@@ -14,6 +14,10 @@ type Config = {
   desconto_aniversario: number | null
   vende_tenis: boolean | null
   vende_feminino: boolean | null
+  whatsapp_provider: string | null
+  meta_phone_number_id: string | null
+  meta_waba_id: string | null
+  meta_access_token: string | null
 }
 
 function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc: string }) {
@@ -56,6 +60,13 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
   const [vendeTenis, setVendeTenis]     = useState(config?.vende_tenis ?? true)
   const [vendeFeminino, setVendeFeminino] = useState(config?.vende_feminino ?? false)
 
+  // Conexão WhatsApp (Meta Cloud API)
+  const [usaMeta, setUsaMeta]           = useState(config?.whatsapp_provider === 'meta')
+  const [metaPhoneId, setMetaPhoneId]   = useState(config?.meta_phone_number_id ?? '')
+  const [metaWabaId, setMetaWabaId]     = useState(config?.meta_waba_id ?? '')
+  const [metaToken, setMetaToken]       = useState(config?.meta_access_token ?? '')
+  const [testando, setTestando]         = useState(false)
+
   const [saving, setSaving]   = useState(false)
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -80,10 +91,36 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
         desconto_aniversario: desconto,
         vende_tenis: vendeTenis,
         vende_feminino: vendeFeminino,
+        whatsapp_provider: usaMeta ? 'meta' : 'zapi',
+        meta_phone_number_id: usaMeta ? (metaPhoneId.trim() || null) : null,
+        meta_waba_id: usaMeta ? (metaWabaId.trim() || null) : null,
+        meta_access_token: usaMeta ? (metaToken.trim() || null) : null,
       }, { onConflict: 'user_id' })
     setSaving(false)
     if (error) showToast('Erro ao salvar: ' + error.message, false)
     else showToast('Configurações salvas!')
+  }
+
+  async function testarConexao() {
+    if (!metaPhoneId.trim() || !metaToken.trim()) {
+      showToast('Preencha o Phone Number ID e o token primeiro.', false)
+      return
+    }
+    setTestando(true)
+    try {
+      const res = await fetch('/api/whatsapp/meta/testar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumberId: metaPhoneId.trim(), accessToken: metaToken.trim() }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (d?.ok) showToast(`Conectado${d.phone ? ': ' + d.phone : ''}${d.nome ? ' (' + d.nome + ')' : ''}`)
+      else showToast(d?.erro || 'Não consegui validar. Confira os dados.', false)
+    } catch {
+      showToast('Falha ao testar a conexão.', false)
+    } finally {
+      setTestando(false)
+    }
   }
 
   const inputClass = 'w-full bg-zinc-900 border border-zinc-700/60 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#3B6FFF]/60 focus:ring-1 focus:ring-[#3B6FFF]/30 transition'
@@ -203,17 +240,56 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
           </div>
         </div>
 
-        {/* WhatsApp */}
-        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5">
-          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 mb-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-            Conexão WhatsApp
-          </h2>
-          <div className="flex items-center gap-3 py-2">
-            <span className="w-2 h-2 rounded-full bg-[#00D4AA] animate-pulse" />
-            <p className="text-sm text-zinc-400">Instância Z-API configurada via painel do servidor</p>
+        {/* WhatsApp (Meta Cloud API) */}
+        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#25D366]" />
+              Conexão WhatsApp (Meta)
+            </h2>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+              usaMeta && metaPhoneId && metaToken
+                ? 'text-[#00D4AA] border-[#00D4AA]/30 bg-[#00D4AA]/10'
+                : 'text-zinc-500 border-zinc-700 bg-zinc-800/40'
+            }`}>
+              {usaMeta && metaPhoneId && metaToken ? 'Configurado' : 'Não conectado'}
+            </span>
           </div>
-          <p className="text-xs text-zinc-600 mt-1">Integração com múltiplas instâncias disponível em breve.</p>
+
+          <Toggle
+            checked={usaMeta}
+            onChange={setUsaMeta}
+            label="Usar WhatsApp oficial da Meta"
+            desc="Conecta o número desta loja à API oficial (Cloud API)"
+          />
+
+          {usaMeta && (
+            <div className="space-y-4 pt-1">
+              <div>
+                <label className={labelClass}>Phone Number ID</label>
+                <input className={inputClass} value={metaPhoneId} onChange={e => setMetaPhoneId(e.target.value)} placeholder="Ex: 123456789012345" />
+                <p className="text-xs text-zinc-600 mt-1">Encontrado no painel da Meta em WhatsApp → Configuração da API.</p>
+              </div>
+              <div>
+                <label className={labelClass}>WhatsApp Business Account ID (WABA)</label>
+                <input className={inputClass} value={metaWabaId} onChange={e => setMetaWabaId(e.target.value)} placeholder="Ex: 987654321098765" />
+              </div>
+              <div>
+                <label className={labelClass}>Token de acesso</label>
+                <input type="password" className={inputClass} value={metaToken} onChange={e => setMetaToken(e.target.value)} placeholder="Token permanente do sistema" />
+                <p className="text-xs text-zinc-600 mt-1">Use um token permanente (System User) — o token temporário expira em 24h.</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={testarConexao}
+                disabled={testando}
+                className="w-full py-2.5 rounded-xl border border-zinc-700 hover:border-[#25D366]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50"
+              >
+                {testando ? 'Testando...' : 'Testar conexão'}
+              </button>
+            </div>
+          )}
         </div>
 
         <button
