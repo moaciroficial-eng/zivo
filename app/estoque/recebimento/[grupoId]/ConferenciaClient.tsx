@@ -65,6 +65,148 @@ async function compressImage(file: File): Promise<Blob> {
 type ModeloFoto = { url: string; fotoId: string | null; uploading: boolean }
 type ModeloGrupo = { key: string; label: string; nome: string; marca: string | null; cor: string | null; ids: string[] }
 
+/* ── Avisar novidades por marca (pós-conferência) ── */
+
+type NovidadeCliente = { id: string; nome: string; telefone: string; compras: number; motivo: string }
+type NovidadeMarca = { marca: string; qtdPecas: number; produtos: string[]; tamanhos: string[]; clientes: NovidadeCliente[] }
+
+function msgPadraoNovidade(marca: string) {
+  return `{saudacao} {nome}! Chegou novidade da ${marca} aqui na loja e lembrei de você 😊 Se tiver interesse, tenho uma peça que é a sua cara. Quer ver?`
+}
+
+function AvisarNovidades({ marcas, onClose }: { marcas: NovidadeMarca[]; onClose: () => void }) {
+  const [aberta, setAberta] = useState<string | null>(marcas.length === 1 ? marcas[0].marca : null)
+  const [msgs, setMsgs] = useState<Record<string, string>>(() => Object.fromEntries(marcas.map(m => [m.marca, msgPadraoNovidade(m.marca)])))
+  const [removidos, setRemovidos] = useState<Record<string, Set<string>>>({})
+  const [enviando, setEnviando] = useState<Record<string, boolean>>({})
+  const [resultado, setResultado] = useState<Record<string, { enviados: number; falhas: number }>>({})
+
+  function toggleCliente(marca: string, id: string) {
+    setRemovidos(prev => {
+      const s = new Set(prev[marca] ?? [])
+      if (s.has(id)) s.delete(id); else s.add(id)
+      return { ...prev, [marca]: s }
+    })
+  }
+
+  async function disparar(m: NovidadeMarca) {
+    const rem = removidos[m.marca] ?? new Set<string>()
+    const alvos = m.clientes.filter(c => !rem.has(c.id))
+    if (alvos.length === 0) return
+    setEnviando(prev => ({ ...prev, [m.marca]: true }))
+    let enviados = 0, falhas = 0
+    for (const c of alvos) {
+      try {
+        const res = await fetch('/api/plano/contatar', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clienteId: c.id, nome: c.nome, telefone: c.telefone, mensagem: msgs[m.marca] }),
+        })
+        const d = await res.json()
+        if (d?.ok) enviados++; else falhas++
+      } catch { falhas++ }
+    }
+    setEnviando(prev => ({ ...prev, [m.marca]: false }))
+    setResultado(prev => ({ ...prev, [m.marca]: { enviados, falhas } }))
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg my-8 shadow-2xl">
+        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold">Novidades recebidas 🎉</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">Avise os clientes que curtem cada marca</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer"><IconX size={16}/></button>
+        </div>
+
+        <div className="p-4 flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+          {marcas.map(m => {
+            const rem = removidos[m.marca] ?? new Set<string>()
+            const selecionados = m.clientes.filter(c => !rem.has(c.id)).length
+            const res = resultado[m.marca]
+            const aberto = aberta === m.marca
+            return (
+              <div key={m.marca} className="border border-zinc-800 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setAberta(aberto ? null : m.marca)}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-zinc-800/40 transition cursor-pointer text-left"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-300 text-sm font-bold shrink-0">
+                    {m.marca.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{m.marca}</p>
+                    <p className="text-xs text-zinc-500">
+                      {m.qtdPecas} peça{m.qtdPecas !== 1 ? 's' : ''} · {m.clientes.length} cliente{m.clientes.length !== 1 ? 's' : ''} curtem
+                    </p>
+                  </div>
+                  {res
+                    ? <span className="text-xs text-emerald-400 font-semibold shrink-0">✓ {res.enviados} enviada{res.enviados !== 1 ? 's' : ''}</span>
+                    : <span className="text-xs text-violet-400 font-semibold shrink-0">{aberto ? 'Fechar' : 'Avisar'}</span>}
+                </button>
+
+                {aberto && !res && (
+                  <div className="px-4 pb-4 flex flex-col gap-3 border-t border-zinc-800/60 pt-3">
+                    <textarea
+                      value={msgs[m.marca]}
+                      onChange={e => setMsgs(prev => ({ ...prev, [m.marca]: e.target.value }))}
+                      rows={3}
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-violet-500 resize-none"
+                    />
+                    <p className="text-[11px] text-zinc-600">
+                      <span className="font-mono">{'{saudacao}'}</span> e <span className="font-mono">{'{nome}'}</span> são preenchidos automaticamente pra cada cliente.
+                    </p>
+
+                    <div className="flex flex-col gap-1.5 max-h-52 overflow-y-auto">
+                      {m.clientes.map(c => {
+                        const ativo = !rem.has(c.id)
+                        return (
+                          <div key={c.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${ativo ? 'bg-zinc-800/60' : 'bg-zinc-800/20 opacity-50'}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate">{c.nome}</p>
+                              <p className="text-xs text-zinc-500 truncate">{c.motivo}</p>
+                            </div>
+                            <button
+                              onClick={() => toggleCliente(m.marca, c.id)}
+                              className="p-1 text-zinc-500 hover:text-white cursor-pointer shrink-0"
+                              title={ativo ? 'Remover' : 'Incluir'}
+                            >
+                              {ativo ? <IconX size={14}/> : <span className="text-lg leading-none">+</span>}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => disparar(m)}
+                      disabled={enviando[m.marca] || selecionados === 0}
+                      className="flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                    >
+                      {enviando[m.marca] ? <><IconSpinner size={15}/> Enviando…</> : <>Avisar {selecionados} cliente{selecionados !== 1 ? 's' : ''}</>}
+                    </button>
+                  </div>
+                )}
+
+                {res && res.falhas > 0 && (
+                  <p className="px-4 pb-3 text-xs text-amber-500">{res.falhas} não puderam ser enviadas (cliente sem WhatsApp/telefone).</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="px-5 py-4 border-t border-zinc-800">
+          <button onClick={onClose} className="w-full text-sm font-semibold border border-zinc-700 hover:border-zinc-500 rounded-lg py-2.5 transition cursor-pointer">
+            Concluir
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Icons ── */
 
 const IconCamera = ({ size = 20 }: { size?: number }) => (
@@ -141,6 +283,8 @@ export default function ConferenciaClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting,          setDeleting]          = useState(false)
   const [toast,            setToast]             = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [showNovidades,    setShowNovidades]      = useState(false)
+  const [novidades,        setNovidades]          = useState<NovidadeMarca[]>([])
 
   useEffect(() => {
     localStorage.setItem(COUNTS_KEY, JSON.stringify(counts))
@@ -316,6 +460,23 @@ export default function ConferenciaClient({
       if (error) { showToast('Erro ao fechar conferência.', 'error'); setClosing(false); return }
     }
 
+    // Novidades por marca: "chegou Aramis → avisar quem curte Aramis?"
+    let marcas: NovidadeMarca[] = []
+    try {
+      const res = await fetch('/api/conferencia/novidades', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grupoId }),
+      })
+      const d = await res.json()
+      if (d?.ok && Array.isArray(d.marcas)) marcas = d.marcas
+    } catch { /* segue sem novidades */ }
+
+    setClosing(false)
+    if (marcas.length > 0) { setNovidades(marcas); setShowNovidades(true); return }
+    finalizarConferencia()
+  }
+
+  function finalizarConferencia() {
     try { localStorage.removeItem(COUNTS_KEY); localStorage.removeItem(`nfe_grupo_${grupoId}`) } catch { /* ignore */ }
     router.push('/estoque')
   }
@@ -781,6 +942,14 @@ export default function ConferenciaClient({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Avisar novidades por marca (após fechar a conferência) ── */}
+      {showNovidades && (
+        <AvisarNovidades
+          marcas={novidades}
+          onClose={() => { setShowNovidades(false); finalizarConferencia() }}
+        />
       )}
     </div>
   )
