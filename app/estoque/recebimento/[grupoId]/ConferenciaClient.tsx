@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -35,6 +35,35 @@ function fBRL(v: number | null) {
 function totalQtd(tamanhos: Produto['tamanhos']) {
   return tamanhos.reduce((s, t) => s + t.qtd, 0)
 }
+
+/* Extração de modelo (nome sem o tamanho no fim) — igual ao cadastro de estoque,
+   pra a foto casar exatamente com as mesmas variações que a biblioteca linka. */
+const SIZES_LIST = ['PLUS','EXTRA','XGG','GG','PP','XS','XL','XXL','XXXL','P','M','G','S','L','U','60','58','56','54','52','50','48','46','44','42','40','38','36','34','32']
+function extractModelo(nome: string): string {
+  const upper = nome.toUpperCase().trim()
+  for (const t of SIZES_LIST) {
+    if (upper.endsWith(' ' + t)) return nome.slice(0, nome.length - t.length - 1).trim()
+  }
+  return nome
+}
+async function compressImage(file: File): Promise<Blob> {
+  return new Promise(resolve => {
+    const img = document.createElement('img')
+    img.onload = () => {
+      const scale = Math.min(1, 1200 / img.naturalWidth)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(b => resolve(b ?? file), 'image/jpeg', 0.85)
+      URL.revokeObjectURL(img.src)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+type ModeloFoto = { url: string; fotoId: string | null; uploading: boolean }
+type ModeloGrupo = { key: string; label: string; nome: string; marca: string | null; cor: string | null; ids: string[] }
 
 /* ── Icons ── */
 
@@ -120,6 +149,84 @@ export default function ConferenciaClient({
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 4000)
+  }
+
+  /* ── Fotos por modelo (uma foto vale pra todos os tamanhos) ── */
+
+  const modelos = useMemo<ModeloGrupo[]>(() => {
+    const map = new Map<string, ModeloGrupo>()
+    for (const p of produtos) {
+      const modelo = extractModelo(p.nome)
+      const key = `${modelo.toLowerCase()}||${(p.marca ?? '').toLowerCase().trim()}||${(p.cor ?? '').toLowerCase().trim()}`
+      const g = map.get(key)
+      if (g) g.ids.push(p.id)
+      else map.set(key, { key, label: modelo, nome: p.nome, marca: p.marca, cor: p.cor, ids: [p.id] })
+    }
+    return [...map.values()]
+  }, [produtos])
+
+  const [fotos, setFotos] = useState<Record<string, ModeloFoto>>({})
+
+  // Carrega fotos já vinculadas a esses produtos (ex.: reabrir a conferência)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase.from('biblioteca_fotos').select('id, url, estoque_ids').eq('user_id', user.id)
+      if (cancelled || !data) return
+      setFotos(prev => {
+        const next = { ...prev }
+        for (const m of modelos) {
+          const hit = data.find(f => Array.isArray(f.estoque_ids) && f.estoque_ids.some((id: string) => m.ids.includes(id)))
+          if (hit) next[m.key] = { url: hit.url, fotoId: hit.id, uploading: false }
+        }
+        return next
+      })
+    })()
+    return () => { cancelled = true }
+  }, [modelos, supabase, user.id])
+
+  async function uploadFotoModelo(m: ModeloGrupo, file: File) {
+    setFotos(prev => ({ ...prev, [m.key]: { url: prev[m.key]?.url ?? '', fotoId: prev[m.key]?.fotoId ?? null, uploading: true } }))
+    try {
+      const compressed = await compressImage(file)
+      const path = `${user.id}/${Date.now()}.jpg`
+      const { data: up, error: upErr } = await supabase.storage.from('biblioteca').upload(path, compressed, { contentType: 'image/jpeg' })
+      if (upErr) throw new Error(upErr.message)
+      const { data: { publicUrl } } = supabase.storage.from('biblioteca').getPublicUrl(up.path)
+
+      // Vincula a foto a TODAS as variações do mesmo modelo+marca+cor (só o tamanho muda)
+      const modelo = extractModelo(m.nome)
+      const marcaAlvo = (m.marca ?? '').toLowerCase().trim()
+      const corAlvo = (m.cor ?? '').toLowerCase().trim()
+      const { data: allEstoque } = await supabase.from('estoque').select('id, nome, marca, cor').eq('user_id', user.id)
+      const variantIds = (allEstoque ?? [])
+        .filter(v =>
+          extractModelo(v.nome).toLowerCase() === modelo.toLowerCase() &&
+          (v.marca ?? '').toLowerCase().trim() === marcaAlvo &&
+          (v.cor ?? '').toLowerCase().trim() === corAlvo
+        )
+        .map(v => v.id)
+      for (const id of m.ids) if (!variantIds.includes(id)) variantIds.push(id)
+
+      const existing = fotos[m.key]?.fotoId ?? null
+      let fotoId = existing
+      if (existing) {
+        const { error } = await supabase.from('biblioteca_fotos')
+          .update({ url: publicUrl, storage_path: path, estoque_ids: variantIds }).eq('id', existing)
+        if (error) throw new Error(error.message)
+      } else {
+        const { data: novo, error } = await supabase.from('biblioteca_fotos').insert({
+          user_id: user.id, url: publicUrl, storage_path: path, modelo, marca: m.marca, estoque_ids: variantIds,
+        }).select('id').maybeSingle()
+        if (error) throw new Error(error.message)
+        fotoId = novo?.id ?? null
+      }
+      setFotos(prev => ({ ...prev, [m.key]: { url: publicUrl, fotoId, uploading: false } }))
+      showToast(m.ids.length > 1 ? 'Foto salva — vale pra todos os tamanhos' : 'Foto salva')
+    } catch {
+      setFotos(prev => ({ ...prev, [m.key]: { url: prev[m.key]?.url ?? '', fotoId: prev[m.key]?.fotoId ?? null, uploading: false } }))
+      showToast('Não consegui subir a foto. Tente de novo.', 'error')
+    }
   }
 
   /* ── Scan ── */
@@ -326,7 +433,8 @@ export default function ConferenciaClient({
 
         <div className="grid lg:grid-cols-2 gap-6">
 
-          {/* ── Coluna esquerda: Lista de produtos ── */}
+          {/* ── Coluna esquerda: Lista de produtos + fotos ── */}
+          <div className="flex flex-col gap-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-zinc-800">
               <h2 className="font-semibold text-sm">Produtos da NF-e</h2>
@@ -359,6 +467,51 @@ export default function ConferenciaClient({
                 )
               })}
             </div>
+          </div>
+
+          {/* Fotos dos produtos — uma por modelo, vale pra todos os tamanhos */}
+          {modelos.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-zinc-800">
+                <h2 className="font-semibold text-sm">Fotos dos produtos</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Uma foto por modelo — vale pra todos os tamanhos (P, M, G…)</p>
+              </div>
+              <div className="divide-y divide-zinc-800/60 max-h-[420px] overflow-y-auto">
+                {modelos.map(m => {
+                  const f = fotos[m.key]
+                  const sub = [m.marca, m.cor].filter(Boolean).join(' · ')
+                  return (
+                    <div key={m.key} className="px-5 py-3.5 flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
+                        {f?.url
+                          ? <img src={f.url} alt="" className="w-full h-full object-cover" />
+                          : <IconCamera />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{m.label}</p>
+                        <p className="text-xs text-zinc-500 truncate">
+                          {sub || '—'}{m.ids.length > 1 && ` · ${m.ids.length} tamanhos`}
+                        </p>
+                      </div>
+                      <label className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border cursor-pointer transition ${
+                        f?.uploading ? 'opacity-50 pointer-events-none border-zinc-700 text-zinc-500'
+                        : f?.url ? 'border-zinc-700 text-zinc-300 hover:border-violet-500/50 hover:text-white'
+                        : 'border-violet-500/40 text-violet-300 bg-violet-500/10 hover:bg-violet-500/15'
+                      }`}>
+                        {f?.uploading ? 'Enviando…' : f?.url ? 'Trocar' : 'Adicionar foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => { const file = e.target.files?.[0]; if (file) uploadFotoModelo(m, file); e.target.value = '' }}
+                        />
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           </div>
 
           {/* ── Coluna direita: Scan e resultado ── */}
