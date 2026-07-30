@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import MetaEmbeddedSignup from './MetaEmbeddedSignup'
 
 type Config = {
   nome_loja: string | null
@@ -66,6 +67,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
   const [metaWabaId, setMetaWabaId]     = useState(config?.meta_waba_id ?? '')
   const [metaToken, setMetaToken]       = useState(config?.meta_access_token ?? '')
   const [testando, setTestando]         = useState(false)
+  const [provisionando, setProvisionando] = useState(false)
 
   const [saving, setSaving]   = useState(false)
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
@@ -120,6 +122,24 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
       showToast('Falha ao testar a conexão.', false)
     } finally {
       setTestando(false)
+    }
+  }
+
+  async function provisionarTemplates() {
+    setProvisionando(true)
+    try {
+      const res = await fetch('/api/whatsapp/meta/provisionar-templates', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (d?.ok) {
+        const r = d.resumo ?? {}
+        showToast(`Templates: ${r.criados ?? 0} criados, ${r.existentes ?? 0} já existiam${r.falhas ? `, ${r.falhas} falharam` : ''}.`)
+      } else {
+        showToast(d?.erro || 'Falha ao provisionar templates.', false)
+      }
+    } catch {
+      showToast('Falha ao provisionar templates.', false)
+    } finally {
+      setProvisionando(false)
     }
   }
 
@@ -256,6 +276,18 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
             </span>
           </div>
 
+          {/* Conexão automática (Embedded Signup) */}
+          <div className="space-y-2">
+            <MetaEmbeddedSignup onDone={(msg, ok) => { showToast(msg, ok); if (ok) setUsaMeta(true) }} />
+            <p className="text-xs text-zinc-600 text-center">Recomendado: conecta a conta Meta da loja e provisiona os templates automaticamente.</p>
+          </div>
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-zinc-800" />
+            <span className="text-xs text-zinc-600">ou conectar manualmente</span>
+            <div className="flex-1 h-px bg-zinc-800" />
+          </div>
+
           <Toggle
             checked={usaMeta}
             onChange={setUsaMeta}
@@ -280,14 +312,25 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
                 <p className="text-xs text-zinc-600 mt-1">Use um token permanente (System User) — o token temporário expira em 24h.</p>
               </div>
 
-              <button
-                type="button"
-                onClick={testarConexao}
-                disabled={testando}
-                className="w-full py-2.5 rounded-xl border border-zinc-700 hover:border-[#25D366]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50"
-              >
-                {testando ? 'Testando...' : 'Testar conexão'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={testarConexao}
+                  disabled={testando}
+                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 hover:border-[#25D366]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50"
+                >
+                  {testando ? 'Testando...' : 'Testar conexão'}
+                </button>
+                <button
+                  type="button"
+                  onClick={provisionarTemplates}
+                  disabled={provisionando}
+                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 hover:border-[#3B6FFF]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50"
+                >
+                  {provisionando ? 'Provisionando...' : 'Provisionar templates'}
+                </button>
+              </div>
+              <p className="text-xs text-zinc-600">"Provisionar templates" copia os modelos já aprovados do Zivo pra WABA desta loja (a Meta ainda aprova cada um).</p>
             </div>
           )}
         </div>

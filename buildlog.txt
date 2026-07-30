@@ -6,15 +6,15 @@
 - Environments: .env.production.local, .env.local
 
   Creating an optimized production build ...
-✓ Compiled successfully in 55s
+✓ Compiled successfully in 2.3min
   Running TypeScript ...
-  Finished TypeScript in 53s ...
+  Finished TypeScript in 57s ...
   Collecting page data using 3 workers ...
-  Generating static pages using 3 workers (0/85) ...
-  Generating static pages using 3 workers (21/85) 
-  Generating static pages using 3 workers (42/85) 
-  Generating static pages using 3 workers (63/85) 
-✓ Generating static pages using 3 workers (85/85) in 10.1s
+  Generating static pages using 3 workers (0/87) ...
+  Generating static pages using 3 workers (21/87) 
+  Generating static pages using 3 workers (43/87) 
+  Generating static pages using 3 workers (65/87) 
+✓ Generating static pages using 3 workers (87/87) in 9.6s
   Finalizing page optimization ...
 
 Route (app)
@@ -73,6 +73,8 @@ Route (app)
 ├ ƒ /api/whatsapp/debug
 ├ ƒ /api/whatsapp/foto
 ├ ƒ /api/whatsapp/meta
+├ ƒ /api/whatsapp/meta/embedded-signup
+├ ƒ /api/whatsapp/meta/provisionar-templates
 ├ ƒ /api/whatsapp/meta/testar
 ├ ƒ /api/whatsapp/reconnect
 ├ ƒ /api/whatsapp/send
