@@ -1,6 +1,6 @@
 import { after } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { donoAssumiuConversa } from '@/lib/whatsapp'
+import { donoAssumiuConversa, sendWhatsAppMessage } from '@/lib/whatsapp'
 import { juntarTamanhos } from '@/lib/tamanhos'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
@@ -126,6 +126,7 @@ ${historico.map(h => `[${h.papel.toUpperCase()}] ${h.texto}`).join('\n') || '(in
 
 Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 {
+  "escalar": false,
   "proxima_mensagem": "mensagem para o contato — ao concluir, envie um agradecimento curto de encerramento (nunca null quando o contato acabou de responder o último dado)",
   "dados_novos": {
     "tamanho_camiseta": "${isFem ? 'P/M/G/GG/XGG (blusa) se coletou' : 'P/M/G/GG/XGG se coletou'} (null se não coletou NESTA resposta)",
@@ -141,6 +142,8 @@ Decida o próximo passo. JSON EXATO (use EXATAMENTE esses nomes de campo):
 }
 
 REGRAS:
+- TOM: educado e direto, SEM melação. No MÁXIMO 1 emoji por mensagem (muitas vezes nenhum). Nada de "que máximo!", "amei!", "fico super feliz!".
+- 🚫 FORA DO ASSUNTO = ESCALAR, NUNCA INVENTAR: se o contato perguntar/falar de QUALQUER coisa que não seja o cadastro — reserva ("vocês reservaram/separaram?"), um produto, preço, pagamento, um combinado, status de pedido — você NÃO sabe e NÃO pode inventar (nada de "vou verificar com o time"). Nesses casos: "escalar": true, e proxima_mensagem curta tipo "Deixa eu confirmar isso com a loja e já te respondo, tá?". NÃO force o cadastro junto, NÃO emende pergunta de cadastro. O dono é avisado e responde ele.
 - Use "${nomeContato}" para personalizar
 - NUNCA pergunte algo que já está em DADOS JÁ CONFIRMADOS/COLETADOS — pergunte APENAS o que falta
 - NOME: SEMPRE pergunte o nome completo de forma aberta ("qual é seu nome completo?"). NUNCA peça só pra confirmar o nome — o cadastro pode estar errado ou ser um apelido.
@@ -172,6 +175,36 @@ ${regrasGenero}
       .update({ status: 'aguardando', updated_at: new Date().toISOString() })
       .eq('id', estado.id)
     return { respondeu: false, concluido: false }
+  }
+
+  /* ── FORA DO ASSUNTO → ESCALA pro dono, NÃO força cadastro nem inventa ──
+     Ex: no meio da atualização de cadastro o cliente pergunta de uma reserva.
+     Manda uma resposta-espera pro cliente, avisa o dono e PAUSA o cadastro. */
+  if (acao.escalar) {
+    const msg = String(acao.proxima_mensagem || 'Deixa eu confirmar isso com a loja e já te respondo, tá?')
+    const loja = await getLoja(admin, userId).catch(() => null)
+    const primeiroNome = String(nomeContato || 'você').split(' ')[0]
+    try {
+      await enviarOferta(admin, {
+        userId, contatoId: contato.id, phone: contato.phone,
+        texto: msg, templateName: 'atualizacao_cadastro',
+        templateVars: [primeiroNome, loja?.nomeLoja || 'a loja'], creds: loja?.creds,
+      })
+    } catch { /* segue */ }
+    historico.push({ papel: 'agente', texto: msg })
+    /* avisa o dono pra ELE responder */
+    try {
+      const { data: cfg } = await admin.from('loja_config').select('owner_phone').eq('user_id', userId).maybeSingle()
+      const ownerPhone = String(cfg?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
+      if (ownerPhone) {
+        await sendWhatsAppMessage({ phone: ownerPhone, creds: loja?.creds,
+          message: `🔔 *${nomeContato}* perguntou algo que eu não sei responder:\n\n"${respostaContato ?? ''}"\n\nResponda pelo Zivo (aba WhatsApp).` }).catch(() => {})
+      }
+    } catch { /* ignora */ }
+    await admin.from('agente_conversa_estado').update({
+      historico, status: 'aguardando', updated_at: new Date().toISOString(),
+    }).eq('id', estado.id)
+    return { respondeu: true, concluido: false }
   }
 
   /* ── Merge do turno (ANTES do envio, pra validar a conclusão) ── */
@@ -440,8 +473,15 @@ export async function executarTurnoTarefa(
 
   try {
     /* Dono assumiu a conversa manualmente? IA não fala por cima.
-       Devolve o status original (iniciando/aguardando) pra tarefa não se perder. */
-    if (await donoAssumiuConversa(admin, contatoId)) {
+       Duas checagens: (a) mensagem manual nos últimos 30min; (b) a ÚLTIMA
+       mensagem ENVIADA foi manual do dono — mesmo que tenha sido horas atrás.
+       (Caso Camila: o dono atendeu de manhã, a cliente respondeu 1h depois e
+       a IA atropelou. Agora, se o dono foi o último a falar, a IA fica calada.) */
+    const { data: ultEnv } = await admin.from('whatsapp_mensagens')
+      .select('raw').eq('contato_id', contatoId).eq('direcao', 'enviada')
+      .order('timestamp', { ascending: false }).limit(1).maybeSingle()
+    const ultimaEnviadaEhManual = !!ultEnv && ((ultEnv.raw as { origem?: string } | null)?.origem !== 'ia')
+    if (ultimaEnviadaEhManual || await donoAssumiuConversa(admin, contatoId)) {
       await admin.from('agente_conversa_estado')
         .update({ status: estadoRef.status, updated_at: new Date().toISOString() })
         .eq('id', estadoTravado.id)

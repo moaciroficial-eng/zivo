@@ -158,6 +158,32 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* Feito pra quem NÃO manja de marketing */}
+      <section className="max-w-4xl mx-auto px-6 py-16">
+        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-8 sm:p-12">
+          <div className="text-center mb-9">
+            <p className="text-sm font-semibold text-violet-300 mb-2">Sem complicação</p>
+            <h2 className={`${display.className} text-3xl sm:text-4xl font-bold tracking-tight`}>Você não precisa entender de<br className="hidden sm:block" /> marketing nem de tecnologia.</h2>
+            <p className="text-zinc-400 mt-3 max-w-xl mx-auto">O Zivo carrega a parte difícil. Você cuida da sua loja, ele cuida de vender.</p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4">
+            {[
+              { q: '“Não sei o que postar nem o que oferecer”', a: 'A consultora te faz as perguntas certas e monta tudo pronto: a oferta, o texto, o público e até o post do Instagram.' },
+              { q: '“Não entendo de desconto, público, campanha”', a: 'O Zivo decide o certo pra cada caso e te mostra do jeito simples. Você só olha e aprova.' },
+              { q: '“Não sou de tecnologia, tenho medo de errar”', a: 'É só clicar. Tudo em português, do jeito de quem é do balcão — e nada sai sem você deixar.' },
+            ].map(x => (
+              <div key={x.q} className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
+                <p className="text-sm font-semibold text-white leading-snug">{x.q}</p>
+                <p className="text-sm text-zinc-400 mt-2 leading-relaxed">{x.a}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-sm text-zinc-400 mt-8">
+            É como ter um <span className="text-white font-medium">especialista em vendas</span> na sua loja — só que trabalhando 24h por você.
+          </p>
+        </div>
+      </section>
+
       {/* Planos */}
       <section id="planos" className="max-w-4xl mx-auto px-6 py-20">
         <div className="text-center mb-12">
@@ -237,12 +263,22 @@ function Conector() {
   return <div className="w-px h-8 bg-gradient-to-b from-violet-500/50 to-violet-500/10 my-1" />
 }
 
-/* Logo placeholder (vamos trocar) */
+/* Logo Zivo — squircle com "seta de crescimento" (vende o resultado) */
 function Logo({ small }: { small?: boolean }) {
-  const s = small ? 22 : 30
+  const s = small ? 24 : 32
   return (
-    <div className={`rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30`} style={{ width: s, height: s }}>
-      <svg width={s * 0.6} height={s * 0.6} viewBox="0 0 24 24" fill="none"><path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="white" /></svg>
-    </div>
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none" className="shadow-lg shadow-violet-500/25 rounded-[9px]">
+      <defs>
+        <linearGradient id="zivoGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#8B5CF6" />
+          <stop offset="1" stopColor="#4F46E5" />
+        </linearGradient>
+      </defs>
+      <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="url(#zivoGrad)" />
+      {/* linha de crescimento subindo */}
+      <path d="M7 21 L13.5 14.5 L17.5 18 L24 10.5" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      {/* ponta da seta */}
+      <path d="M24 10.5 L18.6 10.5 M24 10.5 L24 15.9" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }

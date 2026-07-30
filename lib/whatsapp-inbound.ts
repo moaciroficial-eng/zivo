@@ -110,33 +110,19 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
       }, { onConflict: 'message_id', ignoreDuplicates: true })
     }
 
-    const { data: escalacoes } = await supabase
-      .from('atendimento_escalacoes')
-      .select('id, contato_id')
-      .eq('user_id', cleanUserId)
-      .eq('status', 'pendente')
-      .order('created_at', { ascending: false })
-      .limit(1)
-    const escal = escalacoes?.[0] ?? null
-    if (escal) {
-      await supabase.from('atendimento_escalacoes').update({
-        status: 'respondida', resposta_owner: conteudo, updated_at: new Date().toISOString(),
-      }).eq('id', escal.id)
-      after(fetch(`${baseUrl}/api/agentes/atendimento`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
-        body: JSON.stringify({ contatoId: escal.contato_id, userId: cleanUserId, mensagem: conteudo, instrucaoOwner: conteudo }),
-      }).catch(() => null))
-    } else {
-      if (conteudo && conteudo.trim().length > 3) {
-        sendWhatsAppMessage({ phone: ownerPhone, message: '⏳', creds }).catch(() => null)
-      }
-      after(fetch(`${baseUrl}/api/owner/comando`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
-        body: JSON.stringify({ userId: cleanUserId, mensagem: conteudo, ownerPhone }),
-      }).catch(() => null))
+    /* SEGURANÇA: a mensagem do dono NUNCA é encaminhada sozinha pra um cliente.
+       Antes, qualquer msg do dono era "encaminhada" pra escalação pendente mais
+       recente (caso Márcia: o dono só queria copiar e o Zivo mandou pra ela).
+       Agora TODA mensagem do dono vai pro comando/gerente. Pra responder um
+       cliente, o dono usa a tela do WhatsApp no Zivo (envio explícito). */
+    if (conteudo && conteudo.trim().length > 3) {
+      sendWhatsAppMessage({ phone: ownerPhone, message: '⏳', creds }).catch(() => null)
     }
+    after(fetch(`${baseUrl}/api/owner/comando`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
+      body: JSON.stringify({ userId: cleanUserId, mensagem: conteudo, ownerPhone }),
+    }).catch(() => null))
     return
   }
 

@@ -16,9 +16,9 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <Link href="/" className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-              <circle cx="12" cy="12" r="3" fill="white" />
+            <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 21 L13.5 14.5 L17.5 18 L24 10.5" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M24 10.5 L18.6 10.5 M24 10.5 L24 15.9" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
           <h1 className="text-2xl font-bold tracking-tight text-white">zivo</h1>

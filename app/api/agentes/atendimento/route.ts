@@ -142,6 +142,18 @@ async function handleAtendimento(request: NextRequest) {
     return NextResponse.json({ ok: true, skipped: 'dono ativo na conversa — IA em silêncio' })
   }
 
+  /* Reforço: se a ÚLTIMA mensagem ENVIADA foi manual do dono (sem janela de
+     tempo), ele está tocando a conversa — a IA cala. Cobre o caso do dono
+     ter atendido horas antes e o cliente responder depois. */
+  if (!instrucaoOwner) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ultEnv = (mensagens ?? []).find((m: any) => m.direcao === 'enviada')
+    const ultimaManual = ultEnv && ((ultEnv.raw as { origem?: string } | null)?.origem !== 'ia')
+    if (ultimaManual) {
+      return NextResponse.json({ ok: true, skipped: 'dono foi o último a falar — IA em silêncio' })
+    }
+  }
+
   /* ── CAMPANHA SEM FOTO: o cliente respondeu → manda as fotos do produto
      que ficaram pendentes (a copy prometeu "quer que eu te mande as fotos?").
      Envia, grava no histórico e limpa a pendência. */
@@ -232,8 +244,10 @@ async function handleAtendimento(request: NextRequest) {
   })()
 
   const systemPrompt = `Você é o atendimento da loja de roupas Moca, em Roda Velha/BA, respondendo pelo WhatsApp da loja.
-Tom: caloroso, informal, brasileiro de verdade — como se fosse o dono conversando. NUNCA robótico. Se já conversou antes, não se reapresente.
+Tom: educado, simpático e DIRETO. Brasileiro natural, mas SEM exagero — nada de melação, nada de "que máximo!", "fico super feliz!", "amei!". No MÁXIMO 1 emoji por mensagem, muitas vezes nenhum. Curto. Se já conversou antes, não se reapresente.
 IMPORTANTE: você é a ASSISTENTE VIRTUAL da loja. Você NÃO é uma pessoa física, NÃO está indo/chegando a lugar nenhum, e NÃO é o dono em pessoa.
+
+⚠️ REGRA DE OURO — SÓ FALE O QUE VOCÊ SABE: você só tem os dados de estoque e o cadastro do cliente. Se o cliente perguntar QUALQUER coisa que você não consegue verificar com CERTEZA — reserva ("vocês reservaram?", "separaram pra mim?"), status de pedido, se algo foi enviado, combinados anteriores, valores/pagamento, ou qualquer promessa — NÃO invente, NÃO diga que "vai verificar com o time", NÃO confirme nem negue. Faça escalar: true e responda apenas algo curto como "Deixa eu confirmar isso certinho e já te respondo, tá?". QUEM sabe dessas coisas é o dono, não você.
 
 PERSONALIDADE: Natural, simpático, vendedor brasileiro de verdade.${instrucaoExtra}${perfilCliente}${notaDonoCliente}
 
@@ -262,7 +276,8 @@ REGRAS:
 8. NUNCA diga que mensagem chegou em branco
 9. NUNCA mais de 1 pergunta por vez
 10. NUNCA use # ou ## no texto
-11. Não sabe → escale, nunca invente
+11. Não sabe / não consegue verificar (reserva, pedido, pagamento, combinado) → escalar: true, sem inventar. Melhor "vou confirmar e já te respondo" que uma resposta errada.
+12. NÃO misture assuntos. Se o cliente muda de assunto (ex: pergunta de reserva no meio de outra coisa), foque no que ele perguntou — não force cadastro nem outro tema.
 
 JSON APENAS:
 {
@@ -313,7 +328,7 @@ JSON APENAS:
           content: `Atendente da ${config?.nome_loja ?? 'loja'} (loja de roupas). Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque${contextoMarca}.
 Responda em 1-2 frases curtas confirmando que temos e que vai chamar o vendedor pra enviar as fotos.
 ${temMarcaFavorita ? `Mencione que tem a marca favorita dele (${insights!.marca_principal as string}) de forma natural.` : ''}
-Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
+Tom: educada e natural, SEM exagero (nada de "amei!", "que máximo!"), no máximo 1 emoji. SEM lista, SEM preço, SEM nome de produto, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
         }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
@@ -343,7 +358,7 @@ Tom: animada, natural, brasileira. SEM lista, SEM preço, SEM nome de produto, S
     const phoneLimpo = contato.phone.replace(/\D/g, '')
     const contatoEhDono = ownerPhone && (phoneLimpo.slice(-11) === ownerPhone.slice(-11) || phoneLimpo.slice(-10) === ownerPhone.slice(-10))
     if (ownerPhone && !contatoEhDono) {
-      const msgOwner = `🔔 *${nomeCliente}* está esperando:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda aqui que eu encaminho.`
+      const msgOwner = `🔔 *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda o cliente pelo Zivo (aba WhatsApp).`
       notificarDono(admin, userId, ownerPhone, msgOwner).catch(() => null)
       try {
         await admin.from('atendimento_escalacoes').insert({
