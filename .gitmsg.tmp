@@ -1,0 +1,9 @@
+Conferencia: subir foto do produto por modelo
+
+Na conferencia de recebimento (pos NF-e), adiciona secao "Fotos dos produtos":
+uma foto por modelo que vale pra todos os tamanhos (P/M/G). Agrupa os itens
+por modelo+marca+cor, sobe pro bucket biblioteca e vincula a foto a todas as
+variacoes do mesmo modelo (biblioteca_fotos.estoque_ids), mesmo padrao do
+cadastro de estoque. Recarrega fotos ja vinculadas ao reabrir a conferencia.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

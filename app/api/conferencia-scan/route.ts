@@ -49,7 +49,10 @@ export async function POST(request: NextRequest) {
 PRODUTOS ESPERADOS NESTA NOTA FISCAL:
 ${JSON.stringify(produtosParaIA, null, 2)}
 
-Analise a etiqueta na imagem e compare com os produtos acima.
+Analise a etiqueta na imagem com MUITA ATENÇÃO e compare com os produtos acima.
+Leia o texto pequeno com cuidado (preço, REF/SKU, tamanho). Se a imagem estiver
+tremida ou ilegível em algum campo, retorne null naquele campo — nunca invente.
+
 Retorne SOMENTE JSON válido, sem markdown, sem explicação:
 
 {
@@ -67,6 +70,12 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicação:
   "ok": true
 }
 
+LEITURA DO PREÇO (importante):
+- O preço de venda na etiqueta costuma vir como "R$ 89,90" (vírgula é decimal). Retorne como número: 89.90
+- Se houver preço riscado ("de R$ 120 por R$ 89,90"), use o preço FINAL/atual (o menor, não o riscado).
+- Se houver parcelamento ("3x R$ 29,90"), o preço_venda é o valor À VISTA / total, NUNCA o valor da parcela.
+- Leia todos os dígitos com cuidado. Se não conseguir ler o preço com segurança, retorne null.
+
 Regras de comparação — siga NESTA ORDEM:
 1. CÓDIGO (mais confiável): O código na etiqueta (campo REF/SKU) pode ser prefixo do código no catálogo. Ex: "PO.10.0279" na etiqueta corresponde a "PO.10.0279699G" no catálogo — são o mesmo produto. Use isso como critério PRINCIPAL.
 2. NOME: Compare o nome do produto na etiqueta com os nomes da lista.
@@ -78,7 +87,7 @@ Regras de comparação — siga NESTA ORDEM:
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',

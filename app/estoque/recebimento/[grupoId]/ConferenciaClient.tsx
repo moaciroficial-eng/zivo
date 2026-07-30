@@ -255,6 +255,14 @@ export default function ConferenciaClient({
 
       setScanResult(data)
       setSelectedProdId(data.match_produto_id ?? '')
+
+      // Se a etiqueta traz preço e o produto não tem preço ainda (ou é diferente),
+      // já deixa marcado pra atualizar — é o que o lojista quer ao receber a mercadoria.
+      const etiq = data.etiqueta?.preco_venda ?? null
+      const atual = data.preco_venda_esperado ?? null
+      const precisaPreco = etiq != null && etiq > 0 &&
+        (atual == null || atual <= 0 || Math.abs(etiq - atual) > 0.01)
+      setPriceDecision(precisaPreco ? 'accepted' : 'pending')
     } catch (err) {
       setScanError(err instanceof Error ? err.message : 'Erro ao escanear etiqueta')
     } finally {
@@ -348,10 +356,14 @@ export default function ConferenciaClient({
     ? produtos.find(p => p.id === selectedProdId)
     : matchedProduto
 
-  const priceDiffers = scanResult != null
-    && scanResult.etiqueta.preco_venda != null
-    && scanResult.preco_venda_esperado != null
-    && Math.abs(scanResult.etiqueta.preco_venda - scanResult.preco_venda_esperado) > 0.01
+  // Preço atual do produto no banco (produtos vindos da NF-e costumam entrar sem preço de venda)
+  const precoAtual = scanResult?.preco_venda_esperado ?? null
+  const temPrecoAtual = precoAtual != null && precoAtual > 0
+  const precoEtiqueta = scanResult?.etiqueta.preco_venda ?? null
+  // Ação de preço quando a etiqueta traz preço e ou o produto não tem preço ainda, ou é diferente
+  const priceActionable = scanResult != null
+    && precoEtiqueta != null && precoEtiqueta > 0
+    && (!temPrecoAtual || Math.abs(precoEtiqueta - (precoAtual ?? 0)) > 0.01)
 
   const confiancaColor: Record<ScanResult['confianca'], string> = {
     alta:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
@@ -617,51 +629,50 @@ export default function ConferenciaClient({
                     </div>
                   )}
 
-                  {/* Comparação de preço */}
-                  {priceDiffers && priceDecision === 'pending' && (
-                    <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-4">
-                      <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wider mb-3">Preço diferente detectado</p>
+                  {/* Preço de venda — definir (produto novo sem preço) ou atualizar */}
+                  {priceActionable && (
+                    <div className={`rounded-xl p-4 border ${priceDecision === 'ignored' ? 'bg-zinc-800/40 border-zinc-700' : 'bg-yellow-500/5 border-yellow-500/20'}`}>
+                      <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${priceDecision === 'ignored' ? 'text-zinc-400' : 'text-yellow-400'}`}>
+                        {temPrecoAtual ? 'Preço diferente detectado' : 'Preço de venda na etiqueta'}
+                      </p>
                       <div className="flex items-center justify-between text-sm mb-3">
                         <div>
                           <p className="text-zinc-500 text-xs">Na etiqueta</p>
-                          <p className="font-bold text-white text-base">{fBRL(scanResult.etiqueta.preco_venda)}</p>
+                          <p className="font-bold text-white text-base">{fBRL(precoEtiqueta)}</p>
                         </div>
                         <div className="text-zinc-700">→</div>
                         <div className="text-right">
-                          <p className="text-zinc-500 text-xs">Calculado pelo markup</p>
-                          <p className="font-bold text-zinc-400 text-base">{fBRL(scanResult.preco_venda_esperado)}</p>
+                          <p className="text-zinc-500 text-xs">{temPrecoAtual ? 'Preço atual' : 'Produto sem preço'}</p>
+                          <p className="font-bold text-zinc-400 text-base">{temPrecoAtual ? fBRL(precoAtual) : '—'}</p>
                         </div>
                       </div>
-                      <p className="text-xs text-zinc-500 mb-3">
-                        Deseja atualizar o preço de venda para <strong className="text-white">{fBRL(scanResult.etiqueta.preco_venda)}</strong>?
-                      </p>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setPriceDecision('accepted')}
-                          className="flex-1 text-xs font-semibold bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-400 rounded-lg py-2 transition cursor-pointer"
+                          className={`flex-1 text-xs font-semibold rounded-lg py-2 transition cursor-pointer border ${
+                            priceDecision === 'accepted'
+                              ? 'bg-yellow-500/25 border-yellow-500/40 text-yellow-300'
+                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                          }`}
                         >
-                          Sim, atualizar
+                          {temPrecoAtual ? 'Atualizar preço' : 'Usar este preço'}
                         </button>
                         <button
                           onClick={() => setPriceDecision('ignored')}
-                          className="flex-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg py-2 transition cursor-pointer"
+                          className={`flex-1 text-xs font-semibold rounded-lg py-2 transition cursor-pointer border ${
+                            priceDecision === 'ignored'
+                              ? 'bg-zinc-700 border-zinc-600 text-white'
+                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                          }`}
                         >
-                          Não, manter
+                          Manter
                         </button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Decision made */}
-                  {priceDiffers && priceDecision === 'accepted' && (
-                    <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-                      <IconCheck size={14}/>
-                      Preço será atualizado para {fBRL(scanResult.etiqueta.preco_venda)} ao confirmar
-                    </div>
-                  )}
-                  {priceDiffers && priceDecision === 'ignored' && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-500 bg-zinc-800/50 border border-zinc-700 rounded-lg px-3 py-2">
-                      Preço mantido em {fBRL(scanResult.preco_venda_esperado)}
+                      {priceDecision === 'accepted' && (
+                        <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1.5">
+                          <IconCheck size={12}/> Preço será {temPrecoAtual ? 'atualizado' : 'definido'} para {fBRL(precoEtiqueta)} ao confirmar
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -675,7 +686,7 @@ export default function ConferenciaClient({
                     </button>
                     <button
                       onClick={confirmScan}
-                      disabled={priceDiffers && priceDecision === 'pending' || !resolvedProduto}
+                      disabled={!resolvedProduto}
                       className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
                     >
                       <IconCheck size={15}/>
