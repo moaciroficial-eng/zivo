@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getModo } from '@/lib/modo'
 import ConferenciaClient from './ConferenciaClient'
 
 export default async function ConferenciaPage({
@@ -21,11 +22,14 @@ export default async function ConferenciaPage({
 
   if (!produtos?.length) notFound()
 
+  const modo = await getModo()
+
   return (
     <ConferenciaClient
       user={{ id: user.id, email: user.email ?? '' }}
       grupoId={grupoId}
       produtos={produtos}
+      modo={modo}
     />
   )
 }

@@ -191,13 +191,17 @@ export default function EstoqueFormPage({
   user,
   produto,
   scanParams,
+  modo = 'dono',
 }: {
   user: { id: string; email: string }
   produto?: Produto
   scanParams?: Record<string, string | undefined>
+  modo?: 'dono' | 'funcionaria'
 }) {
   const router = useRouter()
   const supabase = createClient()
+  // Modo funcionária: não pode mudar preço/custo de produto JÁ cadastrado
+  const travarPreco = modo === 'funcionaria' && !!produto
 
   const hasScanParams = !!(scanParams?.nome || scanParams?.categoria || scanParams?.preco_venda)
   const [form, setForm] = useState<FormState>(() =>
@@ -529,7 +533,9 @@ export default function EstoqueFormPage({
     let alvoNome = payload.nome
 
     if (produto) {
-      const { error } = await supabase.from('estoque').update(payload).eq('id', produto.id)
+      const updProduto: Record<string, unknown> = { ...payload }
+      if (travarPreco) { delete updProduto.preco_venda; delete updProduto.preco_custo }  // modo funcionária: preço intacto
+      const { error } = await supabase.from('estoque').update(updProduto).eq('id', produto.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else if (existente && !criarNovoMesmo) {
       /* Produto já existe: soma os tamanhos deste cadastro no que já tem
@@ -540,10 +546,13 @@ export default function EstoqueFormPage({
         if (ix >= 0) merge[ix].qtd = (Number(merge[ix].qtd) || 0) + (Number(nova.qtd) || 0)
         else merge.push({ ...nova })
       }
-      /* atualiza tamanhos; preenche preço se o existente estiver sem */
+      /* atualiza tamanhos; preenche preço se o existente estiver sem.
+         No modo funcionária não mexe no preço/custo do produto existente. */
       const upd: Record<string, unknown> = { tamanhos: merge }
-      if (payload.preco_venda != null) upd.preco_venda = payload.preco_venda
-      if (payload.preco_custo != null) upd.preco_custo = payload.preco_custo
+      if (modo !== 'funcionaria') {
+        if (payload.preco_venda != null) upd.preco_venda = payload.preco_venda
+        if (payload.preco_custo != null) upd.preco_custo = payload.preco_custo
+      }
       const { error } = await supabase.from('estoque').update(upd).eq('id', existente.id)
       if (error) { setFormError(error.message); setSaving(false); return }
       prodId = existente.id
@@ -895,15 +904,18 @@ export default function EstoqueFormPage({
               {/* Preços */}
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Preço de Custo (R$)">
-                  <input type="number" min="0" step="0.01" value={form.preco_custo} onChange={e => setForm(f => ({...f, preco_custo: e.target.value}))} placeholder="0,00" className={INPUT} />
+                  <input type="number" min="0" step="0.01" disabled={travarPreco} value={form.preco_custo} onChange={e => setForm(f => ({...f, preco_custo: e.target.value}))} placeholder="0,00" className={`${INPUT} ${travarPreco ? 'opacity-60 cursor-not-allowed' : ''}`} />
                 </Field>
                 <Field label="Preço de Venda (R$)">
-                  <input type="number" min="0" step="0.01" value={form.preco_venda} onChange={e => setForm(f => {
+                  <input type="number" min="0" step="0.01" disabled={travarPreco} value={form.preco_venda} onChange={e => setForm(f => {
                     const custo = calcCusto(f.marca, e.target.value)
                     return { ...f, preco_venda: e.target.value, ...(custo && { preco_custo: custo }) }
-                  })} placeholder="0,00" className={INPUT} />
+                  })} placeholder="0,00" className={`${INPUT} ${travarPreco ? 'opacity-60 cursor-not-allowed' : ''}`} />
                 </Field>
               </div>
+              {travarPreco && (
+                <p className="text-xs text-amber-500/80">🔒 Preço bloqueado no modo funcionária — só o dono altera o preço de um produto já cadastrado.</p>
+              )}
 
               {/* Margem preview */}
               {form.preco_custo && form.preco_venda && (

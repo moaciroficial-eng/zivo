@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { getModo } from '@/lib/modo'
 import EstoqueClient from './EstoqueClient'
 
 export const metadata: Metadata = { title: 'Estoque — Zivo' }
@@ -23,11 +24,14 @@ export default async function EstoquePage() {
     }
   }
 
+  const modo = await getModo()
+
   return (
     <EstoqueClient
       user={{ id: user.id, email: user.email ?? '' }}
       initialProdutos={produtos ?? []}
       fotoMap={fotoMap}
+      modo={modo}
     />
   )
 }

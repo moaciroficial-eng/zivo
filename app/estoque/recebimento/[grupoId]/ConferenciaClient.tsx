@@ -254,10 +254,12 @@ export default function ConferenciaClient({
   user,
   grupoId,
   produtos,
+  modo = 'dono',
 }: {
   user: { id: string; email: string }
   grupoId: string
   produtos: Produto[]
+  modo?: 'dono' | 'funcionaria'
 }) {
   const supabase = createClient()
   const router   = useRouter()
@@ -406,7 +408,7 @@ export default function ConferenciaClient({
       const atual = data.preco_venda_esperado ?? null
       const precisaPreco = etiq != null && etiq > 0 &&
         (atual == null || atual <= 0 || Math.abs(etiq - atual) > 0.01)
-      setPriceDecision(precisaPreco ? 'accepted' : 'pending')
+      setPriceDecision(precisaPreco && modo !== 'funcionaria' ? 'accepted' : 'pending')
     } catch (err) {
       setScanError(err instanceof Error ? err.message : 'Erro ao escanear etiqueta')
     } finally {
@@ -420,8 +422,8 @@ export default function ConferenciaClient({
     const prodId = selectedProdId || scanResult?.match_produto_id
     if (!prodId) { setScanError('Selecione o produto correspondente antes de confirmar.'); return }
 
-    // Atualiza preço de venda se o usuário aceitou
-    if (priceDecision === 'accepted' && scanResult?.etiqueta.preco_venda != null) {
+    // Atualiza preço de venda se o usuário aceitou (funcionária nunca altera preço)
+    if (modo !== 'funcionaria' && priceDecision === 'accepted' && scanResult?.etiqueta.preco_venda != null) {
       const { error } = await supabase
         .from('estoque')
         .update({ preco_venda: scanResult.etiqueta.preco_venda })
@@ -523,6 +525,7 @@ export default function ConferenciaClient({
   const precoEtiqueta = scanResult?.etiqueta.preco_venda ?? null
   // Ação de preço quando a etiqueta traz preço e ou o produto não tem preço ainda, ou é diferente
   const priceActionable = scanResult != null
+    && modo !== 'funcionaria'   // funcionária não define/altera preço
     && precoEtiqueta != null && precoEtiqueta > 0
     && (!temPrecoAtual || Math.abs(precoEtiqueta - (precoAtual ?? 0)) > 0.01)
 

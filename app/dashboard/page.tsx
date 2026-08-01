@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { getModo } from '@/lib/modo'
 import DashboardClient from './DashboardClient'
 
 export const metadata: Metadata = { title: 'Dashboard — Zivo' }
@@ -89,6 +90,9 @@ export default async function DashboardPage() {
   }
   const vendasPorDia = Object.entries(dailyMap).map(([day, valor]) => ({ day: Number(day), valor }))
 
+  const modo = await getModo()
+  const restrito = modo === 'funcionaria'
+
   return (
     <DashboardClient
       user={{ id: user.id, email: user.email ?? '' }}
@@ -96,11 +100,12 @@ export default async function DashboardPage() {
       totalReceita={totalReceita}
       totalVendas={totalVendas}
       vendidoMes={vendidoMes}
-      lucroMes={lucroMes}
+      lucroMes={restrito ? null : lucroMes}
       lucroParcial={itensSemCusto > 0}
       metaInicial={metaRow ?? null}
       vendasPorDia={vendasPorDia}
       setup={setup}
+      modo={modo}
     />
   )
 }

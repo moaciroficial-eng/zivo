@@ -261,6 +261,7 @@ export default function VendasClient({
   historicoCaixas,
   initialCrediarios,
   marcaPorCliente = {},
+  modo = 'dono',
 }: {
   user: { id: string; email: string }
   initialVendas: Venda[]
@@ -270,8 +271,11 @@ export default function VendasClient({
   historicoCaixas: Caixa[]
   initialCrediarios: CrediarioItem[]
   marcaPorCliente?: Record<string, string>
+  modo?: 'dono' | 'funcionaria'
 }) {
   const supabase = createClient()
+  // Modo funcionária: desconto máximo permitido numa venda
+  const descontoMaxPct = modo === 'funcionaria' ? 60 : 100
   const [vendas, setVendas] = useState(initialVendas)
   const [drawer, setDrawer] = useState(false)
   const [editing, setEditing] = useState<Venda | null>(null)
@@ -706,9 +710,20 @@ export default function VendasClient({
   /* ── Save with payment (new venda) ── */
 
   async function handleSaveWithPayment() {
-    setSaving(true)
     const fp = buildFP()
     const totalVenda = totalFinal > 0 ? totalFinal : parseFloat(form.valor) || 0
+
+    // Modo funcionária: bloqueia desconto total acima do limite (ex.: desconto em R$)
+    if (modo === 'funcionaria') {
+      const bruto = form.produtos.reduce((s, p) => s + (Number(p.precoUnitario) || 0) * (Number(p.qtd) || 1), 0)
+      if (bruto > 0 && (bruto - totalVenda) / bruto > descontoMaxPct / 100 + 0.001) {
+        setFormError(`Desconto acima de ${descontoMaxPct}% não é permitido no modo funcionária.`)
+        setShowPayment(false)
+        return
+      }
+    }
+
+    setSaving(true)
     // crediário: só a entrada entra no caixa agora; o restante é recebido nas parcelas
     const valor = fp === 'crediario' ? (parseFloat(crEntrada) || 0) : totalVenda
     const selectedDep = clienteDependentes.find(d => d.id === selectedDepId)
@@ -1567,7 +1582,10 @@ export default function VendasClient({
                       </div>
                       <div className="flex flex-col flex-1">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Desc %</span>
-                        <input type="number" min="0" max="100" value={p.desconto} onChange={e => setProdutoField(i, 'desconto', e.target.value)}
+                        <input type="number" min="0" max={descontoMaxPct} value={p.desconto} onChange={e => {
+                            const v = Math.min(descontoMaxPct, Math.max(0, parseFloat(e.target.value) || 0))
+                            setProdutoField(i, 'desconto', e.target.value === '' ? '' : String(v))
+                          }}
                           className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
                       </div>
                       <div className="flex flex-col items-end shrink-0">
@@ -1604,9 +1622,17 @@ export default function VendasClient({
                       </div>
                       <input
                         type="number" min="0" step={descontoVendaTipo === '%' ? '1' : '0.01'}
-                        max={descontoVendaTipo === '%' ? '100' : undefined}
+                        max={descontoVendaTipo === '%' ? String(descontoMaxPct) : undefined}
                         value={descontoVendaValor}
-                        onChange={e => setDescontoVendaValor(e.target.value)}
+                        onChange={e => {
+                          // No modo funcionária, desconto % da venda no máximo descontoMaxPct
+                          if (descontoVendaTipo === '%' && e.target.value !== '') {
+                            const v = Math.min(descontoMaxPct, Math.max(0, parseFloat(e.target.value) || 0))
+                            setDescontoVendaValor(String(v))
+                          } else {
+                            setDescontoVendaValor(e.target.value)
+                          }
+                        }}
                         placeholder={descontoVendaTipo === '%' ? '0' : '0,00'}
                         className="flex-1 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
                       />

@@ -94,10 +94,12 @@ export default function EstoqueClient({
   user,
   initialProdutos,
   fotoMap = {},
+  modo = 'dono',
 }: {
   user: { id: string; email: string }
   initialProdutos: Produto[]
   fotoMap?: Record<string, string>
+  modo?: 'dono' | 'funcionaria'
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -299,8 +301,8 @@ export default function EstoqueClient({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Produtos"       value={String(produtos.length)} />
           <StatCard label="Peças em Stock" value={String(totalPecas)} />
-          <StatCard label="Valor de Custo" value={formatBRL(valorCusto)} />
-          <StatCard label="Valor de Venda" value={formatBRL(valorVenda)} accent="text-emerald-400" />
+          {modo !== 'funcionaria' && <StatCard label="Valor de Custo" value={formatBRL(valorCusto)} />}
+          {modo !== 'funcionaria' && <StatCard label="Valor de Venda" value={formatBRL(valorVenda)} accent="text-emerald-400" />}
         </div>
 
         {/* Sugestões IA */}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
+import ModoControle from './ModoControle'
 
 const NAV = [
   {
@@ -249,6 +250,11 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           </div>
         ))}
       </nav>
+
+      {/* Modo funcionária */}
+      <div className="border-t border-zinc-800/60 pt-2 shrink-0">
+        <ModoControle />
+      </div>
 
       {/* User footer */}
       <div className="border-t border-zinc-800/60 px-3 py-3 shrink-0">

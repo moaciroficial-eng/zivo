@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { getModo } from '@/lib/modo'
 import VendasClient from './VendasClient'
 
 export const metadata: Metadata = { title: 'Vendas — Zivo' }
@@ -92,16 +93,25 @@ export default async function VendasPage() {
     .eq('user_id', user.id).eq('status', 'fechado')
     .order('data_fechamento', { ascending: false }).limit(20)
 
+  // Modo funcionária: só mostra vendas do mês atual (esconde meses anteriores)
+  // e não mostra o histórico de caixas fechados.
+  const modo = await getModo()
+  const inicioMes = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}-01`
+  const vendasVisiveis = modo === 'funcionaria'
+    ? (vendas ?? []).filter(v => String(v.data_venda) >= inicioMes)
+    : (vendas ?? [])
+
   return (
     <VendasClient
       user={{ id: user.id, email: user.email ?? '' }}
-      initialVendas={vendas ?? []}
+      initialVendas={vendasVisiveis}
       clientes={clientes ?? []}
       estoqueItems={estoque ?? []}
       caixaAtual={caixaAtual ?? null}
-      historicoCaixas={historicoCaixas ?? []}
+      historicoCaixas={modo === 'funcionaria' ? [] : (historicoCaixas ?? [])}
       initialCrediarios={crediarios ?? []}
       marcaPorCliente={marcaPorCliente}
+      modo={modo}
     />
   )
 }

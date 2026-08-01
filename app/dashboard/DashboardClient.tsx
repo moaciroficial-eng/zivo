@@ -76,6 +76,7 @@ type Props = {
   metaInicial: MetaRow | null
   vendasPorDia: { day: number; valor: number }[]
   setup?: SetupEstado
+  modo?: 'dono' | 'funcionaria'
 }
 
 type SetupEstado = { loja: boolean; clientes: boolean; estoque: boolean; marcas: boolean; whatsapp: boolean; meta: boolean }
@@ -502,8 +503,9 @@ function PrimeirosPassos({ setup }: { setup: SetupEstado }) {
 }
 
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup,
+  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono',
 }: Props) {
+  const restrito = modo === 'funcionaria'   // modo funcionária: oculta todo valor financeiro
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
   const [plano,          setPlano]          = useState<Plano | null>(metaInicial?.plano ?? null)
   const [isGenerating,   setIsGenerating]   = useState(false)
@@ -511,10 +513,12 @@ export default function DashboardClient({
   const [showMetaModal,    setShowMetaModal]    = useState(false)
   const [showSaudeModal,   setShowSaudeModal]   = useState(false)
   const [showNextDays,     setShowNextDays]     = useState(false)
-  const [valoresVisiveis,  setValoresVisiveis]  = useState(() => {
+  const [valoresVisiveisRaw, setValoresVisiveisRaw] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('zivo:valoresVisiveis') === '1'
   })
+  // No modo funcionária os valores ficam SEMPRE ocultos (sem opção de mostrar)
+  const valoresVisiveis = restrito ? false : valoresVisiveisRaw
 
   const hoje = new Date().toISOString().split('T')[0]
 
@@ -646,18 +650,20 @@ export default function DashboardClient({
 
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <button
-            onClick={() => setValoresVisiveis(v => {
-              const next = !v
-              localStorage.setItem('zivo:valoresVisiveis', next ? '1' : '0')
-              return next
-            })}
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
-            title={valoresVisiveis ? 'Ocultar valores' : 'Mostrar valores'}
-          >
-            {valoresVisiveis ? <IconEyeOff /> : <IconEye />}
-            {valoresVisiveis ? 'Ocultar' : 'Mostrar'}
-          </button>
+          {!restrito && (
+            <button
+              onClick={() => setValoresVisiveisRaw(v => {
+                const next = !v
+                localStorage.setItem('zivo:valoresVisiveis', next ? '1' : '0')
+                return next
+              })}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
+              title={valoresVisiveis ? 'Ocultar valores' : 'Mostrar valores'}
+            >
+              {valoresVisiveis ? <IconEyeOff /> : <IconEye />}
+              {valoresVisiveis ? 'Ocultar' : 'Mostrar'}
+            </button>
+          )}
         </div>
 
         {/* Summary cards */}
