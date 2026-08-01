@@ -204,6 +204,51 @@ function fpToSlots(fp: string): { slots: PagSlot[]; hibrido: boolean } {
   return { slots: [{ metodo, parcelas, valor: '', recebido: '' }], hibrido: false }
 }
 
+/* ── Busca inteligente de produto (sem acento, tolerante a erro de digitação) ── */
+
+function normBusca(s: string): string {
+  return (s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+}
+
+// distância de edição (Levenshtein) com teto — pra tolerar 1-2 letras erradas
+function levDist(a: string, b: string): number {
+  const m = a.length, n = b.length
+  if (Math.abs(m - n) > 2) return 3
+  const dp = new Array(n + 1)
+  for (let j = 0; j <= n; j++) dp[j] = j
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0]; dp[0] = i
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j]
+      dp[j] = a[i - 1] === b[j - 1] ? prev : Math.min(prev, dp[j], dp[j - 1]) + 1
+      prev = tmp
+    }
+  }
+  return dp[n]
+}
+
+// pontua um termo digitado contra as palavras de um produto (0 = não casa)
+function pontuaToken(token: string, palavras: string[], haystack: string): number {
+  if (haystack.includes(token)) {
+    return palavras.some(w => w.startsWith(token)) ? 100 : 72   // palavra começa com o termo vale mais
+  }
+  const tol = token.length <= 4 ? 1 : 2   // termo curto tolera 1 erro; longo, 2
+  let best = 0
+  for (const w of palavras) {
+    if (Math.abs(w.length - token.length) > tol) {
+      // ainda tenta casar o termo contra o começo da palavra (prefixo com erro)
+      if (w.length > token.length) {
+        const d = levDist(token, w.slice(0, token.length))
+        if (d <= tol) best = Math.max(best, 48 - d * 12)
+      }
+      continue
+    }
+    const d = levDist(token, w)
+    if (d <= tol) best = Math.max(best, 60 - d * 12)
+  }
+  return best
+}
+
 /* ── Icons ──────────────────────────────────────────────────── */
 
 const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -452,20 +497,33 @@ export default function VendasClient({
 
   const produtosFiltrados: EstoqueFlat[] = (() => {
     if (productSearch.length < 1) return []
-    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-    const q = norm(productSearch)
-    const tokens = q.split(/\s+/).filter(Boolean)
-    const matched = estoqueItems.filter(e => {
-      const haystack = norm([e.nome, e.marca, e.cor, e.codigo_barras, e.codigo_produto].filter(Boolean).join(' '))
-      return tokens.every(t => haystack.includes(t))
-    }).slice(0, 8)
+    const tokens = normBusca(productSearch).split(/\s+/).filter(Boolean)
+    if (tokens.length === 0) return []
+
+    // pontua cada produto: todo termo precisa casar (exato ou com erro leve)
+    const ranked = estoqueItems.map(e => {
+      const haystack = normBusca([e.nome, e.marca, e.cor, e.codigo_barras, e.codigo_produto].filter(Boolean).join(' '))
+      const palavras = haystack.split(/\s+/).filter(Boolean)
+      let score = 0
+      for (const t of tokens) {
+        const s = pontuaToken(t, palavras, haystack)
+        if (s === 0) return null            // esse termo não casou de jeito nenhum → fora
+        score += s
+      }
+      // bônus: nome do produto começa com o texto buscado (match mais óbvio primeiro)
+      if (normBusca(e.nome).startsWith(tokens[0])) score += 40
+      return { e, score }
+    }).filter((x): x is { e: typeof estoqueItems[number]; score: number } => x != null)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+
     const result: EstoqueFlat[] = []
-    for (const item of matched) {
+    for (const { e: item } of ranked) {
       const sizes = (item.tamanhos ?? []).filter(t => t.qtd > 0)
       if (sizes.length <= 1) result.push({ ...item, _tamanho: sizes[0]?.tamanho ?? null })
       else for (const t of sizes) result.push({ ...item, _tamanho: t.tamanho })
     }
-    return result.slice(0, 12)
+    return result.slice(0, 14)
   })()
 
   /* ── Toast ── */

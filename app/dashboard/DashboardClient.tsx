@@ -517,8 +517,9 @@ export default function DashboardClient({
     if (typeof window === 'undefined') return false
     return localStorage.getItem('zivo:valoresVisiveis') === '1'
   })
-  // No modo funcionária os valores ficam SEMPRE ocultos (sem opção de mostrar)
-  const valoresVisiveis = restrito ? false : valoresVisiveisRaw
+  // No modo funcionária os valores do mês atual APARECEM (sem o toggle de ocultar);
+  // o que fica escondido é o lucro (via prop null) e o painel de saúde financeira.
+  const valoresVisiveis = restrito ? true : valoresVisiveisRaw
 
   const hoje = new Date().toISOString().split('T')[0]
 
@@ -866,8 +867,8 @@ export default function DashboardClient({
               </div>
             </div>
 
-            {/* ── Financial health panel ─────────────────────── */}
-            {temSaude && hc ? (
+            {/* ── Financial health panel (oculto no modo funcionária) ── */}
+            {!restrito && (temSaude && hc ? (
               <div className={`bg-zinc-900 border rounded-2xl p-5 ${hc.border} ${hc.bg}`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -981,7 +982,7 @@ export default function DashboardClient({
                 </div>
                 <span className="text-zinc-500 group-hover:text-[#3B6FFF] transition text-sm">→</span>
               </button>
-            )}
+            ))}
 
             {/* ── Plan section ──────────────────────────────── */}
             {isGenerating ? (
