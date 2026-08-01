@@ -4,6 +4,37 @@ import { NextResponse } from 'next/server'
 import { processarEventoInbound } from '@/lib/whatsapp-inbound'
 import { getLojaByMetaPhoneId } from '@/lib/loja'
 
+const META_API_VERSION = process.env.META_API_VERSION || 'v21.0'
+
+/* Baixa a mídia da Meta (URL protegida por token, expira) e re-hospeda no
+   storage público pra o inbox conseguir exibir. Retorna a URL pública. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function baixarMidiaMeta(mediaId: string, accessToken: string, supabase: any, userId: string): Promise<string | null> {
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store',
+    })
+    if (!metaRes.ok) return null
+    const info = await metaRes.json()
+    const url = info?.url as string | undefined
+    const mime = (info?.mime_type as string | undefined) || 'image/jpeg'
+    if (!url) return null
+
+    const bin = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' })
+    if (!bin.ok) return null
+    const buf = Buffer.from(await bin.arrayBuffer())
+
+    const ext = (mime.split('/')[1] || 'jpg').split(';')[0]
+    const path = `whatsapp/${userId}/${Date.now()}-${mediaId}.${ext}`
+    const { data, error } = await supabase.storage.from('biblioteca').upload(path, buf, { contentType: mime })
+    if (error) return null
+    const { data: pub } = supabase.storage.from('biblioteca').getPublicUrl(data.path)
+    return pub?.publicUrl ?? null
+  } catch {
+    return null
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════
    Webhook da Meta WhatsApp Cloud API (oficial)
 
@@ -47,7 +78,10 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
       base.text = { message: (m.text as Record<string, unknown>)?.body ?? '' }
       break
     case 'image':
-      base.image = { caption: (m.image as Record<string, unknown>)?.caption ?? null }
+      base.image = {
+        caption: (m.image as Record<string, unknown>)?.caption ?? null,
+        id: (m.image as Record<string, unknown>)?.id ?? null,
+      }
       break
     case 'video':
       base.video = { caption: (m.video as Record<string, unknown>)?.caption ?? null }
@@ -129,6 +163,15 @@ export async function POST(request: NextRequest) {
         for (const m of mensagens) {
           const payload = normalizarMensagem(m, nomeContato)
           payload.__creds = loja.creds
+
+          /* Imagem: baixa da Meta e re-hospeda pra o inbox exibir (raw.image.imageUrl) */
+          const img = payload.image as Record<string, unknown> | undefined
+          const token = loja.creds?.meta?.accessToken as string | undefined
+          if (img?.id && token) {
+            const publicUrl = await baixarMidiaMeta(String(img.id), token, supabase, loja.userId)
+            if (publicUrl) img.imageUrl = publicUrl
+          }
+
           await processarEventoInbound(supabase, loja.userId, payload)
         }
 
