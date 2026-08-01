@@ -11,6 +11,12 @@ const norm = (s: string) => (s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu
 
 type TamanhoQtd = { tamanho: string | number; qtd: number }
 
+// tamanhos "letra" reconhecidos como termo de tamanho na busca
+const TAM_LETRAS = new Set(['pp', 'p', 'm', 'g', 'gg', 'xg', 'xgg', 'xs', 's', 'l', 'xl', 'xxl', 'xxxl'])
+function ehTamanho(t: string): boolean {
+  return TAM_LETRAS.has(t) || /^\d{2}$/.test(t)   // letra conhecida ou número de 2 dígitos (36, 40, 42…)
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -32,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const [{ data: estoque }, { data: fotos }] = await Promise.all([
-    admin.from('estoque').select('id, nome, marca, cor, preco_venda, tamanhos, genero, status')
+    admin.from('estoque').select('id, nome, marca, cor, categoria, preco_venda, tamanhos, genero, status')
       .eq('user_id', user.id).not('status', 'eq', 'vendido'),
     admin.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
   ])
@@ -43,19 +49,26 @@ export async function POST(request: NextRequest) {
     for (const id of (f.estoque_ids ?? [])) if (!fotoDe.has(id)) fotoDe.set(id, f.url)
   }
 
+  // separa os termos: os que são TAMANHO filtram por tamanho disponível;
+  // o resto casa no texto (nome/marca/cor/categoria)
   const termos = norm(q ?? '').split(/\s+/).filter(Boolean)
+  const termosTamanho = termos.filter(ehTamanho)
+  const termosTexto = termos.filter(t => !ehTamanho(t))
 
   const itens = (estoque ?? [])
     .filter(e => fotoDe.has(e.id))
     .map(e => {
       const tams = ((e.tamanhos as TamanhoQtd[]) ?? []).filter(t => Number(t.qtd) > 0)
       const tamanhosDisp = tams.map(t => String(t.tamanho))
+      const tamanhosNorm = tamanhosDisp.map(t => norm(t))
       const serve = tamsCliente.some(Boolean)
         ? clienteServeProduto(tamsCliente, tamanhosDisp)
         : false
-      const haystack = norm([e.nome, e.marca, e.cor].filter(Boolean).join(' '))
-      const casa = termos.length === 0 || termos.every(t => haystack.includes(t))
-      return { e, tams, tamanhosDisp, serve, casa }
+      const haystack = norm([e.nome, e.marca, e.cor, e.categoria].filter(Boolean).join(' '))
+      const casaTexto = termosTexto.every(t => haystack.includes(t))
+      // todo tamanho digitado precisa estar DISPONÍVEL nesse produto (match exato)
+      const casaTamanho = termosTamanho.every(t => tamanhosNorm.includes(t))
+      return { e, tams, tamanhosDisp, serve, casa: casaTexto && casaTamanho }
     })
     .filter(x => x.casa && x.tamanhosDisp.length > 0)
     .sort((a, b) => Number(b.serve) - Number(a.serve))
