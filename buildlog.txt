@@ -2,3 +2,120 @@
 > zivo@0.1.0 build
 > next build
 
+▲ Next.js 16.2.6 (Turbopack)
+- Environments: .env.production.local, .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 43s
+  Running TypeScript ...
+  Finished TypeScript in 44s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/93) ...
+  Generating static pages using 3 workers (23/93) 
+  Generating static pages using 3 workers (46/93) 
+  Generating static pages using 3 workers (69/93) 
+✓ Generating static pages using 3 workers (93/93) in 11.8s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ○ /agentes
+├ ƒ /api/agentes/atendimento
+├ ƒ /api/agentes/dados
+├ ƒ /api/agentes/enviar-sugestao
+├ ƒ /api/agentes/estoque
+├ ƒ /api/agentes/proativo
+├ ƒ /api/agentes/processar
+├ ƒ /api/aprendizado
+├ ƒ /api/campanhas/[id]
+├ ƒ /api/campanhas/consultora
+├ ƒ /api/campanhas/consultora/disparar
+├ ƒ /api/campanhas/disparar
+├ ƒ /api/campanhas/gerar
+├ ƒ /api/campanhas/produtos
+├ ƒ /api/chat
+├ ƒ /api/clientes/buscar
+├ ƒ /api/clientes/calcular-insight
+├ ƒ /api/clientes/importar
+├ ƒ /api/clientes/importar/confirmar
+├ ƒ /api/clientes/observacao
+├ ƒ /api/compras/analisar
+├ ƒ /api/conferencia-scan
+├ ƒ /api/conferencia/novidades
+├ ƒ /api/cron/aniversarios
+├ ƒ /api/cron/drenar-tarefas
+├ ƒ /api/cron/enriquecer-insights
+├ ƒ /api/cron/inteligencia
+├ ƒ /api/cron/inteligencia-v2
+├ ƒ /api/cron/mensagens-agendadas
+├ ƒ /api/debug/conversa
+├ ƒ /api/debug/whatsapp
+├ ƒ /api/estoque/importar
+├ ƒ /api/estoque/importar/confirmar
+├ ƒ /api/gerar-plano
+├ ƒ /api/gerente
+├ ƒ /api/gerente/executar
+├ ƒ /api/health
+├ ƒ /api/import-nfe-file
+├ ƒ /api/inteligencia/analisar
+├ ƒ /api/inteligencia/listar
+├ ƒ /api/inteligencia/resolver
+├ ƒ /api/marcar-plano-vendido
+├ ƒ /api/modo
+├ ƒ /api/modo/entrar
+├ ƒ /api/modo/pin
+├ ƒ /api/modo/sair
+├ ƒ /api/owner/comando
+├ ƒ /api/plano/contatar
+├ ƒ /api/plano/produto-clientes
+├ ƒ /api/pos-venda
+├ ƒ /api/salvar-meta
+├ ƒ /api/scan-label
+├ ƒ /api/sugestoes
+├ ƒ /api/whatsapp/apagar-conversa
+├ ƒ /api/whatsapp/debug
+├ ƒ /api/whatsapp/foto
+├ ƒ /api/whatsapp/meta
+├ ƒ /api/whatsapp/meta/embedded-signup
+├ ƒ /api/whatsapp/meta/provisionar-templates
+├ ƒ /api/whatsapp/meta/testar
+├ ƒ /api/whatsapp/produtos-foto
+├ ƒ /api/whatsapp/reconnect
+├ ƒ /api/whatsapp/send
+├ ƒ /api/whatsapp/send-imagem
+├ ƒ /api/whatsapp/status
+├ ƒ /api/whatsapp/webhook
+├ ƒ /biblioteca
+├ ƒ /calendario
+├ ƒ /campanhas
+├ ƒ /clientes
+├ ƒ /compras
+├ ƒ /configuracoes/loja
+├ ƒ /configuracoes/marcas
+├ ƒ /dashboard
+├ ƒ /estoque
+├ ƒ /estoque/[id]/editar
+├ ƒ /estoque/condicional
+├ ƒ /estoque/novo
+├ ○ /estoque/processando
+├ ƒ /estoque/recebimento
+├ ƒ /estoque/recebimento/[grupoId]
+├ ƒ /ia
+├ ○ /icon
+├ ○ /inteligencia
+├ ○ /login
+├ ○ /onboarding
+├ ○ /privacidade
+├ ○ /reset-password
+├ ○ /signup
+├ ○ /termos
+├ ƒ /vendas
+└ ƒ /whatsapp
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
