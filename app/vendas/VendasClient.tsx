@@ -970,6 +970,15 @@ export default function VendasClient({
     const updated = data?.[0] ?? { ...editing!, ...payload }
     setVendas(vs => vs.map(v => v.id === editing!.id ? updated : v))
 
+    /* Se a venda tem crediário vinculado, move ele junto com o cliente
+       (corrige quando a venda foi lançada no cliente errado e depois editada). */
+    await supabase.from('crediario')
+      .update({ cliente_id: payload.cliente_id, cliente_nome: payload.cliente_nome })
+      .eq('venda_id', editing!.id).eq('user_id', user.id)
+    setCrediarios(cs => cs.map(c => c.venda_id === editing!.id
+      ? { ...c, cliente_id: payload.cliente_id, cliente_nome: payload.cliente_nome }
+      : c))
+
     /* Ajusta estoque: devolve os itens antigos e baixa os novos */
     await ajustarEstoque((editing!.produtos ?? []) as Produto[], 1)
     await ajustarEstoque(payload.produtos as Produto[], -1)
