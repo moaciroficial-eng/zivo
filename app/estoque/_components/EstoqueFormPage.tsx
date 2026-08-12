@@ -190,11 +190,13 @@ const IconSpinner = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" hei
 export default function EstoqueFormPage({
   user,
   produto,
+  duplicarDe,
   scanParams,
   modo = 'dono',
 }: {
   user: { id: string; email: string }
   produto?: Produto
+  duplicarDe?: Produto
   scanParams?: Record<string, string | undefined>
   modo?: 'dono' | 'funcionaria'
 }) {
@@ -204,8 +206,10 @@ export default function EstoqueFormPage({
   const travarPreco = modo === 'funcionaria' && !!produto
 
   const hasScanParams = !!(scanParams?.nome || scanParams?.categoria || scanParams?.preco_venda)
+  // Duplicando: pré-preenche com o original, mas salva como produto NOVO (produto fica undefined)
+  const base = produto ?? duplicarDe
   const [form, setForm] = useState<FormState>(() =>
-    hasScanParams ? applyParamsToForm(toFormState(produto), scanParams!) : toFormState(produto)
+    hasScanParams ? applyParamsToForm(toFormState(base), scanParams!) : toFormState(base)
   )
   const [saving, setSaving] = useState(false)
   const [scanning, setScanning] = useState(false)
@@ -591,8 +595,8 @@ export default function EstoqueFormPage({
             <IconBack />
           </Link>
           <div>
-            <h1 className="text-xl font-bold">{produto ? 'Editar Produto' : 'Novo Produto'}</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">{produto ? produto.nome : 'Preencha os dados do produto'}</p>
+            <h1 className="text-xl font-bold">{produto ? 'Editar Produto' : duplicarDe ? 'Duplicar Produto' : 'Novo Produto'}</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">{produto ? produto.nome : duplicarDe ? `Cópia de ${duplicarDe.nome} — altere o que mudar (ex.: cor)` : 'Preencha os dados do produto'}</p>
           </div>
         </div>
 

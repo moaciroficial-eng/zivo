@@ -5,7 +5,11 @@ import EstoqueFormPage from '../_components/EstoqueFormPage'
 import ClearScanCookie from '../_components/ClearScanCookie'
 import type { ScanData } from '../actions'
 
-export default async function NovoEstoquePage() {
+export default async function NovoEstoquePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -14,11 +18,18 @@ export default async function NovoEstoquePage() {
   const raw = cookieStore.get('scan_result')?.value
   const scanData: ScanData | null = raw ? JSON.parse(raw) : null
 
+  /* Duplicar produto: busca o original pra pré-preencher (salva como novo) */
+  const sp = await searchParams
+  const { data: dup } = sp.duplicar
+    ? await supabase.from('estoque').select('*').eq('id', sp.duplicar).eq('user_id', user.id).maybeSingle()
+    : { data: null }
+
   return (
     <>
     {raw && <ClearScanCookie />}
     <EstoqueFormPage
       user={{ id: user.id, email: user.email ?? '' }}
+      duplicarDe={dup ?? undefined}
       scanParams={scanData ? {
         nome:           scanData.nome           ?? undefined,
         marca:          scanData.marca          ?? undefined,
