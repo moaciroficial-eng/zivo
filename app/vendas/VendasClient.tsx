@@ -306,6 +306,7 @@ export default function VendasClient({
   historicoCaixas,
   initialCrediarios,
   marcaPorCliente = {},
+  fotoMap = {},
   modo = 'dono',
 }: {
   user: { id: string; email: string }
@@ -316,6 +317,7 @@ export default function VendasClient({
   historicoCaixas: Caixa[]
   initialCrediarios: CrediarioItem[]
   marcaPorCliente?: Record<string, string>
+  fotoMap?: Record<string, string>
   modo?: 'dono' | 'funcionaria'
 }) {
   const supabase = createClient()
@@ -1599,8 +1601,13 @@ export default function VendasClient({
                             key={item.id + (item._tamanho ?? '')}
                             type="button"
                             onMouseDown={() => addFromSearch(item)}
-                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
+                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center gap-2.5"
                           >
+                            <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center">
+                              {fotoMap[item.id]
+                                ? <img src={fotoMap[item.id]} alt="" className="w-full h-full object-cover" />
+                                : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-zinc-600"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
+                            </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-zinc-200 text-sm truncate">{item.nome}</p>
                               {(item.marca || item.cor) && (

@@ -36,7 +36,7 @@ export default async function VendasPage() {
   d.setUTCDate(d.getUTCDate() + 1)
   const tomorrow = d.toISOString().split('T')[0]
 
-  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }, { data: insights }] = await Promise.all([
+  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }, { data: insights }, { data: fotos }] = await Promise.all([
     supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
     supabase.from('clientes').select('id, nome, dependentes, saldo_credito, observacoes').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, cor, codigo_barras, codigo_produto, preco_venda, preco_custo, status, tamanhos')
@@ -45,7 +45,14 @@ export default async function VendasPage() {
       .eq('status', 'aberto').order('created_at', { ascending: false }),
     /* marca principal por cliente — pra sugerir a observação na venda */
     supabase.from('contato_insights').select('cliente_id, marca_principal, fidelidade_marca').eq('user_id', user.id),
+    supabase.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
   ])
+
+  /* Mapa produtoId → foto (miniatura na busca de venda) */
+  const fotoMap: Record<string, string> = {}
+  for (const f of (fotos ?? []) as { url: string; estoque_ids: string[] | null }[]) {
+    for (const id of (f.estoque_ids ?? [])) if (!fotoMap[id]) fotoMap[id] = f.url
+  }
 
   /* Mapa cliente_id → marca principal (só quando há afinidade real) */
   const marcaPorCliente: Record<string, string> = {}
@@ -111,6 +118,7 @@ export default async function VendasPage() {
       historicoCaixas={modo === 'funcionaria' ? [] : (historicoCaixas ?? [])}
       initialCrediarios={crediarios ?? []}
       marcaPorCliente={marcaPorCliente}
+      fotoMap={fotoMap}
       modo={modo}
     />
   )
