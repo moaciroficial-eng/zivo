@@ -27,6 +27,10 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
   polo:     'Polo',
   tenis:    'Tênis',
   chinelo:  'Chinelos',
+  cueca:    'Cueca',
+  meia:     'Meia',
+  bone:     'Boné',
+  acessorios: 'Acessórios',
   outros:   'Outros',
 }
 
@@ -40,6 +44,10 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   polo:     'bg-sky-500/15 text-sky-300 border-sky-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  cueca:    'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  meia:     'bg-teal-500/15 text-teal-300 border-teal-500/25',
+  bone:     'bg-lime-500/15 text-lime-300 border-lime-500/25',
+  acessorios: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
   outros:   'bg-zinc-700/50 text-zinc-300 border-zinc-600',
 }
 

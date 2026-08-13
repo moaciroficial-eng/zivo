@@ -18,6 +18,24 @@ export async function POST(request: NextRequest) {
   if (!Array.isArray(produtos) || !produtos.length) return NextResponse.json({ ok: false, erro: 'Nada pra importar.' }, { status: 400 })
 
   const limpo = (v: unknown) => { const s = String(v ?? '').trim(); return s && s.toLowerCase() !== 'null' ? s : null }
+
+  /* Categoria precisa bater com a check constraint do banco — normaliza
+     sinônimos e cai em 'outros' pra nunca quebrar o insert. */
+  const CATS_VALIDAS = new Set(['camiseta','blusa','camisa','regata','calca','bermuda','polo','tenis','chinelo','cueca','meia','bone','acessorios','outros'])
+  const CAT_SINONIMOS: Record<string, string> = {
+    short: 'bermuda', shorts: 'bermuda',
+    sandalia: 'chinelo', chinelos: 'chinelo',
+    bota: 'tenis', sapato: 'tenis', sapatenis: 'tenis', tenis: 'tenis',
+    jaqueta: 'outros', moletom: 'outros', casaco: 'outros', vestido: 'outros', saia: 'outros', outro: 'outros',
+    acessorio: 'acessorios', cinto: 'acessorios', carteira: 'acessorios', oculos: 'acessorios', corrente: 'acessorios',
+    chapeu: 'bone', bones: 'bone', meias: 'meia', cuecas: 'cueca',
+  }
+  const categoriaValida = (v: unknown): string => {
+    const s = String(v ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+    if (!s) return 'outros'
+    if (CATS_VALIDAS.has(s)) return s
+    return CAT_SINONIMOS[s] ?? 'outros'
+  }
   const genero = (v: unknown) => { const c = String(v ?? '').toUpperCase().charAt(0); return c === 'M' || c === 'F' ? c : c === 'U' ? 'U' : null }
   const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null }
 
@@ -33,7 +51,7 @@ export async function POST(request: NextRequest) {
       nome: p.nome.trim(),
       marca: limpo(p.marca),
       cor: limpo(p.cor),
-      categoria: limpo(p.categoria),
+      categoria: categoriaValida(p.categoria),
       genero: genero(p.genero),
       tamanhos: grade.length ? grade : [{ tamanho: 'UN', qtd: 1 }],
       preco_venda: num(p.preco_venda),

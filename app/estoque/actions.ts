@@ -54,11 +54,15 @@ Formato exato:
 {"nome":"...","marca":null,"categoria":"camiseta","tamanho":null,"preco_venda":null,"preco_custo":null,"codigo_produto":null,"cor":null}
 
 Regras gerais:
-- "categoria": exatamente "camiseta", "camisa", "polo", "regata", "calca", "bermuda", "tenis", "chinelo" ou "outros"
+- "categoria": exatamente "camiseta", "camisa", "polo", "regata", "calca", "bermuda", "tenis", "chinelo", "cueca", "meia", "bone", "acessorios" ou "outros"
   - Use "polo" para camiseta polo (gola com botões)
   - Use "camisa" para camisas sociais com botões
   - Use "bermuda" para bermudas e shorts
   - Use "calca" apenas para calças longas
+  - Use "cueca" para cuecas/roupa íntima masculina
+  - Use "meia" para meias
+  - Use "bone" para bonés/chapéus
+  - Use "acessorios" para carteira, cinto, óculos, corrente e afins
 - "tamanho": string (ex: "M", "G", "42") ou null
 - preços: número (ex: 89.90) ou null — sem R$
 - Preencha preços SOMENTE se o valor estiver explicitamente impresso na etiqueta; se não encontrar, use null — nunca estime nem infira preços

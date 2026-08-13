@@ -64,7 +64,7 @@ type ClienteRow = {
 function parteDoCorpo(prod: EstoqueRow): 'camiseta' | 'calca' | 'tenis' | null {
   const t = `${prod.categoria ?? ''} ${prod.nome ?? ''}`.toLowerCase()
   if (/t[êe]nis|sapat|sand[áa]lia|chinelo|\bbota\b|botina|cal[çc]ado|mocassim|rasteir|papete|slide/.test(t)) return 'tenis'
-  if (/camiseta|camisa|polo|blusa|regata|jaqueta|moletom|casaco|body|cropped|t-shirt|malha|su[ée]ter|colete|corta.?vento|top\b/.test(t)) return 'camiseta'
+  if (/camiseta|camisa|polo|blusa|regata|jaqueta|moletom|casaco|body|cropped|t-shirt|malha|su[ée]ter|colete|corta.?vento|top\b|cueca/.test(t)) return 'camiseta'
   if (/cal[çc]a|bermuda|short|jeans|legging|cal[çc][aã]o|jogger/.test(t)) return 'calca'
   return null
 }

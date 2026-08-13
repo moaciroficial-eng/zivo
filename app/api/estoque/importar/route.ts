@@ -14,7 +14,7 @@ const PROMPT = `Você recebe o estoque de uma loja de roupas, colado de qualquer
   "nome": "nome do produto, limpo (ex: 'Camiseta Gola Careca')",
   "marca": "marca ou null",
   "cor": "cor ou null",
-  "categoria": "uma de: camiseta, camisa, polo, calca, bermuda, short, tenis, chinelo, sandalia, bota, jaqueta, moletom, vestido, saia, blusa, acessorio, outro",
+  "categoria": "EXATAMENTE uma de: camiseta, blusa, camisa, regata, polo, calca, bermuda, tenis, chinelo, cueca, meia, bone, acessorios, outros (use 'bermuda' para shorts; 'acessorios' para cinto/carteira/óculos; 'outros' para jaqueta/moletom/vestido/o que não encaixar)",
   "genero": "M (masculino), F (feminino) ou U (unissex) — infira pela categoria/nome; U se não der pra saber",
   "tamanhos": [{"tamanho":"P/M/G/GG ou 38/40/42 ou nº do pé","qtd":1}],
   "preco_venda": 199.90,

@@ -9,7 +9,7 @@ function applyParamsToForm(base: FormState, sp: Record<string, string | undefine
   if (sp.nome)     next.nome  = sp.nome
   if (sp.marca)    next.marca = sp.marca
   const cat = sp.categoria as Produto['categoria'] | undefined
-  if (cat && ['camiseta','blusa','camisa','regata','calca','bermuda','polo','tenis','chinelo','outros'].includes(cat)) {
+  if (cat && ['camiseta','blusa','camisa','regata','calca','bermuda','polo','tenis','chinelo','cueca','meia','bone','acessorios','outros'].includes(cat)) {
     next.categoria  = cat
     next.tamanhos   = []
     next.qtd_outros = '0'
@@ -62,6 +62,10 @@ const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
   polo:     ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
   tenis:    ['34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'],
   chinelo:  ['34/35', '36/37', '37/38', '39/40', '41/42', '43/44'],
+  cueca:    ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
+  meia:     ['Único', '35/38', '39/42', '43/46'],
+  bone:     ['Único'],
+  acessorios: ['Único'],
   outros:   [],
 }
 
@@ -75,6 +79,10 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
   polo:     'Polo',
   tenis:    'Tênis',
   chinelo:  'Chinelos',
+  cueca:    'Cueca',
+  meia:     'Meia',
+  bone:     'Boné',
+  acessorios: 'Acessórios',
   outros:   'Outros',
 }
 
@@ -88,15 +96,19 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   polo:     'bg-sky-500/15 text-sky-300 border-sky-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  cueca:    'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  meia:     'bg-teal-500/15 text-teal-300 border-teal-500/25',
+  bone:     'bg-lime-500/15 text-lime-300 border-lime-500/25',
+  acessorios: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
   outros:   'bg-zinc-700/50 text-zinc-300 border-zinc-600',
 }
 
 const CATS_BY_GENERO: Record<string, Produto['categoria'][]> = {
-  M: ['camiseta', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
-  F: ['blusa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
-  U: ['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
-  I: ['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
-  '': ['camiseta', 'blusa', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'outros'],
+  M: ['camiseta', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'cueca', 'meia', 'bone', 'acessorios', 'outros'],
+  F: ['blusa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'meia', 'bone', 'acessorios', 'outros'],
+  U: ['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'meia', 'bone', 'acessorios', 'outros'],
+  I: ['camiseta', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'cueca', 'meia', 'bone', 'acessorios', 'outros'],
+  '': ['camiseta', 'blusa', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'cueca', 'meia', 'bone', 'acessorios', 'outros'],
 }
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'

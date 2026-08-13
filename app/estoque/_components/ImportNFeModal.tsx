@@ -140,7 +140,7 @@ function parseXML(xml: string): ParsedNFe | { error: string } {
 /* ── Helpers ── */
 
 const CAT_LABEL: Record<Produto['categoria'], string> = {
-  camiseta: 'Camiseta', blusa: 'Blusa', camisa: 'Camisa', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', outros: 'Outros',
+  camiseta: 'Camiseta', blusa: 'Blusa', camisa: 'Camisa', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', cueca: 'Cueca', meia: 'Meia', bone: 'Boné', acessorios: 'Acessórios', outros: 'Outros',
 }
 
 function fBRL(v: number | null) {
