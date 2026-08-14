@@ -204,6 +204,9 @@ export async function rodarProativo(
     aniversariantesSemana(admin, userId),
   ])
 
+  const { data: cfgLoja } = await admin.from('loja_config').select('nome_loja').eq('user_id', userId).maybeSingle()
+  const nomeLoja = (cfgLoja as { nome_loja?: string } | null)?.nome_loja ?? 'chefe'
+
   const partes: string[] = []
   if (oportunidades.length) partes.push(...oportunidades)
   if (inativos)    partes.push(inativos)
@@ -215,6 +218,7 @@ export async function rodarProativo(
     await sendWhatsAppMessage({
       phone: ownerPhone,
       message: `🤖 *Zivo — Bom dia!*\n\nAnalisei tudo aqui e hoje está tudo em dia. Nenhuma ação urgente por enquanto. Boas vendas! 💪`,
+      userId,
     })
     return { rodou: true, alertas: 0 }
   }
@@ -226,13 +230,13 @@ export async function rodarProativo(
     max_tokens: 800,
     messages: [{
       role: 'user',
-      content: `Você é o Zivo, assistente inteligente de uma loja de roupas. Mande um resumo matinal pro dono (Moca) com as oportunidades do dia. Tom: direto, animado, como um sócio que quer crescer junto.
+      content: `Você é o Zivo, assistente inteligente de uma loja de roupas. Mande um resumo matinal pro dono (${nomeLoja}) com as oportunidades do dia. Tom: direto, animado, como um sócio que quer crescer junto.
 
 DADOS ANALISADOS:
 ${resumoBruto}
 
 Formate assim:
-🤖 *Zivo — Bom dia, Moca!*
+🤖 *Zivo — Bom dia, ${nomeLoja}!*
 
 Analisei a loja e encontrei ${partes.length} oportunidade(s) pra hoje:
 
@@ -244,7 +248,7 @@ Responda com o número da ação que quer executar ou me diga qual priorizar. �
 
   const msgFinal = (res.content[0] as { text: string }).text.trim()
 
-  await sendWhatsAppMessage({ phone: ownerPhone, message: msgFinal })
+  await sendWhatsAppMessage({ phone: ownerPhone, message: msgFinal, userId })
 
   /* Registra que rodou hoje */
   await admin.from('loja_config').update({

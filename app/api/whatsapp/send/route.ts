@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   let messageId: string | undefined
   try {
-    const result = await sendWhatsAppMessage({ phone, message })
+    const result = await sendWhatsAppMessage({ phone, message, userId: user.id })
     messageId = result.messageId
   } catch (err) {
     console.error('Erro ao enviar mensagem WhatsApp:', err)

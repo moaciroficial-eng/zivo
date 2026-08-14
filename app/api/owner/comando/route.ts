@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     } else {
       respostaDigest = await aprovarSugestaoDigest(admin, userId, sugestao, matchEditada?.[2])
     }
-    await sendWhatsAppMessage({ phone: ownerPhone, message: respostaDigest })
+    await sendWhatsAppMessage({ phone: ownerPhone, message: respostaDigest, userId })
     return NextResponse.json({ ok: true, acao: matchDetalhe ? 'digest_detalhe' : 'digest_aprovacao' })
   }
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const conteudo = textoLimpo.replace(/^aprende[:\s]*/i, '').trim()
     if (conteudo.length > 3) {
       const confirmacao = await salvarAprendizado(admin, userId, conteudo)
-      await sendWhatsAppMessage({ phone: ownerPhone, message: confirmacao })
+      await sendWhatsAppMessage({ phone: ownerPhone, message: confirmacao, userId })
       return NextResponse.json({ ok: true, acao: 'aprendizado' })
     }
   }
@@ -227,7 +227,7 @@ Exemplos:
 
   if (resposta) {
     try {
-      await sendWhatsAppMessage({ phone: ownerPhone, message: resposta })
+      await sendWhatsAppMessage({ phone: ownerPhone, message: resposta, userId })
       /* Salva no histórico do chat.
          Usa a MESMA normalização do webhook (com o 9º dígito) pra a resposta
          cair no mesmo contato "Moca (você)" da mensagem recebida — senão o 9
@@ -236,7 +236,7 @@ Exemplos:
       const { data: contatoDono } = await admin
         .from('whatsapp_contatos')
         .upsert(
-          { user_id: userId, phone, nome: 'Moca (você)', ultima_mensagem: resposta, ultima_mensagem_at: new Date().toISOString() },
+          { user_id: userId, phone, nome: 'Você', ultima_mensagem: resposta, ultima_mensagem_at: new Date().toISOString() },
           { onConflict: 'user_id,phone', ignoreDuplicates: false }
         )
         .select('id').single()

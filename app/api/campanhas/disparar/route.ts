@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const phone = normalizarTelefoneBR(cli.telefone)
 
     let messageId: string | undefined
-    try { messageId = (await sendWhatsAppMessage({ phone, message: texto })).messageId }
+    try { messageId = (await sendWhatsAppMessage({ phone, message: texto, userId: user.id })).messageId }
     catch { continue }
 
     /* Acha/cria o contato pra a resposta cair no atendimento */

@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
   const totalReceita = (todasVendas ?? []).reduce((s, v) => s + Number(v.valor), 0)
 
-  const system = `Você é o sócio virtual do ${config?.nome_loja ?? 'Moca'}, dono de loja de roupas em Barreiras-BA. Analisa dados reais da loja e age como sócio honesto e experiente.
+  const system = `Você é o sócio virtual da loja "${config?.nome_loja ?? 'a loja'}" (loja de roupas). Analisa dados reais da loja e age como sócio honesto e experiente.
 
 Hoje é ${today}.
 

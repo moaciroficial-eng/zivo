@@ -97,7 +97,7 @@ export async function enviarResumoDiario(admin: any, userId: string): Promise<{ 
       : 'Abre a aba Ações no app pra ver mais.',
   ].filter(Boolean).join('\n')
 
-  const { messageId } = await sendWhatsAppMessage({ phone: ownerPhone, message: corpo })
+  const { messageId } = await sendWhatsAppMessage({ phone: ownerPhone, message: corpo, userId })
 
   /* Salva no histórico da conversa com o dono */
   const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
@@ -145,7 +145,7 @@ export async function aprovarSugestaoDigest(admin: any, userId: string, sugestao
     .eq('id', acao.contato_id).maybeSingle()
   if (!contato?.phone) return 'Não achei o telefone desse cliente. 😕'
 
-  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem })
+  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem, userId })
 
   const timestamp = new Date().toISOString()
   await admin.from('whatsapp_mensagens').insert({

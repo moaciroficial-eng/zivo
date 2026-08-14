@@ -99,7 +99,7 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
     /* Salva a mensagem do dono no histórico */
     const { data: contatoDono } = await supabase
       .from('whatsapp_contatos')
-      .upsert({ user_id: cleanUserId, phone, nome: 'Moca (você)', ultima_mensagem: conteudo, ultima_mensagem_at: timestamp },
+      .upsert({ user_id: cleanUserId, phone, nome: 'Você', ultima_mensagem: conteudo, ultima_mensagem_at: timestamp },
         { onConflict: 'user_id,phone', ignoreDuplicates: false })
       .select('id').single()
     if (contatoDono?.id && messageId) {

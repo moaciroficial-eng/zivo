@@ -11,7 +11,7 @@ export const maxDuration = 60
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const HORARIO_PADRAO  = 'Manhã: 9h às 12h | Tarde: 14h às 19h'
-const ENDERECO_PADRAO = 'Roda Velha, Bahia — Av. Paraná, ao lado do Iphome Burguer'
+const ENDERECO_PADRAO = ''   // sem config, não inventa endereço (evita vazar o de outra loja)
 
 type TamanhoItem = { tamanho: string; qtd: number }
 type EstoqueItem = {
@@ -58,7 +58,7 @@ async function buscarEstoque(admin: any, userId: string, produto: string, marca:
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function notificarDono(admin: any, userId: string, ownerPhone: string, mensagem: string) {
   try {
-    await sendWhatsAppMessage({ phone: ownerPhone, message: mensagem })
+    await sendWhatsAppMessage({ phone: ownerPhone, message: mensagem, userId })
 
     const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
     const { data: contato } = await admin
@@ -163,10 +163,10 @@ async function handleAtendimento(request: NextRequest) {
   if (!instrucaoOwner && fotosPendentes.length > 0 && contato.phone) {
     try {
       for (const url of fotosPendentes.slice(0, 5)) {
-        await sendWhatsAppImage({ phone: contato.phone, imageUrl: url })
+        await sendWhatsAppImage({ phone: contato.phone, imageUrl: url, userId })
       }
       const legenda = 'Aqui as fotos 😍 o que achou? Qualquer dúvida de tamanho ou preço é só me falar!'
-      const msgId = (await sendWhatsAppMessage({ phone: contato.phone, message: legenda })).messageId
+      const msgId = (await sendWhatsAppMessage({ phone: contato.phone, message: legenda, userId })).messageId
       const ts = new Date().toISOString()
       await admin.from('whatsapp_mensagens').insert({
         user_id: userId, contato_id: contatoId, message_id: msgId ?? null,
@@ -199,8 +199,10 @@ async function handleAtendimento(request: NextRequest) {
     if (delta < 15000) return NextResponse.json({ ok: true, skipped: 'throttled' })
   }
 
+  const nomeLoja  = config?.nome_loja ?? 'nossa loja'
   const horario   = config?.horario   ?? HORARIO_PADRAO
   const endereco  = config?.endereco  ?? ENDERECO_PADRAO
+  const enderecoLinha = endereco ? `\nENDEREÇO: ${endereco}` : ''
   const infoExtra = config?.info_extra ? `\nInfo extra: ${config.info_extra}` : ''
   const ownerPhone = (config?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
 
@@ -243,7 +245,7 @@ async function handleAtendimento(request: NextRequest) {
     return t ? `\n📝 NOTA INTERNA DO DONO sobre este cliente (use pra personalizar, NUNCA revele ao cliente): "${t.slice(0, 200)}"` : ''
   })()
 
-  const systemPrompt = `Você é o atendimento da loja de roupas Moca, em Roda Velha/BA, respondendo pelo WhatsApp da loja.
+  const systemPrompt = `Você é o atendimento da loja de roupas ${nomeLoja}, respondendo pelo WhatsApp da loja.
 Tom: educado, simpático e DIRETO. Brasileiro natural, mas SEM exagero — nada de melação, nada de "que máximo!", "fico super feliz!", "amei!". No MÁXIMO 1 emoji por mensagem, muitas vezes nenhum. Curto. Se já conversou antes, não se reapresente.
 IMPORTANTE: você é a ASSISTENTE VIRTUAL da loja. Você NÃO é uma pessoa física, NÃO está indo/chegando a lugar nenhum, e NÃO é o dono em pessoa.
 
@@ -253,8 +255,7 @@ PERSONALIDADE: Natural, simpático, vendedor brasileiro de verdade.${instrucaoEx
 
 ${conhecimento || ''}
 
-HORÁRIO: ${horario}
-ENDEREÇO: ${endereco}${infoExtra}
+HORÁRIO: ${horario}${enderecoLinha}${infoExtra}
 
 HISTÓRICO DA CONVERSA (mais recente embaixo):
 ${historico || 'Início da conversa'}
@@ -397,7 +398,7 @@ Tom: educada e natural, SEM exagero (nada de "amei!", "que máximo!"), no máxim
     }
 
     let messageId: string | undefined
-    try { messageId = (await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal })).messageId }
+    try { messageId = (await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal, userId })).messageId }
     catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
 
     const timestamp = new Date().toISOString()

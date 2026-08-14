@@ -62,6 +62,8 @@ export async function processarRespostaTarefa(
   respostaContato: string | null
 ): Promise<{ respondeu: boolean; concluido: boolean }> {
   const nomeContato = contato.nome?.split(' ')[0] ?? 'você'
+  const { data: cfgLoja } = await admin.from('loja_config').select('nome_loja').eq('user_id', userId).maybeSingle()
+  const nomeLoja = (cfgLoja as { nome_loja?: string } | null)?.nome_loja ?? 'a loja'
   const historico: HistoricoItem[] = Array.isArray(estado.historico) ? [...estado.historico] : []
   /* Normaliza: aceita 'F', 'f', 'Feminino'... Se não tem no cadastro, a IA deduz pelo nome */
   const generoNorm = (contato.genero ?? '').trim().toUpperCase().charAt(0)
@@ -152,7 +154,7 @@ ${temAConfirmar ? `- Há dados do cadastro a CONFIRMAR (nascimento/tamanhos). Co
 - Quando o contato CONFIRMAR, copie os valores confirmados para dados_novos/salvar_no_cliente NESTA resposta; quando ele CORRIGIR algum, use o valor corrigido
 - Dados não confirmados NÃO contam como coletados — não conclua sem confirmar` : ''}
 - Se não falta nada e nada há a confirmar: envie uma única mensagem simpática dizendo que o cadastro está em dia e marque concluido: true
-- Primeira mensagem (histórico vazio): apresente-se como Moca e faça UMA coisa só — se falta o nome, pergunte o nome; senão, ${temAConfirmar ? 'confirme os dados do cadastro (só a confirmação).' : 'pergunte o primeiro dado que FALTA.'} Exemplo de abertura: "Oi ${nomeContato}! Aqui é o Moca 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
+- Primeira mensagem (histórico vazio): apresente-se como ${nomeLoja} e faça UMA coisa só — se falta o nome, pergunte o nome; senão, ${temAConfirmar ? 'confirme os dados do cadastro (só a confirmação).' : 'pergunte o primeiro dado que FALTA.'} Exemplo de abertura: "Oi ${nomeContato}! Aqui é da ${nomeLoja} 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
 - O contato pode responder mais de um dado numa mensagem só — capture todos
 ${regrasGenero}

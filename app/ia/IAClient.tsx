@@ -315,7 +315,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
             {msgsLoaded && msgs.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-3xl mb-3">🧑‍💼</p>
-                <p className="text-zinc-300 font-medium">Sócio virtual da Moca</p>
+                <p className="text-zinc-300 font-medium">Seu sócio virtual</p>
                 <p className="text-zinc-500 text-sm mt-1 max-w-xs mx-auto">Pergunta qualquer coisa sobre vendas, clientes ou estoque.</p>
                 <div className="flex flex-col gap-2 mt-4 max-w-xs mx-auto">
                   {SUGGESTIONS_CHAT.map(s => (

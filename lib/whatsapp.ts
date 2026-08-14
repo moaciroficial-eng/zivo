@@ -43,7 +43,7 @@ function resolverMeta(meta?: MetaCreds) {
   return { phoneNumberId, accessToken }
 }
 
-type SendOptions = { phone: string; message: string; creds?: WhatsAppCreds }
+type SendOptions = { phone: string; message: string; creds?: WhatsAppCreds; userId?: string }
 
 /* ══════════════════════════════════════════════════════════════
    NORMALIZAÇÃO ÚNICA DE TELEFONE BR — usar SEMPRE que criar/buscar
@@ -89,8 +89,33 @@ async function credsPadrao(): Promise<WhatsAppCreds | undefined> {
   return creds
 }
 
-export async function sendWhatsAppMessage({ phone, message, creds }: SendOptions): Promise<{ messageId?: string }> {
-  const efetivas = creds ?? await credsPadrao()
+/* Credenciais da loja DONA da mensagem (multi-tenant). Sempre que houver
+   um userId em mãos, use-o — assim cada loja envia pelo SEU WhatsApp, e não
+   pela loja global do env. Sem userId, cai no padrão (retrocompat). */
+const credsPorUsuarioCache = new Map<string, { at: number; creds: WhatsAppCreds | undefined }>()
+async function credsPara(userId?: string): Promise<WhatsAppCreds | undefined> {
+  if (!userId) return credsPadrao()
+  const cached = credsPorUsuarioCache.get(userId)
+  if (cached && Date.now() - cached.at < CREDS_CACHE_MS) return cached.creds
+  let creds: WhatsAppCreds | undefined
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (url && key) {
+      const [{ createClient }, { getLoja }] = await Promise.all([
+        import('@supabase/supabase-js'),
+        import('@/lib/loja'),
+      ])
+      creds = (await getLoja(createClient(url, key), userId))?.creds
+    }
+  } catch { creds = undefined }
+  // Sem fallback pro env global: loja sem WhatsApp NÃO envia pela loja de outro.
+  credsPorUsuarioCache.set(userId, { at: Date.now(), creds })
+  return creds
+}
+
+export async function sendWhatsAppMessage({ phone, message, creds, userId }: SendOptions): Promise<{ messageId?: string }> {
+  const efetivas = creds ?? await credsPara(userId)
   const provider = efetivas?.provider || PROVIDER_GLOBAL
   const number = normalizarTelefoneBR(phone)
   if (provider === 'meta') return sendViaMeta(number, message, efetivas?.meta)
@@ -166,10 +191,10 @@ async function sendViaMeta(number: string, message: string, meta?: MetaCreds): P
    janela de 24h não dá pra mandar imagem livre (precisaria template com
    header de imagem) — então o disparo só anexa foto pra quem está quente.
    ══════════════════════════════════════════════════════════════ */
-export type ImageOptions = { phone: string; imageUrl: string; caption?: string; creds?: WhatsAppCreds }
+export type ImageOptions = { phone: string; imageUrl: string; caption?: string; creds?: WhatsAppCreds; userId?: string }
 
-export async function sendWhatsAppImage({ phone, imageUrl, caption, creds }: ImageOptions): Promise<{ messageId?: string }> {
-  const efetivas = creds ?? await credsPadrao()
+export async function sendWhatsAppImage({ phone, imageUrl, caption, creds, userId }: ImageOptions): Promise<{ messageId?: string }> {
+  const efetivas = creds ?? await credsPara(userId)
   const provider = efetivas?.provider || PROVIDER_GLOBAL
   const number = normalizarTelefoneBR(phone)
   if (provider === 'meta') return sendViaMetaImage(number, imageUrl, caption, efetivas?.meta)
@@ -220,10 +245,11 @@ export type TemplateOptions = {
   imagemHeader?: string | null      // URL pública p/ template com header de imagem
   idioma?: string                   // default 'pt_BR'
   creds?: WhatsAppCreds
+  userId?: string
 }
 
 export async function sendWhatsAppTemplate(opts: TemplateOptions): Promise<{ messageId?: string }> {
-  const creds = opts.creds ?? await credsPadrao()
+  const creds = opts.creds ?? await credsPara(opts.userId)
   const { phoneNumberId, accessToken } = resolverMeta(creds?.meta)
   if (!phoneNumberId || !accessToken) {
     throw new Error('Meta WhatsApp não configurada — template exige Cloud API oficial.')

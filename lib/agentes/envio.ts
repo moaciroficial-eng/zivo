@@ -60,10 +60,10 @@ export async function enviarOferta(admin: any, opts: EnvioOferta): Promise<Resul
       via = 'texto'
       /* Janela aberta: com foto → imagem com a copy de legenda; sem foto → texto. */
       if (opts.fotoUrl) {
-        messageId = (await sendWhatsAppImage({ phone: opts.phone, imageUrl: opts.fotoUrl, caption: opts.texto, creds: opts.creds })).messageId
+        messageId = (await sendWhatsAppImage({ phone: opts.phone, imageUrl: opts.fotoUrl, caption: opts.texto, creds: opts.creds, userId: opts.userId })).messageId
         fotoInclusa = true
       } else {
-        messageId = (await sendWhatsAppMessage({ phone: opts.phone, message: opts.texto, creds: opts.creds })).messageId
+        messageId = (await sendWhatsAppMessage({ phone: opts.phone, message: opts.texto, creds: opts.creds, userId: opts.userId })).messageId
       }
     } else {
       via = 'template'
@@ -74,19 +74,19 @@ export async function enviarOferta(admin: any, opts: EnvioOferta): Promise<Resul
         try {
           messageId = (await sendWhatsAppTemplate({
             phone: opts.phone, templateName: opts.templateFotoName,
-            variaveis: opts.templateVars, imagemHeader: opts.fotoUrl, creds: opts.creds,
+            variaveis: opts.templateVars, imagemHeader: opts.fotoUrl, creds: opts.creds, userId: opts.userId,
           })).messageId
           fotoInclusa = true
         } catch {
           messageId = (await sendWhatsAppTemplate({
             phone: opts.phone, templateName: opts.templateName,
-            variaveis: opts.templateVars, creds: opts.creds,
+            variaveis: opts.templateVars, creds: opts.creds, userId: opts.userId,
           })).messageId
         }
       } else {
         messageId = (await sendWhatsAppTemplate({
           phone: opts.phone, templateName: opts.templateName,
-          variaveis: opts.templateVars, creds: opts.creds,
+          variaveis: opts.templateVars, creds: opts.creds, userId: opts.userId,
         })).messageId
       }
     }
