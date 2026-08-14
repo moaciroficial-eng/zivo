@@ -297,6 +297,186 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 /* ── Main component ─────────────────────────────────────────── */
 
+/* ── Modal de Troca ──────────────────────────────────────────── */
+function buscarProdutosTroca(estoqueItems: EstoqueItem[], q: string, somenteComEstoque: boolean): EstoqueFlat[] {
+  if (q.trim().length < 1) return []
+  const tokens = normBusca(q).split(/\s+/).filter(Boolean)
+  if (!tokens.length) return []
+  const ranked = estoqueItems.map(e => {
+    const haystack = normBusca([e.nome, e.marca, e.cor].filter(Boolean).join(' '))
+    const palavras = haystack.split(/\s+/).filter(Boolean)
+    let score = 0
+    for (const t of tokens) { const s = pontuaToken(t, palavras, haystack); if (s === 0) return null; score += s }
+    if (normBusca(e.nome).startsWith(tokens[0])) score += 40
+    return { e, score }
+  }).filter((x): x is { e: EstoqueItem; score: number } => x != null)
+    .sort((a, b) => b.score - a.score).slice(0, 10)
+  const result: EstoqueFlat[] = []
+  for (const { e } of ranked) {
+    const sizes = (e.tamanhos ?? []).filter(t => somenteComEstoque ? t.qtd > 0 : true)
+    if (sizes.length <= 1) result.push({ ...e, _tamanho: sizes[0]?.tamanho != null ? String(sizes[0].tamanho) : null })
+    else for (const t of sizes) result.push({ ...e, _tamanho: String(t.tamanho) })
+  }
+  return result.slice(0, 14)
+}
+
+function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfirmar }: {
+  estoqueItems: EstoqueItem[]
+  fotoMap: Record<string, string>
+  clientes: ClienteOption[]
+  saving: boolean
+  onClose: () => void
+  onConfirmar: (dados: { voltam: EstoqueFlat[]; saem: EstoqueFlat[]; clienteId: string | null; clienteNome: string; formaPagamento: string; diferenca: number }) => void
+}) {
+  const [voltam, setVoltam] = useState<EstoqueFlat[]>([])
+  const [saem, setSaem] = useState<EstoqueFlat[]>([])
+  const [buscaVolta, setBuscaVolta] = useState('')
+  const [buscaSai, setBuscaSai] = useState('')
+  const [clienteId, setClienteId] = useState<string | null>(null)
+  const [clienteNome, setClienteNome] = useState('')
+  const [clienteBusca, setClienteBusca] = useState('')
+  const [clienteDrop, setClienteDrop] = useState(false)
+  const [forma, setForma] = useState('pix')
+
+  const somaVolta = voltam.reduce((s, i) => s + (i.preco_venda ?? 0), 0)
+  const somaSai = saem.reduce((s, i) => s + (i.preco_venda ?? 0), 0)
+  const diferenca = somaSai - somaVolta
+
+  const resVolta = buscarProdutosTroca(estoqueItems, buscaVolta, false)
+  const resSai = buscarProdutosTroca(estoqueItems, buscaSai, true)
+  const clientesFiltrados = clienteBusca.trim()
+    ? clientes.filter(c => c.nome.toLowerCase().includes(clienteBusca.toLowerCase())).slice(0, 6)
+    : []
+
+  const podeConfirmar = voltam.length > 0 && saem.length > 0 && !saving
+    && !(diferenca < -0.001 && !clienteId)   // loja deve → precisa de cliente pra dar crédito
+
+  function Coluna({ titulo, cor, lista, setLista, busca, setBusca, resultados, comEstoque }: {
+    titulo: string; cor: string
+    lista: EstoqueFlat[]; setLista: (f: (l: EstoqueFlat[]) => EstoqueFlat[]) => void
+    busca: string; setBusca: (v: string) => void; resultados: EstoqueFlat[]; comEstoque: boolean
+  }) {
+    return (
+      <div className="flex-1 min-w-0 flex flex-col gap-2">
+        <p className={`text-xs font-semibold uppercase tracking-wider ${cor}`}>{titulo}</p>
+        <div className="relative">
+          <input
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar produto (nome, marca, tam)..."
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 [color-scheme:dark]"
+          />
+          {busca.trim() && resultados.length > 0 && (
+            <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-56 overflow-y-auto">
+              {resultados.map(item => (
+                <button
+                  key={item.id + (item._tamanho ?? '')}
+                  onClick={() => { setLista(l => [...l, item]); setBusca('') }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-violet-500/20 transition flex items-center gap-2"
+                >
+                  <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0">
+                    {fotoMap[item.id] && <img src={fotoMap[item.id]} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
+                  {item._tamanho && <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold shrink-0">{item._tamanho}</span>}
+                  <span className="text-emerald-400 text-xs shrink-0">{formatBRL(item.preco_venda ?? 0)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {lista.length === 0 && <p className="text-xs text-zinc-600 py-2">Nenhum produto {comEstoque ? 'saindo' : 'voltando'} ainda.</p>}
+          {lista.map((it, i) => (
+            <div key={i} className="flex items-center gap-2 bg-zinc-800/60 rounded-lg px-2.5 py-2 text-sm">
+              <span className="flex-1 min-w-0 truncate">{it.nome}{it._tamanho ? ` ${it._tamanho}` : ''}</span>
+              <span className="text-emerald-400 text-xs shrink-0">{formatBRL(it.preco_venda ?? 0)}</span>
+              <button onClick={() => setLista(l => l.filter((_, ix) => ix !== i))} className="text-zinc-500 hover:text-red-400 shrink-0"><IconX size={14} /></button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl w-full max-w-2xl my-0 sm:my-8 shadow-2xl">
+        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-lg">Troca de produto</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">O que volta entra no estoque; o que sai baixa — no tamanho certo.</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer"><IconX size={18} /></button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-5">
+          {/* Cliente (opcional) */}
+          <div className="relative">
+            <label className="text-xs font-medium text-zinc-400 mb-1 block">Cliente (opcional — obrigatório se a loja ficar devendo)</label>
+            <input
+              value={clienteNome || clienteBusca}
+              onChange={e => { setClienteBusca(e.target.value); setClienteNome(''); setClienteId(null); setClienteDrop(true) }}
+              onFocus={() => setClienteDrop(true)}
+              placeholder="Buscar cliente..."
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 [color-scheme:dark]"
+            />
+            {clienteDrop && clientesFiltrados.length > 0 && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-40 overflow-y-auto">
+                {clientesFiltrados.map(c => (
+                  <button key={c.id} onClick={() => { setClienteId(c.id); setClienteNome(c.nome); setClienteBusca(''); setClienteDrop(false) }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-violet-500/20 transition truncate">{c.nome}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-5">
+            <Coluna titulo="↩️ Volta pro estoque" cor="text-emerald-400" lista={voltam} setLista={setVoltam} busca={buscaVolta} setBusca={setBuscaVolta} resultados={resVolta} comEstoque={false} />
+            <Coluna titulo="🛍️ Sai do estoque (novo)" cor="text-violet-300" lista={saem} setLista={setSaem} busca={buscaSai} setBusca={setBuscaSai} resultados={resSai} comEstoque={true} />
+          </div>
+
+          {/* Diferença */}
+          <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">Volta {formatBRL(somaVolta)} · Sai {formatBRL(somaSai)}</span>
+              <span className={`font-bold ${diferenca > 0.001 ? 'text-emerald-400' : diferenca < -0.001 ? 'text-amber-400' : 'text-zinc-300'}`}>
+                {diferenca > 0.001 ? `Cliente paga ${formatBRL(diferenca)}`
+                  : diferenca < -0.001 ? `Loja deve ${formatBRL(Math.abs(diferenca))}`
+                  : 'Sem diferença'}
+              </span>
+            </div>
+            {diferenca > 0.001 && (
+              <div className="flex gap-2 mt-3">
+                {['pix', 'dinheiro', 'debito', 'credito'].map(m => (
+                  <button key={m} onClick={() => setForma(m)}
+                    className={`flex-1 text-xs font-medium rounded-lg py-2 border transition capitalize ${forma === m ? 'bg-violet-600 border-violet-500 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'}`}>
+                    {m === 'pix' ? 'Pix' : m}
+                  </button>
+                ))}
+              </div>
+            )}
+            {diferenca < -0.001 && (
+              <p className="text-xs text-amber-500/80 mt-2">A diferença vira crédito (haver) do cliente pra usar numa próxima compra.</p>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-4 py-2.5 transition cursor-pointer">Cancelar</button>
+            <button
+              onClick={() => onConfirmar({ voltam, saem, clienteId, clienteNome, formaPagamento: forma, diferenca })}
+              disabled={!podeConfirmar}
+              className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+            >
+              {saving ? 'Registrando...' : 'Confirmar troca'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function VendasClient({
   user,
   initialVendas,
@@ -325,6 +505,7 @@ export default function VendasClient({
   const descontoMaxPct = modo === 'funcionaria' ? 60 : 100
   const [vendas, setVendas] = useState(initialVendas)
   const [drawer, setDrawer] = useState(false)
+  const [showTroca, setShowTroca] = useState(false)
   const [editing, setEditing] = useState<Venda | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -748,12 +929,28 @@ export default function VendasClient({
      Sem isso a IA oferecia produto já vendido. */
   async function ajustarEstoque(produtos: Produto[], sinal: 1 | -1) {
     for (const p of produtos) {
-      if (!p.estoque_id) continue
       const delta = (Number(p.qtd) || 1) * sinal
-      const { data: item } = await supabase
-        .from('estoque').select('tamanhos').eq('id', p.estoque_id).maybeSingle()
-      if (!item?.tamanhos) continue
-      const tamanhos = [...(item.tamanhos as { tamanho: string; qtd: number }[])]
+
+      /* Resolve o produto no estoque: pelo vínculo (estoque_id) ou, se não
+         tiver (venda antiga/digitada), casa por nome+marca. Sem isso, a troca
+         de um produto sem vínculo não repunha o estoque. */
+      let estoqueId = p.estoque_id ?? null
+      let tamanhosRow: { tamanho: string; qtd: number }[] | null = null
+      if (estoqueId) {
+        const { data: item } = await supabase.from('estoque').select('tamanhos').eq('id', estoqueId).maybeSingle()
+        tamanhosRow = (item?.tamanhos as { tamanho: string; qtd: number }[]) ?? null
+      } else if (p.nome) {
+        const m = p.nome.match(/^(.*?)\s*\(([^)]*)\)\s*$/)   // "Nome (Marca)"
+        const nomeBase = (m ? m[1] : p.nome).trim()
+        const marca = m ? m[2].trim() : null
+        let q = supabase.from('estoque').select('id, tamanhos').eq('user_id', user.id).ilike('nome', nomeBase)
+        if (marca) q = q.ilike('marca', marca)
+        const { data: cand } = await q.limit(1).maybeSingle()
+        if (cand) { estoqueId = cand.id; tamanhosRow = (cand.tamanhos as { tamanho: string; qtd: number }[]) ?? null }
+      }
+      if (!estoqueId || !tamanhosRow) continue
+
+      const tamanhos = [...tamanhosRow]
       let idx = p.tamanho
         ? tamanhos.findIndex(t => String(t.tamanho).toLowerCase() === String(p.tamanho).toLowerCase())
         : -1
@@ -763,7 +960,65 @@ export default function VendasClient({
       }
       if (idx < 0 || !tamanhos[idx]) continue
       tamanhos[idx] = { ...tamanhos[idx], qtd: Math.max(0, (Number(tamanhos[idx].qtd) || 0) + delta) }
-      await supabase.from('estoque').update({ tamanhos }).eq('id', p.estoque_id)
+      await supabase.from('estoque').update({ tamanhos }).eq('id', estoqueId)
+    }
+  }
+
+  /* ── Troca de produto ──
+     Produtos que VOLTAM entram no estoque (+1); os que SAEM baixam (-1).
+     A diferença de valor (saem − voltam) é registrada: positiva vira uma
+     entrada de venda; negativa vira crédito (haver) do cliente. */
+  async function confirmarTroca(dados: {
+    voltam: EstoqueFlat[]
+    saem: EstoqueFlat[]
+    clienteId: string | null
+    clienteNome: string
+    formaPagamento: string
+    diferenca: number
+  }) {
+    setSaving(true)
+    try {
+      const paraProduto = (it: EstoqueFlat): Produto => ({
+        nome: it.nome + (it._tamanho ? ` ${it._tamanho}` : '') + (it.marca ? ` (${it.marca})` : ''),
+        qtd: 1, tamanho: it._tamanho ?? undefined, estoque_id: it.id,
+        preco_unitario: it.preco_venda ?? undefined,
+      })
+      await ajustarEstoque(dados.voltam.map(paraProduto), 1)   // devolve ao estoque
+      await ajustarEstoque(dados.saem.map(paraProduto), -1)    // baixa os novos
+
+      const hoje = new Date().toISOString().split('T')[0]
+      const nomesSai = dados.saem.map(s => s.nome + (s._tamanho ? ` ${s._tamanho}` : '')).join(', ')
+      const nomesVolta = dados.voltam.map(v => v.nome + (v._tamanho ? ` ${v._tamanho}` : '')).join(', ')
+
+      if (dados.diferenca > 0.001) {
+        /* Cliente pagou a diferença → entra como venda do valor da diferença */
+        const { data } = await supabase.from('vendas').insert({
+          user_id: user.id,
+          cliente_id: dados.clienteId || null,
+          cliente_nome: dados.clienteNome.trim() || 'Avulso',
+          valor: Number(dados.diferenca.toFixed(2)),
+          data_venda: hoje,
+          forma_pagamento: dados.formaPagamento || null,
+          caixa_id: findCaixaIdForDate(hoje),
+          produtos: [{ nome: `Troca — levou: ${nomesSai} / devolveu: ${nomesVolta}`, qtd: 1, preco_unitario: Number(dados.diferenca.toFixed(2)) }],
+        }).select().single()
+        if (data) setVendas(vs => [data as Venda, ...vs])
+      } else if (dados.diferenca < -0.001 && dados.clienteId) {
+        /* Loja deve → vira crédito (haver) do cliente pra usar depois */
+        const credito = Number(Math.abs(dados.diferenca).toFixed(2))
+        await supabase.from('cliente_creditos').insert({
+          user_id: user.id, cliente_id: dados.clienteId, valor: credito, tipo: 'troco',
+          descricao: `Diferença de troca — levou: ${nomesSai} / devolveu: ${nomesVolta}`,
+        })
+        setSaldosHaver(m => ({ ...m, [dados.clienteId as string]: (m[dados.clienteId as string] ?? 0) + credito }))
+      }
+
+      showToast('Troca registrada — estoque atualizado.')
+      setShowTroca(false)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Erro ao registrar a troca.', 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1133,6 +1388,13 @@ export default function VendasClient({
               className="flex items-center gap-2 text-sm text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
             >
               <IconUpload /> Importar CSV
+            </button>
+            <button
+              onClick={() => setShowTroca(true)}
+              className="flex items-center gap-2 text-sm font-semibold text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-2 transition cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Troca
             </button>
             <button
               onClick={openNew}
@@ -1539,6 +1801,18 @@ export default function VendasClient({
           </div>
         )}
       </main>
+
+      {/* ── Modal de Troca ──────────────────────────────────── */}
+      {showTroca && (
+        <TrocaModal
+          estoqueItems={estoqueItems}
+          fotoMap={fotoMap}
+          clientes={clientes}
+          saving={saving}
+          onClose={() => setShowTroca(false)}
+          onConfirmar={confirmarTroca}
+        />
+      )}
 
       {/* ── Drawer ──────────────────────────────────────────── */}
       {drawer && (
