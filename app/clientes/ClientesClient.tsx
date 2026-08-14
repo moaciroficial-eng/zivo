@@ -22,6 +22,7 @@ export type Cliente = {
   nome: string
   telefone: string | null
   email: string | null
+  cpf: string | null
   genero: 'M' | 'F' | null
   tamanho_camiseta: string | null
   tamanho_calca: string | null
@@ -38,6 +39,7 @@ type FormState = {
   nome: string
   telefone: string
   email: string
+  cpf: string
   genero: string
   tamanho_camiseta: string
   tamanho_calca: string
@@ -82,7 +84,7 @@ type HistoricoCrediario = {
 }
 
 const EMPTY: FormState = {
-  nome: '', telefone: '', email: '', genero: '',
+  nome: '', telefone: '', email: '', cpf: '', genero: '',
   tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '',
   data_nascimento: '', dia_pagamento: '', observacoes: '',
 }
@@ -328,6 +330,7 @@ export default function ClientesClient({
       nome: c.nome,
       telefone: c.telefone ?? '',
       email: c.email ?? '',
+      cpf: c.cpf ?? '',
       tamanho_camiseta: c.tamanho_camiseta ?? '',
       tamanho_calca: c.tamanho_calca ?? '',
       genero: c.genero ?? '',
@@ -464,6 +467,7 @@ export default function ClientesClient({
       nome: form.nome.trim(),
       telefone: form.telefone || null,
       email: form.email || null,
+      cpf: form.cpf.replace(/\D/g, '') || null,
       genero: (form.genero as 'M' | 'F') || null,
       tamanho_camiseta: form.tamanho_camiseta || null,
       tamanho_calca: form.tamanho_calca || null,
@@ -532,6 +536,7 @@ export default function ClientesClient({
         nome: r['nome'],
         telefone: r['telefone'] || null,
         email: r['email'] || null,
+        cpf: (r['cpf'] ?? '').replace(/\D/g, '') || null,
         tamanho_camiseta: CAMISETAS.includes(r['tamanho_camiseta']) ? r['tamanho_camiseta'] : null,
         tamanho_calca:    [...CALCAS_M, ...CALCAS_F].includes(r['tamanho_calca']) ? r['tamanho_calca'] : null,
         tamanho_tenis:    [...TENIS_M, ...TENIS_F].includes(r['tamanho_tenis'])   ? r['tamanho_tenis'] : null,
@@ -1317,6 +1322,24 @@ export default function ClientesClient({
                   value={form.email}
                   onChange={field('email')}
                   placeholder="email@exemplo.com"
+                  className={INPUT}
+                />
+              </Field>
+
+              <Field label="CPF">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.cpf}
+                  onChange={e => {
+                    const d = e.target.value.replace(/\D/g, '').slice(0, 11)
+                    const masked = d
+                      .replace(/(\d{3})(\d)/, '$1.$2')
+                      .replace(/(\d{3})(\d)/, '$1.$2')
+                      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+                    setForm(f => ({ ...f, cpf: masked }))
+                  }}
+                  placeholder="000.000.000-00"
                   className={INPUT}
                 />
               </Field>
