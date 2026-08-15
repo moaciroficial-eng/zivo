@@ -87,9 +87,11 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
       base.video = { caption: (m.video as Record<string, unknown>)?.caption ?? null }
       break
     case 'audio':
-    case 'voice':
-      base.audio = {}
+    case 'voice': {
+      const a = (m.audio ?? m.voice) as Record<string, unknown> | undefined
+      base.audio = { id: a?.id ?? null }
       break
+    }
     case 'document':
       base.document = { fileName: (m.document as Record<string, unknown>)?.filename ?? null }
       break
@@ -164,12 +166,20 @@ export async function POST(request: NextRequest) {
           const payload = normalizarMensagem(m, nomeContato)
           payload.__creds = loja.creds
 
+          const token = loja.creds?.meta?.accessToken as string | undefined
+
           /* Imagem: baixa da Meta e re-hospeda pra o inbox exibir (raw.image.imageUrl) */
           const img = payload.image as Record<string, unknown> | undefined
-          const token = loja.creds?.meta?.accessToken as string | undefined
           if (img?.id && token) {
             const publicUrl = await baixarMidiaMeta(String(img.id), token, supabase, loja.userId)
             if (publicUrl) img.imageUrl = publicUrl
+          }
+
+          /* Áudio: baixa e re-hospeda pra o inbox tocar (raw.audio.audioUrl) */
+          const aud = payload.audio as Record<string, unknown> | undefined
+          if (aud?.id && token) {
+            const publicUrl = await baixarMidiaMeta(String(aud.id), token, supabase, loja.userId)
+            if (publicUrl) aud.audioUrl = publicUrl
           }
 
           await processarEventoInbound(supabase, loja.userId, payload)
