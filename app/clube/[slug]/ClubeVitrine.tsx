@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 type Item = {
   id: string
   nome: string
@@ -18,12 +20,27 @@ function fBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
-export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, itens }: { nomeLoja: string; logo: string | null; comoComprar: string | null; ownerPhone: string | null; itens: Item[] }) {
+export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, slug, email, mpAtivo, itens }: { nomeLoja: string; logo: string | null; comoComprar: string | null; ownerPhone: string | null; slug: string; email: string; mpAtivo: boolean; itens: Item[] }) {
+  const [comprando, setComprando] = useState<string | null>(null)
+
   const zap = (it: Item) => {
     const fone = (ownerPhone ?? '').replace(/\D/g, '')
     const cond = it.combo && it.combo_texto ? ` (combo: ${it.combo_texto})` : ''
     const msg = encodeURIComponent(`Oi! Vi no Clube ${nomeLoja} e quero: ${it.nome}${it.marca ? ` (${it.marca})` : ''} — ${fBRL(it.preco_oportunidade)}${cond}`)
     return fone ? `https://wa.me/${fone.startsWith('55') ? fone : '55' + fone}?text=${msg}` : '#'
+  }
+
+  async function comprar(it: Item) {
+    setComprando(it.id)
+    try {
+      const res = await fetch('/api/clube/comprar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, estoqueId: it.id, tamanho: it.tamanhos[0] ?? null, email }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (d?.ok && d.url) { window.location.href = d.url }
+      else { alert(d?.erro || 'Não foi possível iniciar o pagamento.'); setComprando(null) }
+    } catch { alert('Falha ao iniciar o pagamento.'); setComprando(null) }
   }
 
   return (
@@ -69,10 +86,17 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                       {desc > 0 && <p className="text-[11px] text-zinc-600 line-through">{fBRL(it.preco_venda)}</p>}
                       <p className="text-lg font-bold text-emerald-400 leading-tight">{fBRL(it.preco_oportunidade ?? it.preco_venda)}</p>
                     </div>
-                    <a href={zap(it)} target="_blank" rel="noopener noreferrer"
-                      className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition">
-                      Quero essa
-                    </a>
+                    {mpAtivo && !it.combo ? (
+                      <button onClick={() => comprar(it)} disabled={comprando === it.id}
+                        className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-2 transition disabled:opacity-60">
+                        {comprando === it.id ? 'Abrindo...' : 'Comprar'}
+                      </button>
+                    ) : (
+                      <a href={zap(it)} target="_blank" rel="noopener noreferrer"
+                        className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition">
+                        Quero essa
+                      </a>
+                    )}
                   </div>
                 </div>
               )

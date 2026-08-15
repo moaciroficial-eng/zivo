@@ -14,6 +14,7 @@ type LojaClube = {
   clube_cadastro_aberto: boolean | null
   logo_url: string | null
   clube_como_comprar: string | null
+  mp_access_token: string | null
 }
 
 export default async function ClubePublicoPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -21,7 +22,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: loja } = await admin.from('loja_config')
-    .select('user_id, nome_loja, owner_phone, clube_ativo, clube_cadastro_aberto, logo_url, clube_como_comprar')
+    .select('user_id, nome_loja, owner_phone, clube_ativo, clube_cadastro_aberto, logo_url, clube_como_comprar, mp_access_token')
     .eq('clube_slug', slug).maybeSingle<LojaClube>()
 
   if (!loja || !loja.clube_ativo) {
@@ -75,5 +76,5 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
     }))
     .filter(p => p.tamanhos.length > 0)
 
-  return <ClubeVitrine nomeLoja={nomeLoja} logo={loja.logo_url} comoComprar={loja.clube_como_comprar} ownerPhone={loja.owner_phone} itens={itens} />
+  return <ClubeVitrine nomeLoja={nomeLoja} logo={loja.logo_url} comoComprar={loja.clube_como_comprar} ownerPhone={loja.owner_phone} slug={slug} email={email ?? ''} mpAtivo={!!loja.mp_access_token} itens={itens} />
 }

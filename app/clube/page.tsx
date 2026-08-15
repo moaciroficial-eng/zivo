@@ -16,7 +16,7 @@ export default async function ClubePage() {
 
   const { data: cfg } = await supabase
     .from('loja_config')
-    .select('nome_loja, clube_ativo, clube_slug, clube_cadastro_aberto, logo_url, clube_como_comprar')
+    .select('nome_loja, clube_ativo, clube_slug, clube_cadastro_aberto, logo_url, clube_como_comprar, mp_access_token')
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -51,6 +51,7 @@ export default async function ClubePage() {
       linkPublico={`${origin}/clube/${slug}`}
       logoUrl={cfg?.logo_url ?? null}
       comoComprar={cfg?.clube_como_comprar ?? ''}
+      mpToken={cfg?.mp_access_token ?? ''}
       produtos={(produtos ?? []) as Produto[]}
       fotoMap={fotoMap}
       membros={membros ?? 0}

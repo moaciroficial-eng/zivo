@@ -17,7 +17,7 @@ function totalQtd(t: Produto['tamanhos']) {
 }
 
 export default function ClubeClient({
-  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, produtos, fotoMap, membros,
+  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, mpToken, produtos, fotoMap, membros,
 }: {
   user: { id: string; email: string }
   nomeLoja: string
@@ -26,6 +26,7 @@ export default function ClubeClient({
   linkPublico: string
   logoUrl: string | null
   comoComprar: string
+  mpToken: string
   produtos: Produto[]
   fotoMap: Record<string, string>
   membros: number
@@ -41,6 +42,7 @@ export default function ClubeClient({
   const [logo, setLogo] = useState<string | null>(logoUrl)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [comoTxt, setComoTxt] = useState(comoComprar)
+  const [mp, setMp] = useState(mpToken)
 
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
 
@@ -99,6 +101,11 @@ export default function ClubeClient({
   async function salvarComoComprar() {
     await supabase.from('loja_config').upsert({ user_id: user.id, clube_como_comprar: comoTxt || null }, { onConflict: 'user_id' })
     showToast('Texto salvo!')
+  }
+
+  async function salvarMp() {
+    await supabase.from('loja_config').upsert({ user_id: user.id, mp_access_token: mp.trim() || null }, { onConflict: 'user_id' })
+    showToast(mp.trim() ? 'Pagamento ligado!' : 'Token removido.')
   }
 
   function copiarLink() {
@@ -183,6 +190,21 @@ export default function ClubeClient({
               placeholder={'Ex.: 1) Escolha a peça  2) Clique em "Quero essa"  3) Combinamos o pagamento e a retirada/entrega no WhatsApp.'}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 resize-none"
             />
+          </div>
+        </div>
+
+        {/* Pagamento (Mercado Pago) */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-300">Pagamento no site (Mercado Pago)</h2>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${mp.trim() ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800/40'}`}>
+              {mp.trim() ? 'Ligado' : 'Desligado'}
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500">Cole seu <b>Access Token</b> do Mercado Pago (Suas integrações → Credenciais de produção). Com ele, o cliente paga no site (Pix/cartão) e o estoque baixa sozinho. Sem token, o botão vira &quot;Quero essa&quot; no WhatsApp.</p>
+          <div className="flex gap-2">
+            <input type="password" value={mp} onChange={e => setMp(e.target.value)} placeholder="APP_USR-..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+            <button onClick={salvarMp} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
           </div>
         </div>
 
