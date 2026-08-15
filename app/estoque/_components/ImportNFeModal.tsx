@@ -139,6 +139,13 @@ function parseXML(xml: string): ParsedNFe | { error: string } {
 
 /* ── Helpers ── */
 
+/* Tamanhos "padrão" que NÃO precisam ser aprendidos por marca (já aparecem
+   por default). Qualquer tamanho fora daqui vira extra da marca. */
+const STANDARD_SIZES = new Set([
+  'PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG', 'U',
+  '32', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '46', '48', '50',
+])
+
 const CAT_LABEL: Record<Produto['categoria'], string> = {
   camiseta: 'Camiseta', blusa: 'Blusa', camisa: 'Camisa', regata: 'Regata', calca: 'Calça', bermuda: 'Bermuda', polo: 'Polo', tenis: 'Tênis', chinelo: 'Chinelo', cueca: 'Cueca', meia: 'Meia', bone: 'Boné', acessorios: 'Acessórios', outros: 'Outros',
 }
@@ -378,6 +385,27 @@ export default function ImportNFeModal({
       data: new Date().toISOString(),
     }
     try { localStorage.setItem(`nfe_grupo_${grupoId}`, JSON.stringify(meta)) } catch { /* ignorar */ }
+
+    /* Auto-aprende tamanhos FORA do padrão na grade da marca — assim, quando
+       chega uma nota com 2XG/EGG, esse tamanho passa a aparecer sozinho nas
+       próximas peças daquela marca no cadastro. */
+    const porMarca = new Map<string, Set<string>>()
+    for (const item of selected) {
+      if (!item.marca) continue
+      const tam = (extrairTamanhoDoNome(item.nome) ?? '').toUpperCase().trim()
+      if (!tam || tam === 'UN' || STANDARD_SIZES.has(tam)) continue
+      const s = porMarca.get(item.marca) ?? new Set<string>()
+      s.add(tam); porMarca.set(item.marca, s)
+    }
+    for (const [marca, sizes] of porMarca) {
+      try {
+        const { data: mrow } = await supabase.from('marcas').select('id, tamanhos').ilike('nome', marca).maybeSingle()
+        if (mrow) {
+          const merged = Array.from(new Set([...((mrow.tamanhos as string[] | null) ?? []), ...sizes]))
+          await supabase.from('marcas').update({ tamanhos: merged }).eq('id', mrow.id)
+        }
+      } catch { /* não bloqueia a importação */ }
+    }
 
     onSuccess(data ?? [], grupoId)
   }

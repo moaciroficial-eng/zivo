@@ -51,18 +51,18 @@ type FormState = {
 /* ── Constants ── */
 
 const SIZE_OPTIONS: Record<Produto['categoria'], string[]> = {
-  camiseta: ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
-  blusa:    ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
-  camisa:   ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
-  regata:   ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
+  camiseta: ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
+  blusa:    ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
+  camisa:   ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
+  regata:   ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
   /* Calça e bermuda existem nos dois padrões: numeração (jeans/alfaiataria)
      e letras (moletom/jogger/elástico) — mostra os dois, escolhe o da peça */
-  calca:    ['34', '36', '38', '40', '42', '44', '46', '48', '50', 'PP', 'P', 'M', 'G', 'GG', 'XGG'],
-  bermuda:  ['PP', 'P', 'M', 'G', 'GG', 'XGG', '36', '38', '40', '42', '44', '46', '48'],
-  polo:     ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
+  calca:    ['34', '36', '38', '40', '42', '44', '46', '48', '50', 'PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
+  bermuda:  ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG', '36', '38', '40', '42', '44', '46', '48'],
+  polo:     ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
   tenis:    ['34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'],
   chinelo:  ['34/35', '36/37', '37/38', '39/40', '41/42', '43/44'],
-  cueca:    ['PP', 'P', 'M', 'G', 'GG', 'XGG'],
+  cueca:    ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'XXG'],
   meia:     ['Único', '35/38', '39/42', '43/46'],
   bone:     ['Único'],
   acessorios: ['Único'],
@@ -151,7 +151,7 @@ function toFormState(p?: Produto): FormState {
 
 /* ── Photo helpers ── */
 
-const SIZES_LIST = ['PLUS','EXTRA','XGG','GG','PP','XS','XL','XXL','XXXL','P','M','G','S','L','U','60','58','56','54','52','50','48','46','44','42','40','38','36','34','32']
+const SIZES_LIST = ['PLUS','EXTRA','XXGG','XGG','XXG','EGG','3XG','2XG','G3','G2','G1','GG','PP','XS','XL','XXL','XXXL','P','M','G','S','L','U','60','58','56','54','52','50','48','46','44','42','40','38','36','34','32']
 
 function extractModeloLocal(nome: string): string {
   const upper = nome.toUpperCase().trim()
@@ -229,6 +229,7 @@ export default function EstoqueFormPage({
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'loading' } | null>(null)
   const [activeTab, setActiveTab] = useState<'principal' | 'tributos'>('principal')
   const [marcasMap, setMarcasMap] = useState<Map<string, number>>(new Map())
+  const [marcasTamanhos, setMarcasTamanhos] = useState<Map<string, string[]>>(new Map())  // extras por marca
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [fotoId, setFotoId] = useState<string | null>(null)
   const [fotoStoragePath, setFotoStoragePath] = useState<string | null>(null)
@@ -243,8 +244,11 @@ export default function EstoqueFormPage({
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    supabase.from('marcas').select('nome, markup').then(({ data }) => {
-      if (data) setMarcasMap(new Map(data.map(m => [m.nome.toLowerCase().trim(), m.markup])))
+    supabase.from('marcas').select('nome, markup, tamanhos').then(({ data }) => {
+      if (data) {
+        setMarcasMap(new Map(data.map(m => [m.nome.toLowerCase().trim(), m.markup])))
+        setMarcasTamanhos(new Map(data.map(m => [m.nome.toLowerCase().trim(), (m.tamanhos as string[] | null) ?? []])))
+      }
     })
     if (hasScanParams) showToast('Etiqueta escaneada com sucesso!')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -402,8 +406,13 @@ export default function EstoqueFormPage({
     return String(parseFloat((vendaNum / markup).toFixed(2)))
   }
 
+  // Grade = padrão da categoria (Aramis) + extras aprendidos/adicionados na marca
+  const extrasMarca = marcasTamanhos.get(form.marca.trim().toLowerCase()) ?? []
   const sizeOptions = form.categoria
-    ? (SIZE_OPTIONS[form.categoria as Produto['categoria']] ?? [])
+    ? [
+        ...(SIZE_OPTIONS[form.categoria as Produto['categoria']] ?? []),
+        ...extrasMarca.filter(t => !(SIZE_OPTIONS[form.categoria as Produto['categoria']] ?? []).includes(t)),
+      ]
     : []
 
   /* ── Helpers ── */
@@ -424,6 +433,30 @@ export default function EstoqueFormPage({
           : [...f.tamanhos, { tamanho, qtd: 1 }],
       }
     })
+  }
+
+  /* "+" tamanho: adiciona um tamanho fora do padrão e o salva na GRADE DA MARCA
+     (pra aparecer sozinho nas próximas peças dessa marca). */
+  async function adicionarTamanhoCustom() {
+    const raw = window.prompt('Novo tamanho pra essa marca (ex.: 2XG, EGG, 3XG):')
+    const size = (raw ?? '').trim().toUpperCase()
+    if (!size) return
+    if (!form.tamanhos.find(t => t.tamanho === size)) toggleTamanho(size)
+
+    const marca = form.marca.trim()
+    if (!marca) { showToast('Informe a marca pra salvar esse tamanho nela.', 'error'); return }
+    const key = marca.toLowerCase()
+    const atuais = marcasTamanhos.get(key) ?? []
+    const defaults = SIZE_OPTIONS[form.categoria as Produto['categoria']] ?? []
+    if (atuais.includes(size) || defaults.includes(size)) return
+    setMarcasTamanhos(m => new Map(m).set(key, [...atuais, size]))
+    try {
+      const { data: mrow } = await supabase.from('marcas').select('id, tamanhos').ilike('nome', marca).maybeSingle()
+      if (mrow) {
+        const merged = Array.from(new Set([...((mrow.tamanhos as string[] | null) ?? []), size]))
+        await supabase.from('marcas').update({ tamanhos: merged }).eq('id', mrow.id)
+      }
+    } catch { /* mantém em memória mesmo se falhar */ }
   }
 
   function setTamanhoQtd(tamanho: string, qtd: number) {
@@ -875,6 +908,13 @@ export default function EstoqueFormPage({
                         </button>
                       )
                     })}
+                    <button
+                      onClick={adicionarTamanhoCustom}
+                      title="Adicionar um tamanho que essa marca usa (ex.: 2XG, EGG)"
+                      className="px-3 py-2 border border-dashed border-zinc-600 hover:border-violet-500 text-zinc-500 hover:text-violet-300 rounded-lg text-sm transition cursor-pointer"
+                    >
+                      + tamanho
+                    </button>
                   </div>
 
                   {/* Tamanhos fora do padrão da categoria (ex: 'UN' vindo da

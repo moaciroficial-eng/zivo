@@ -69,14 +69,26 @@ export function juntarTamanhos(valor: unknown): string {
   return separarTamanhos(valor).join('/')
 }
 
+/* Tamanhos GRANDES equivalentes entre marcas (cada marca chama de um jeito).
+   Mesmo "nível acima de GG" = mesmo corpo. Ex.: Aramis XXG = TXC 2XG = Damyller EGG. */
+const GRANDE_GRUPOS: string[][] = [
+  ['XGG', 'XG', 'EG', 'G1'],            // 1 nível acima de GG
+  ['XXG', 'XXGG', 'EGG', '2XG', 'G2'],  // 2 níveis
+  ['XXXG', '3XG', 'G3', 'XXXGG'],       // 3 níveis
+]
+const GRANDE_EQUIV: Record<string, string[]> = {}
+for (const grupo of GRANDE_GRUPOS) for (const t of grupo) GRANDE_EQUIV[t] = grupo
+
 /* Expande um tamanho (ou par "38/40") em TODAS as formas equivalentes.
-   "40" → ["40","M"]  |  "M" → ["M","40","42"]  |  "38/40" → ["38","P","40","M"] */
+   "40" → ["40","M"]  |  "M" → ["M","40","42"]  |  "38/40" → ["38","P","40","M"]
+   "2XG" → ["2XG","XXG","EGG","XXGG","G2"] (equivalência de tamanho grande) */
 export function expandirTamanho(tamanho: unknown): string[] {
   const set = new Set<string>()
   for (const t of separarTamanhos(tamanho)) {
     set.add(t)
     if (NUM_PARA_LETRA[t]) set.add(NUM_PARA_LETRA[t])
     if (LETRA_PARA_NUMS[t]) for (const n of LETRA_PARA_NUMS[t]) set.add(n)
+    if (GRANDE_EQUIV[t]) for (const g of GRANDE_EQUIV[t]) set.add(g)
   }
   return [...set]
 }
