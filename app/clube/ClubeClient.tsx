@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Produto, Membro, VendaClube } from './page'
+import type { Produto, Membro, VendaClube, ClienteRef } from './page'
 
 function fBRL(v: number | null | undefined) {
   if (v == null) return '—'
@@ -17,7 +17,7 @@ function totalQtd(t: Produto['tamanhos']) {
 }
 
 export default function ClubeClient({
-  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, mpToken, produtos, fotoMap, membrosLista, vendasClube,
+  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, mpToken, produtos, fotoMap, membrosLista, vendasClube, clientes,
 }: {
   user: { id: string; email: string }
   nomeLoja: string
@@ -31,6 +31,7 @@ export default function ClubeClient({
   fotoMap: Record<string, string>
   membrosLista: Membro[]
   vendasClube: VendaClube[]
+  clientes: ClienteRef[]
 }) {
   const supabase = createClient()
   const [ativo, setAtivo] = useState(clubeAtivo)
@@ -45,7 +46,20 @@ export default function ClubeClient({
   const [comoTxt, setComoTxt] = useState(comoComprar)
   const [mp, setMp] = useState(mpToken)
   const [vendas, setVendas] = useState<VendaClube[]>(vendasClube)
-  const membros = membrosLista.length
+  const [membros, setMembros] = useState<Membro[]>(membrosLista)
+  const [configAberta, setConfigAberta] = useState(false)
+  const [modal, setModal] = useState<null | 'membros' | 'vendas'>(null)
+  const [linkMembro, setLinkMembro] = useState<string | null>(null)  // membro sendo linkado
+  const [linkBusca, setLinkBusca] = useState('')
+
+  const nomeCliente = (id: string | null) => id ? (clientes.find(c => c.id === id)?.nome ?? 'vinculado') : null
+
+  async function linkarCliente(membroId: string, clienteId: string) {
+    setMembros(ms => ms.map(m => m.id === membroId ? { ...m, cliente_id: clienteId } : m))
+    setLinkMembro(null); setLinkBusca('')
+    await supabase.from('clube_membros').update({ cliente_id: clienteId }).eq('id', membroId)
+    showToast('Cliente vinculado!')
+  }
 
   // Realtime: quando entra uma venda paga no clube, avisa na tela
   useEffect(() => {
@@ -154,94 +168,83 @@ export default function ClubeClient({
           <p className="text-sm text-zinc-500 mt-1">Vitrine VIP de oportunidades — selecione os produtos parados pra desovar com preço especial.</p>
         </div>
 
-        {/* Config + link */}
-        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Clube ativo</p>
-              <p className="text-xs text-zinc-500">Liga a vitrine pública (o link só funciona com isso ligado).</p>
-            </div>
-            <button onClick={() => toggleConfig('clube_ativo', !ativo)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${ativo ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
-              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${ativo ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
+        {/* Link secreto + convite */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-zinc-400">Link secreto do clube</p>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${ativo ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800/40'}`}>{ativo ? 'Ativo' : 'Desligado'}</span>
           </div>
-
-          <div className="flex items-center justify-between border-t border-zinc-800/60 pt-4">
-            <div>
-              <p className="text-sm font-medium">Cadastro de novos VIPs</p>
-              <p className="text-xs text-zinc-500">Aberto: qualquer um com o link entra. Fechado: só quem já é VIP acessa.</p>
-            </div>
-            <button onClick={() => toggleConfig('clube_cadastro_aberto', !aberto)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${aberto ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}>
-              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${aberto ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
-
-          <div className="border-t border-zinc-800/60 pt-4">
-            <p className="text-xs font-medium text-zinc-400 mb-1.5">Link secreto do clube ({membros} membro{membros !== 1 ? 's' : ''})</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input readOnly value={linkPublico} className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none" />
             <div className="flex gap-2">
-              <input readOnly value={linkPublico} className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none" />
-              <button onClick={copiarLink} className="text-sm font-medium border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-2 transition cursor-pointer shrink-0">Copiar</button>
-              <button onClick={convidarTodos} disabled={convidando} className="text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-3 py-2 transition cursor-pointer shrink-0 disabled:opacity-50">
+              <button onClick={copiarLink} className="flex-1 text-sm font-medium border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-2 transition cursor-pointer">Copiar</button>
+              <button onClick={convidarTodos} disabled={convidando} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-3 py-2 transition cursor-pointer disabled:opacity-50 whitespace-nowrap">
                 {convidando ? 'Enviando...' : 'Convidar todos'}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Personalização */}
-        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-300">Personalização do site</h2>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600 text-xs">
-              {logo ? <img src={logo} alt="logo" className="w-full h-full object-contain" /> : 'sem logo'}
-            </div>
-            <div>
-              <label className={`inline-block text-sm font-medium border rounded-lg px-3 py-2 cursor-pointer transition ${uploadingLogo ? 'opacity-50 pointer-events-none border-zinc-700' : 'border-zinc-700 hover:border-violet-500/50'}`}>
-                {uploadingLogo ? 'Enviando...' : logo ? 'Trocar logo' : 'Enviar logo'}
-                <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
-              </label>
-              <p className="text-xs text-zinc-600 mt-1">Aparece no topo do site do clube.</p>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Como comprar (aparece no rodapé do site)</label>
-            <textarea
-              value={comoTxt} onChange={e => setComoTxt(e.target.value)} onBlur={salvarComoComprar} rows={3}
-              placeholder={'Ex.: 1) Escolha a peça  2) Clique em "Quero essa"  3) Combinamos o pagamento e a retirada/entrega no WhatsApp.'}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 resize-none"
-            />
-          </div>
-        </div>
-
-        {/* Pagamento (Mercado Pago) */}
-        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-300">Pagamento no site (Mercado Pago)</h2>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${mp.trim() ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800/40'}`}>
-              {mp.trim() ? 'Ligado' : 'Desligado'}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-500">Cole seu <b>Access Token</b> do Mercado Pago (Suas integrações → Credenciais de produção). Com ele, o cliente paga no site (Pix/cartão) e o estoque baixa sozinho. Sem token, o botão vira &quot;Quero essa&quot; no WhatsApp.</p>
-          <div className="flex gap-2">
-            <input type="password" value={mp} onChange={e => setMp(e.target.value)} placeholder="APP_USR-..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
-            <button onClick={salvarMp} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
-          </div>
-        </div>
-
-        {/* Resumo */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* Resumo — cards clicáveis */}
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">No clube</p>
+            <p className="text-[11px] text-zinc-500 uppercase tracking-wider">No clube</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{noClube.length}</p>
           </div>
-          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Membros VIP</p>
-            <p className="text-2xl font-bold mt-1">{membros}</p>
-          </div>
-          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 col-span-2 sm:col-span-1">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Status</p>
-            <p className={`text-lg font-bold mt-1 ${ativo ? 'text-emerald-400' : 'text-zinc-500'}`}>{ativo ? 'Ativo' : 'Desligado'}</p>
-          </div>
+          <button onClick={() => setModal('membros')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-violet-500/40 rounded-2xl p-4 transition cursor-pointer">
+            <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Membros VIP</p>
+            <p className="text-2xl font-bold mt-1">{membros.length}</p>
+            <p className="text-[10px] text-violet-400 mt-0.5">ver lista →</p>
+          </button>
+          <button onClick={() => setModal('vendas')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-emerald-500/40 rounded-2xl p-4 transition cursor-pointer">
+            <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Vendas</p>
+            <p className="text-2xl font-bold mt-1 text-emerald-400">{vendas.length}</p>
+            <p className="text-[10px] text-violet-400 mt-0.5">ver lista →</p>
+          </button>
+        </div>
+
+        {/* Configurações — recolhível */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
+          <button onClick={() => setConfigAberta(v => !v)} className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-zinc-800/30 transition cursor-pointer">
+            <span className="font-semibold text-sm">⚙️ Configurações do clube</span>
+            <span className="text-zinc-500 text-sm">{configAberta ? 'Fechar ▲' : 'Abrir ▼'}</span>
+          </button>
+          {configAberta && (
+            <div className="px-5 pb-5 space-y-5 border-t border-zinc-800/60 pt-5">
+              <div className="flex items-center justify-between">
+                <div><p className="text-sm font-medium">Clube ativo</p><p className="text-xs text-zinc-500">Liga a vitrine pública.</p></div>
+                <button onClick={() => toggleConfig('clube_ativo', !ativo)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition shrink-0 ${ativo ? 'bg-emerald-500' : 'bg-zinc-700'}`}><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${ativo ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+              </div>
+              <div className="flex items-center justify-between border-t border-zinc-800/60 pt-4">
+                <div><p className="text-sm font-medium">Cadastro de novos VIPs</p><p className="text-xs text-zinc-500">Aberto: qualquer um com o link entra. Fechado: só quem já é VIP.</p></div>
+                <button onClick={() => toggleConfig('clube_cadastro_aberto', !aberto)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition shrink-0 ${aberto ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${aberto ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+              </div>
+              <div className="border-t border-zinc-800/60 pt-4 space-y-3">
+                <p className="text-sm font-medium">Personalização</p>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600 text-xs">
+                    {logo ? <img src={logo} alt="logo" className="w-full h-full object-contain" /> : 'logo'}
+                  </div>
+                  <label className={`inline-block text-sm font-medium border rounded-lg px-3 py-2 cursor-pointer transition ${uploadingLogo ? 'opacity-50 pointer-events-none border-zinc-700' : 'border-zinc-700 hover:border-violet-500/50'}`}>
+                    {uploadingLogo ? 'Enviando...' : logo ? 'Trocar logo' : 'Enviar logo'}
+                    <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
+                  </label>
+                </div>
+                <textarea value={comoTxt} onChange={e => setComoTxt(e.target.value)} onBlur={salvarComoComprar} rows={3} placeholder={'Como comprar (rodapé do site) — ex.: 1) Escolha  2) Clique em Comprar  3) Retirada/entrega...'} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 resize-none" />
+              </div>
+              <div className="border-t border-zinc-800/60 pt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Pagamento no site (Mercado Pago)</p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${mp.trim() ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800/40'}`}>{mp.trim() ? 'Ligado' : 'Desligado'}</span>
+                </div>
+                <p className="text-xs text-zinc-500">Access Token do Mercado Pago (produção). Com ele o cliente paga no site; sem token, o botão vira &quot;Quero essa&quot; no WhatsApp.</p>
+                <div className="flex gap-2">
+                  <input type="password" value={mp} onChange={e => setMp(e.target.value)} placeholder="APP_USR-..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+                  <button onClick={salvarMp} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Produtos */}
@@ -319,47 +322,75 @@ export default function ClubeClient({
           </div>
         </div>
 
-        {/* Vendas do clube */}
-        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-800">
-            <h2 className="font-semibold text-sm">Vendas do clube ({vendas.length})</h2>
-          </div>
-          <div className="divide-y divide-zinc-800/60 max-h-72 overflow-y-auto">
-            {vendas.length === 0 && <p className="px-5 py-6 text-sm text-zinc-500 text-center">Nenhuma venda ainda.</p>}
-            {vendas.map(v => (
-              <div key={v.id} className="px-5 py-3 flex items-center gap-3 text-sm">
-                <div className="flex-1 min-w-0">
-                  <p className="truncate">{v.produto_nome}</p>
-                  <p className="text-xs text-zinc-500 truncate">{v.email_membro} · {v.criado_em ? new Date(v.criado_em).toLocaleDateString('pt-BR') : ''}</p>
-                </div>
-                <span className="text-emerald-400 font-semibold shrink-0">{fBRL(v.valor)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Membros VIP */}
-        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-800">
-            <h2 className="font-semibold text-sm">Membros VIP ({membrosLista.length})</h2>
-          </div>
-          <div className="divide-y divide-zinc-800/60 max-h-72 overflow-y-auto">
-            {membrosLista.length === 0 && <p className="px-5 py-6 text-sm text-zinc-500 text-center">Ninguém cadastrado ainda.</p>}
-            {membrosLista.map(m => (
-              <div key={m.id} className="px-5 py-3 flex items-center gap-3 text-sm">
-                <div className="w-8 h-8 rounded-full bg-violet-500/15 border border-violet-500/25 flex items-center justify-center text-violet-300 text-xs font-bold shrink-0">
-                  {(m.nome ?? m.email).charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate">{m.nome || m.email}</p>
-                  <p className="text-xs text-zinc-500 truncate">{m.email}{m.telefone ? ` · ${m.telefone}` : ''}</p>
-                </div>
-                <span className="text-xs text-zinc-600 shrink-0">{m.criado_em ? new Date(m.criado_em).toLocaleDateString('pt-BR') : ''}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
+
+      {/* Modal: Membros VIP (com link manual) */}
+      {modal === 'membros' && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setModal(null); setLinkMembro(null) }}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h2 className="font-bold">Membros VIP ({membros.length})</h2>
+              <button onClick={() => { setModal(null); setLinkMembro(null) }} className="text-zinc-500 hover:text-white text-sm">Fechar</button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/60">
+              {membros.length === 0 && <p className="px-5 py-8 text-sm text-zinc-500 text-center">Ninguém cadastrado ainda.</p>}
+              {membros.map(m => (
+                <div key={m.id} className="px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-violet-500/15 border border-violet-500/25 flex items-center justify-center text-violet-300 text-xs font-bold shrink-0">{(m.nome ?? m.email).charAt(0).toUpperCase()}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-sm">{m.nome || m.email}</p>
+                      <p className="text-xs text-zinc-500 truncate">{m.email}{m.telefone ? ` · ${m.telefone}` : ''}</p>
+                    </div>
+                    {m.cliente_id
+                      ? <span className="text-[11px] text-emerald-400 shrink-0">✓ {nomeCliente(m.cliente_id)}</span>
+                      : <button onClick={() => { setLinkMembro(linkMembro === m.id ? null : m.id); setLinkBusca('') }} className="text-[11px] font-semibold text-violet-300 border border-violet-500/30 rounded px-2 py-1 shrink-0 hover:bg-violet-500/10 transition cursor-pointer">Linkar cliente</button>}
+                  </div>
+                  {linkMembro === m.id && (
+                    <div className="mt-2 sm:pl-11">
+                      <input autoFocus value={linkBusca} onChange={e => setLinkBusca(e.target.value)} placeholder="Buscar cliente pelo nome ou telefone..." className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+                      <div className="mt-1 max-h-40 overflow-y-auto">
+                        {clientes.filter(c => c.nome.toLowerCase().includes(linkBusca.toLowerCase()) || (c.telefone ?? '').includes(linkBusca)).slice(0, 8).map(c => (
+                          <button key={c.id} onClick={() => linkarCliente(m.id, c.id)} className="w-full text-left px-3 py-2 text-sm hover:bg-violet-500/20 rounded transition cursor-pointer">
+                            {c.nome} <span className="text-xs text-zinc-500">{c.telefone ?? ''}</span>
+                          </button>
+                        ))}
+                        {clientes.filter(c => c.nome.toLowerCase().includes(linkBusca.toLowerCase()) || (c.telefone ?? '').includes(linkBusca)).length === 0 && (
+                          <p className="px-3 py-2 text-xs text-zinc-600">Nenhum cliente encontrado.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Vendas do clube */}
+      {modal === 'vendas' && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setModal(null)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h2 className="font-bold">Vendas do clube ({vendas.length})</h2>
+              <button onClick={() => setModal(null)} className="text-zinc-500 hover:text-white text-sm">Fechar</button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/60">
+              {vendas.length === 0 && <p className="px-5 py-8 text-sm text-zinc-500 text-center">Nenhuma venda ainda.</p>}
+              {vendas.map(v => (
+                <div key={v.id} className="px-5 py-3 flex items-center gap-3 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate">{v.produto_nome}</p>
+                    <p className="text-xs text-zinc-500 truncate">{v.email_membro} · {v.criado_em ? new Date(v.criado_em).toLocaleDateString('pt-BR') : ''}</p>
+                  </div>
+                  <span className="text-emerald-400 font-semibold shrink-0">{fBRL(v.valor)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
