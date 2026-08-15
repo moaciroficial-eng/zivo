@@ -1,0 +1,206 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import type { Produto } from './page'
+
+function fBRL(v: number | null | undefined) {
+  if (v == null) return '—'
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+}
+function diasDe(data: string | null): number | null {
+  if (!data) return null
+  return Math.floor((Date.now() - new Date(data).getTime()) / 86400000)
+}
+function totalQtd(t: Produto['tamanhos']) {
+  return (t ?? []).reduce((s, x) => s + (Number(x.qtd) || 0), 0)
+}
+
+export default function ClubeClient({
+  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, produtos, fotoMap, membros,
+}: {
+  user: { id: string; email: string }
+  nomeLoja: string
+  clubeAtivo: boolean
+  cadastroAberto: boolean
+  linkPublico: string
+  produtos: Produto[]
+  fotoMap: Record<string, string>
+  membros: number
+}) {
+  const supabase = createClient()
+  const [ativo, setAtivo] = useState(clubeAtivo)
+  const [aberto, setAberto] = useState(cadastroAberto)
+  const [lista, setLista] = useState<Produto[]>(produtos)
+  const [busca, setBusca] = useState('')
+  const [soParados, setSoParados] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [convidando, setConvidando] = useState(false)
+
+  function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
+
+  const noClube = lista.filter(p => p.oportunidade)
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    return lista.filter(p => {
+      if (soParados && (diasDe(p.data_entrada) ?? 0) < 30) return false
+      if (!q) return true
+      return `${p.nome} ${p.marca ?? ''} ${p.cor ?? ''}`.toLowerCase().includes(q)
+    })
+  }, [lista, busca, soParados])
+
+  async function toggleConfig(campo: 'clube_ativo' | 'clube_cadastro_aberto', valor: boolean) {
+    if (campo === 'clube_ativo') setAtivo(valor); else setAberto(valor)
+    await supabase.from('loja_config').upsert({ user_id: user.id, [campo]: valor }, { onConflict: 'user_id' })
+  }
+
+  async function toggleProduto(p: Produto) {
+    const novo = !p.oportunidade
+    const preco = novo ? (p.preco_oportunidade ?? p.preco_venda ?? null) : p.preco_oportunidade
+    setLista(l => l.map(x => x.id === p.id ? { ...x, oportunidade: novo, preco_oportunidade: preco } : x))
+    const { error } = await supabase.from('estoque').update({ oportunidade: novo, preco_oportunidade: preco }).eq('id', p.id)
+    if (error) showToast('Erro ao salvar.', false)
+  }
+
+  async function setPreco(p: Produto, valor: string) {
+    const preco = valor === '' ? null : Number(valor)
+    setLista(l => l.map(x => x.id === p.id ? { ...x, preco_oportunidade: preco } : x))
+    await supabase.from('estoque').update({ preco_oportunidade: preco }).eq('id', p.id)
+  }
+
+  function copiarLink() {
+    navigator.clipboard.writeText(linkPublico).then(() => showToast('Link copiado!')).catch(() => showToast('Copie manualmente.', false))
+  }
+
+  async function convidarTodos() {
+    if (!confirm(`Enviar o convite do Clube ${nomeLoja} pra TODOS os seus clientes no WhatsApp?`)) return
+    setConvidando(true)
+    try {
+      const res = await fetch('/api/clube/convidar', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (d?.ok) showToast(`Convite enviado para ${d.enviados ?? 0} cliente(s).`)
+      else showToast(d?.erro || 'Falha ao enviar convites.', false)
+    } catch { showToast('Falha ao enviar convites.', false) } finally { setConvidando(false) }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#080B10] text-white p-6 md:p-8">
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl border ${toast.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>{toast.msg}</div>
+      )}
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Clube {nomeLoja}</h1>
+          <p className="text-sm text-zinc-500 mt-1">Vitrine VIP de oportunidades — selecione os produtos parados pra desovar com preço especial.</p>
+        </div>
+
+        {/* Config + link */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Clube ativo</p>
+              <p className="text-xs text-zinc-500">Liga a vitrine pública (o link só funciona com isso ligado).</p>
+            </div>
+            <button onClick={() => toggleConfig('clube_ativo', !ativo)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${ativo ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${ativo ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-zinc-800/60 pt-4">
+            <div>
+              <p className="text-sm font-medium">Cadastro de novos VIPs</p>
+              <p className="text-xs text-zinc-500">Aberto: qualquer um com o link entra. Fechado: só quem já é VIP acessa.</p>
+            </div>
+            <button onClick={() => toggleConfig('clube_cadastro_aberto', !aberto)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${aberto ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}>
+              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${aberto ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          <div className="border-t border-zinc-800/60 pt-4">
+            <p className="text-xs font-medium text-zinc-400 mb-1.5">Link secreto do clube ({membros} membro{membros !== 1 ? 's' : ''})</p>
+            <div className="flex gap-2">
+              <input readOnly value={linkPublico} className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none" />
+              <button onClick={copiarLink} className="text-sm font-medium border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-2 transition cursor-pointer shrink-0">Copiar</button>
+              <button onClick={convidarTodos} disabled={convidando} className="text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-3 py-2 transition cursor-pointer shrink-0 disabled:opacity-50">
+                {convidando ? 'Enviando...' : 'Convidar todos'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Resumo */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider">No clube</p>
+            <p className="text-2xl font-bold mt-1 text-emerald-400">{noClube.length}</p>
+          </div>
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider">Membros VIP</p>
+            <p className="text-2xl font-bold mt-1">{membros}</p>
+          </div>
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 col-span-2 sm:col-span-1">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider">Status</p>
+            <p className={`text-lg font-bold mt-1 ${ativo ? 'text-emerald-400' : 'text-zinc-500'}`}>{ativo ? 'Ativo' : 'Desligado'}</p>
+          </div>
+        </div>
+
+        {/* Produtos */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-800 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <h2 className="font-semibold text-sm">Selecione os produtos do clube</h2>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+                <input type="checkbox" checked={soParados} onChange={e => setSoParados(e.target.checked)} className="accent-violet-500" />
+                Só parados (30+ dias)
+              </label>
+              <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar..." className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-violet-500" />
+            </div>
+          </div>
+          <div className="divide-y divide-zinc-800/60 max-h-[560px] overflow-y-auto">
+            {filtrados.length === 0 && <p className="px-5 py-8 text-sm text-zinc-500 text-center">Nenhum produto.</p>}
+            {filtrados.map(p => {
+              const dias = diasDe(p.data_entrada)
+              const parado = (dias ?? 0) >= 30
+              const semEstoque = totalQtd(p.tamanhos) <= 0
+              return (
+                <div key={p.id} className={`px-5 py-3 flex items-center gap-3 ${p.oportunidade ? 'bg-emerald-500/5' : ''}`}>
+                  <div className="w-11 h-11 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
+                    {fotoMap[p.id] ? <img src={fotoMap[p.id]} alt="" className="w-full h-full object-cover" /> : '—'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{p.nome}</p>
+                    <p className="text-xs text-zinc-500 truncate">
+                      {[p.marca, p.cor].filter(Boolean).join(' · ')}
+                      {' · '}{fBRL(p.preco_venda)}
+                      {parado && <span className="ml-1.5 text-amber-400">parado {dias}d</span>}
+                      {semEstoque && <span className="ml-1.5 text-red-400">sem estoque</span>}
+                    </p>
+                  </div>
+                  {p.oportunidade && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs text-zinc-500">R$</span>
+                      <input
+                        type="number" min="0" step="0.01" value={p.preco_oportunidade ?? ''}
+                        onChange={e => setPreco(p, e.target.value)}
+                        placeholder="oferta"
+                        className="w-20 bg-zinc-800 border border-emerald-500/40 rounded-lg px-2 py-1 text-sm text-emerald-300 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                  )}
+                  <button
+                    onClick={() => toggleProduto(p)}
+                    className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition cursor-pointer ${
+                      p.oportunidade ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/15' : 'border-zinc-700 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {p.oportunidade ? 'No clube ✓' : '+ Clube'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

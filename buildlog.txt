@@ -6,15 +6,15 @@
 - Environments: .env.production.local, .env.local
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.2min
+✓ Compiled successfully in 91s
   Running TypeScript ...
-  Finished TypeScript in 84s ...
+  Finished TypeScript in 58s ...
   Collecting page data using 3 workers ...
-  Generating static pages using 3 workers (0/93) ...
-  Generating static pages using 3 workers (23/93) 
-  Generating static pages using 3 workers (46/93) 
-  Generating static pages using 3 workers (69/93) 
-✓ Generating static pages using 3 workers (93/93) in 7.7s
+  Generating static pages using 3 workers (0/96) ...
+  Generating static pages using 3 workers (24/96) 
+  Generating static pages using 3 workers (48/96) 
+  Generating static pages using 3 workers (72/96) 
+✓ Generating static pages using 3 workers (96/96) in 5.8s
   Finalizing page optimization ...
 
 Route (app)
@@ -40,6 +40,8 @@ Route (app)
 ├ ƒ /api/clientes/importar
 ├ ƒ /api/clientes/importar/confirmar
 ├ ƒ /api/clientes/observacao
+├ ƒ /api/clube/convidar
+├ ƒ /api/clube/entrar
 ├ ƒ /api/compras/analisar
 ├ ƒ /api/conferencia-scan
 ├ ƒ /api/conferencia/novidades
@@ -90,6 +92,8 @@ Route (app)
 ├ ƒ /calendario
 ├ ƒ /campanhas
 ├ ƒ /clientes
+├ ƒ /clube
+├ ƒ /clube/[slug]
 ├ ƒ /compras
 ├ ƒ /configuracoes/loja
 ├ ƒ /configuracoes/marcas

@@ -53,6 +53,15 @@ const NAV = [
           </svg>
         ),
       },
+      {
+        href: '/clube',
+        label: 'Clube',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21 8 14 2 9.4h7.6z"/>
+          </svg>
+        ),
+      },
     ],
   },
   {

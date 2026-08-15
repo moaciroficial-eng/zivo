@@ -14,7 +14,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [pathname])
 
-  if (pathname === '/') return <>{children}</>
+  // Landing e páginas PÚBLICAS do clube (/clube/<slug>) não usam o chrome do app
+  if (pathname === '/' || /^\/clube\/[^/]+/.test(pathname)) return <>{children}</>
 
   return (
     <div className="relative min-h-screen bg-[#09090b] text-white overflow-x-hidden">
