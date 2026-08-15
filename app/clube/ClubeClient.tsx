@@ -48,7 +48,7 @@ export default function ClubeClient({
   const [vendas, setVendas] = useState<VendaClube[]>(vendasClube)
   const [membros, setMembros] = useState<Membro[]>(membrosLista)
   const [configAberta, setConfigAberta] = useState(false)
-  const [modal, setModal] = useState<null | 'membros' | 'vendas'>(null)
+  const [modal, setModal] = useState<null | 'membros' | 'vendas' | 'noclube'>(null)
   const [linkMembro, setLinkMembro] = useState<string | null>(null)  // membro sendo linkado
   const [linkBusca, setLinkBusca] = useState('')
 
@@ -187,10 +187,11 @@ export default function ClubeClient({
 
         {/* Resumo — cards clicáveis */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4">
+          <button onClick={() => setModal('noclube')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-emerald-500/40 rounded-2xl p-4 transition cursor-pointer">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider">No clube</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{noClube.length}</p>
-          </div>
+            <p className="text-[10px] text-violet-400 mt-0.5">editar →</p>
+          </button>
           <button onClick={() => setModal('membros')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-violet-500/40 rounded-2xl p-4 transition cursor-pointer">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Membros VIP</p>
             <p className="text-2xl font-bold mt-1">{membros.length}</p>
@@ -323,6 +324,50 @@ export default function ClubeClient({
         </div>
 
       </div>
+
+      {/* Modal: produtos no clube (editar preço/combo/tirar) */}
+      {modal === 'noclube' && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setModal(null)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h2 className="font-bold">No clube ({noClube.length})</h2>
+              <button onClick={() => setModal(null)} className="text-zinc-500 hover:text-white text-sm">Fechar</button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/60">
+              {noClube.length === 0 && <p className="px-5 py-8 text-sm text-zinc-500 text-center">Nenhum produto no clube ainda. Adicione lá embaixo.</p>}
+              {noClube.map(p => (
+                <div key={p.id} className="px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
+                      {fotoMap[p.id] ? <img src={fotoMap[p.id]} alt="" className="w-full h-full object-cover" /> : '—'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{p.nome}</p>
+                      <p className="text-xs text-zinc-500 truncate">{[p.marca, p.cor].filter(Boolean).join(' · ')} · de {fBRL(p.preco_venda)}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs text-zinc-500">R$</span>
+                      <input type="number" min="0" step="0.01" value={p.preco_oportunidade ?? ''} onChange={e => setPreco(p, e.target.value)} placeholder="oferta"
+                        className="w-20 bg-zinc-800 border border-emerald-500/40 rounded-lg px-2 py-1 text-sm text-emerald-300 outline-none focus:border-emerald-400" />
+                    </div>
+                    <button onClick={() => toggleProduto(p)} className="shrink-0 text-[11px] font-semibold text-red-400 border border-red-500/30 rounded px-2 py-1 hover:bg-red-500/10 transition cursor-pointer">Tirar</button>
+                  </div>
+                  <div className="mt-2 sm:pl-14 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer shrink-0">
+                      <input type="checkbox" checked={!!p.combo} onChange={() => toggleCombo(p)} className="accent-amber-500" />
+                      ⚡ Combo (isca)
+                    </label>
+                    {p.combo && (
+                      <input value={p.combo_texto ?? ''} onChange={e => setComboTexto(p, e.target.value)} placeholder="Condição — ex.: levando uma camiseta"
+                        className="flex-1 bg-zinc-800 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-sm text-amber-200 placeholder-zinc-600 outline-none focus:border-amber-400" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Membros VIP (com link manual) */}
       {modal === 'membros' && (
