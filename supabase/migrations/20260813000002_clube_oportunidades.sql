@@ -20,9 +20,12 @@ create table if not exists clube_membros (
   nome        text,
   telefone    text,
   cliente_id  uuid,
-  criado_em   timestamptz default now(),
-  unique (user_id, lower(email))
+  criado_em   timestamptz default now()
 );
+
+-- unicidade por loja+email (case-insensitive) precisa ser ÍNDICE (expressão)
+create unique index if not exists clube_membros_user_email_uidx
+  on clube_membros (user_id, lower(email));
 
 alter table clube_membros enable row level security;
 drop policy if exists "user_own_clube_membros" on clube_membros;
