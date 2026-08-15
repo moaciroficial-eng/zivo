@@ -5,11 +5,17 @@ import { NextRequest, NextResponse } from 'next/server'
    Retorna a URL (init_point) pra redirecionar o cliente. O pagamento é
    confirmado depois pelo webhook, que baixa o estoque e registra a venda. */
 
+type ItemCarrinho = { estoqueId: string; tamanho?: string | null }
+
 export async function POST(request: NextRequest) {
-  const { slug, estoqueId, tamanho, email } = await request.json() as {
-    slug?: string; estoqueId?: string; tamanho?: string; email?: string
-  }
-  if (!slug || !estoqueId) return NextResponse.json({ ok: false, erro: 'Dados incompletos.' }, { status: 400 })
+  const body = await request.json() as { slug?: string; email?: string; itens?: ItemCarrinho[]; estoqueId?: string; tamanho?: string }
+  const slug = body.slug
+  // aceita carrinho (itens[]) OU compra única (estoqueId) por retrocompat
+  const carrinho: ItemCarrinho[] = Array.isArray(body.itens) && body.itens.length
+    ? body.itens
+    : (body.estoqueId ? [{ estoqueId: body.estoqueId, tamanho: body.tamanho }] : [])
+  const email = body.email
+  if (!slug || carrinho.length === 0) return NextResponse.json({ ok: false, erro: 'Dados incompletos.' }, { status: 400 })
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -18,20 +24,32 @@ export async function POST(request: NextRequest) {
   if (!loja || !loja.clube_ativo) return NextResponse.json({ ok: false, erro: 'Clube indisponível.' })
   if (!loja.mp_access_token) return NextResponse.json({ ok: false, erro: 'Pagamento online não configurado.' })
 
-  const { data: prod } = await admin.from('estoque')
-    .select('id, nome, marca, preco_venda, preco_oportunidade, oportunidade, tamanhos, status')
-    .eq('id', estoqueId).eq('user_id', loja.user_id).maybeSingle()
-  if (!prod || !prod.oportunidade || prod.status === 'vendido') return NextResponse.json({ ok: false, erro: 'Produto indisponível.' })
+  // valida cada item e monta os itens do MP + do pedido
+  const mpItems: { title: string; quantity: number; unit_price: number; currency_id: string }[] = []
+  const itensPedido: { estoque_id: string; nome: string; tamanho: string | null; valor: number }[] = []
+  for (const it of carrinho) {
+    const { data: prod } = await admin.from('estoque')
+      .select('id, nome, marca, preco_venda, preco_oportunidade, oportunidade, status')
+      .eq('id', it.estoqueId).eq('user_id', loja.user_id).maybeSingle()
+    if (!prod || !prod.oportunidade || prod.status === 'vendido') continue
+    const preco = Number(prod.preco_oportunidade ?? prod.preco_venda ?? 0)
+    if (!(preco > 0)) continue
+    const titulo = `${prod.nome}${prod.marca ? ` (${prod.marca})` : ''}${it.tamanho ? ` — ${it.tamanho}` : ''}`
+    mpItems.push({ title: titulo, quantity: 1, unit_price: preco, currency_id: 'BRL' })
+    itensPedido.push({ estoque_id: prod.id, nome: titulo, tamanho: it.tamanho ?? null, valor: preco })
+  }
+  if (mpItems.length === 0) return NextResponse.json({ ok: false, erro: 'Nenhum item disponível.' })
 
-  const preco = Number(prod.preco_oportunidade ?? prod.preco_venda ?? 0)
-  if (!(preco > 0)) return NextResponse.json({ ok: false, erro: 'Produto sem preço.' })
+  const total = itensPedido.reduce((s, i) => s + i.valor, 0)
 
-  const titulo = `${prod.nome}${prod.marca ? ` (${prod.marca})` : ''}${tamanho ? ` — ${tamanho}` : ''}`
-
-  // cria o pedido pendente
+  // cria o pedido pendente (multi-itens)
   const { data: pedido } = await admin.from('clube_pedidos').insert({
-    user_id: loja.user_id, estoque_id: prod.id, produto_nome: titulo, tamanho: tamanho ?? null,
-    valor: preco, email_membro: (email ?? '').toLowerCase() || null, status: 'pendente',
+    user_id: loja.user_id,
+    estoque_id: itensPedido.length === 1 ? itensPedido[0].estoque_id : null,
+    produto_nome: itensPedido.map(i => i.nome).join(' + ').slice(0, 300),
+    tamanho: itensPedido.length === 1 ? itensPedido[0].tamanho : null,
+    itens: itensPedido,
+    valor: total, email_membro: (email ?? '').toLowerCase() || null, status: 'pendente',
   }).select('id').single()
   if (!pedido) return NextResponse.json({ ok: false, erro: 'Falha ao criar o pedido.' }, { status: 500 })
 
@@ -41,7 +59,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loja.mp_access_token}` },
       body: JSON.stringify({
-        items: [{ title: titulo, quantity: 1, unit_price: preco, currency_id: 'BRL' }],
+        items: mpItems,
         external_reference: pedido.id,
         notification_url: `${origin}/api/clube/webhook/mp?slug=${slug}`,
         back_urls: {

@@ -20,8 +20,15 @@ function fBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
+type CartItem = { key: string; estoqueId: string; nome: string; tamanho: string; preco: number }
+
 export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, slug, email, mpAtivo, itens }: { nomeLoja: string; logo: string | null; comoComprar: string | null; ownerPhone: string | null; slug: string; email: string; mpAtivo: boolean; itens: Item[] }) {
-  const [comprando, setComprando] = useState<string | null>(null)
+  const [tamSel, setTamSel] = useState<Record<string, string>>({})
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [showCart, setShowCart] = useState(false)
+  const [comprando, setComprando] = useState(false)
+
+  const total = cart.reduce((s, c) => s + c.preco, 0)
 
   const zap = (it: Item) => {
     const fone = (ownerPhone ?? '').replace(/\D/g, '')
@@ -30,17 +37,26 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
     return fone ? `https://wa.me/${fone.startsWith('55') ? fone : '55' + fone}?text=${msg}` : '#'
   }
 
-  async function comprar(it: Item) {
-    setComprando(it.id)
+  function adicionar(it: Item) {
+    const tam = it.tamanhos.length === 1 ? it.tamanhos[0] : (tamSel[it.id] || '')
+    if (it.tamanhos.length > 1 && !tam) { alert('Escolha o tamanho primeiro.'); return }
+    const preco = it.preco_oportunidade ?? it.preco_venda ?? 0
+    setCart(c => [...c, { key: `${it.id}-${tam}-${Date.now()}`, estoqueId: it.id, nome: `${it.nome}${it.marca ? ` (${it.marca})` : ''}${tam ? ` — ${tam}` : ''}`, tamanho: tam, preco }])
+    setShowCart(true)
+  }
+
+  async function finalizar() {
+    if (cart.length === 0) return
+    setComprando(true)
     try {
       const res = await fetch('/api/clube/comprar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, estoqueId: it.id, tamanho: it.tamanhos[0] ?? null, email }),
+        body: JSON.stringify({ slug, email, itens: cart.map(c => ({ estoqueId: c.estoqueId, tamanho: c.tamanho || null })) }),
       })
       const d = await res.json().catch(() => ({}))
       if (d?.ok && d.url) { window.location.href = d.url }
-      else { alert(d?.erro || 'Não foi possível iniciar o pagamento.'); setComprando(null) }
-    } catch { alert('Falha ao iniciar o pagamento.'); setComprando(null) }
+      else { alert(d?.erro || 'Não foi possível iniciar o pagamento.'); setComprando(false) }
+    } catch { alert('Falha ao iniciar o pagamento.'); setComprando(false) }
   }
 
   return (
@@ -87,10 +103,20 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                       <p className="text-lg font-bold text-emerald-400 leading-tight">{fBRL(it.preco_oportunidade ?? it.preco_venda)}</p>
                     </div>
                     {mpAtivo && !it.combo ? (
-                      <button onClick={() => comprar(it)} disabled={comprando === it.id}
-                        className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-2 transition disabled:opacity-60">
-                        {comprando === it.id ? 'Abrindo...' : 'Comprar'}
-                      </button>
+                      <>
+                        {it.tamanhos.length > 1 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {it.tamanhos.map(t => (
+                              <button key={t} onClick={() => setTamSel(s => ({ ...s, [it.id]: t }))}
+                                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-zinc-700 text-zinc-400 hover:text-white'}`}>{t}</button>
+                            ))}
+                          </div>
+                        )}
+                        <button onClick={() => adicionar(it)}
+                          className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-2 transition">
+                          Adicionar
+                        </button>
+                      </>
                     ) : (
                       <a href={zap(it)} target="_blank" rel="noopener noreferrer"
                         className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition">
@@ -109,8 +135,50 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
             <p className="text-sm text-zinc-400 whitespace-pre-wrap leading-relaxed">{comoComprar}</p>
           </div>
         )}
-        <p className="text-center text-xs text-zinc-700 mt-8">Clube {nomeLoja} · ofertas por tempo limitado</p>
+        <p className="text-center text-xs text-zinc-700 mt-8 mb-24">Clube {nomeLoja} · ofertas por tempo limitado</p>
       </main>
+
+      {/* Barra do carrinho */}
+      {cart.length > 0 && !showCart && (
+        <button onClick={() => setShowCart(true)}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full pl-5 pr-3 py-3 shadow-2xl transition">
+          <span className="font-semibold text-sm">{cart.length} {cart.length === 1 ? 'item' : 'itens'} · {fBRL(total)}</span>
+          <span className="bg-white/20 rounded-full px-3 py-1 text-sm font-bold">Ver carrinho</span>
+        </button>
+      )}
+
+      {/* Carrinho */}
+      {showCart && (
+        <div className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowCart(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h2 className="font-bold">Seu carrinho</h2>
+              <button onClick={() => setShowCart(false)} className="text-zinc-500 hover:text-white text-sm">Fechar</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {cart.length === 0 && <p className="text-sm text-zinc-500 text-center py-8">Carrinho vazio.</p>}
+              {cart.map(c => (
+                <div key={c.key} className="flex items-center gap-2 bg-zinc-800/60 rounded-lg px-3 py-2 text-sm">
+                  <span className="flex-1 min-w-0 truncate">{c.nome}</span>
+                  <span className="text-emerald-400 font-semibold shrink-0">{fBRL(c.preco)}</span>
+                  <button onClick={() => setCart(x => x.filter(i => i.key !== c.key))} className="text-zinc-500 hover:text-red-400 shrink-0 text-lg leading-none">×</button>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-zinc-800 shrink-0 space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-400">Total</span>
+                <span className="text-xl font-bold text-emerald-400">{fBRL(total)}</span>
+              </div>
+              <button onClick={finalizar} disabled={comprando || cart.length === 0}
+                className="w-full text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-3 transition disabled:opacity-60">
+                {comprando ? 'Abrindo pagamento...' : 'Finalizar compra'}
+              </button>
+              <button onClick={() => setShowCart(false)} className="w-full text-center text-xs text-zinc-500 hover:text-white transition">Continuar comprando</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

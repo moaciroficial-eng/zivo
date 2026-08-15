@@ -42,26 +42,33 @@ export async function POST(request: NextRequest) {
     // marca pago
     await admin.from('clube_pedidos').update({ status: 'pago', mp_payment_id: String(paymentId) }).eq('id', pedidoId)
 
-    // baixa estoque no tamanho
-    if (pedido.estoque_id) {
-      const { data: item } = await admin.from('estoque').select('tamanhos').eq('id', pedido.estoque_id).maybeSingle()
+    // itens do pedido (carrinho) — cai no item único se for pedido antigo
+    type ItemPed = { estoque_id: string | null; nome: string; tamanho: string | null; valor: number }
+    const itens: ItemPed[] = Array.isArray(pedido.itens) && pedido.itens.length
+      ? (pedido.itens as ItemPed[])
+      : [{ estoque_id: pedido.estoque_id ?? null, nome: pedido.produto_nome, tamanho: pedido.tamanho ?? null, valor: Number(pedido.valor) || 0 }]
+
+    // baixa estoque de cada item, no tamanho
+    for (const it of itens) {
+      if (!it.estoque_id) continue
+      const { data: item } = await admin.from('estoque').select('tamanhos').eq('id', it.estoque_id).maybeSingle()
       const tams = ((item?.tamanhos as { tamanho: string | number; qtd: number }[]) ?? []).map(t => ({ ...t }))
-      let idx = pedido.tamanho ? tams.findIndex(t => String(t.tamanho).toLowerCase() === String(pedido.tamanho).toLowerCase()) : -1
+      let idx = it.tamanho ? tams.findIndex(t => String(t.tamanho).toLowerCase() === String(it.tamanho).toLowerCase()) : -1
       if (idx < 0) idx = tams.findIndex(t => (Number(t.qtd) || 0) > 0)
       if (idx >= 0) {
         tams[idx] = { ...tams[idx], qtd: Math.max(0, (Number(tams[idx].qtd) || 0) - 1) }
-        await admin.from('estoque').update({ tamanhos: tams }).eq('id', pedido.estoque_id)
+        await admin.from('estoque').update({ tamanhos: tams }).eq('id', it.estoque_id)
       }
     }
 
-    // registra a venda no Zivo
+    // registra UMA venda no Zivo com todos os itens
     await admin.from('vendas').insert({
       user_id: loja.user_id,
       cliente_nome: pedido.email_membro || 'Cliente Clube',
       valor: Number(pedido.valor) || 0,
       data_venda: new Date().toISOString().split('T')[0],
       forma_pagamento: 'mercadopago',
-      produtos: [{ nome: pedido.produto_nome, tamanho: pedido.tamanho ?? undefined, qtd: 1, preco_unitario: Number(pedido.valor) || 0, estoque_id: pedido.estoque_id ?? undefined }],
+      produtos: itens.map(it => ({ nome: it.nome, tamanho: it.tamanho ?? undefined, qtd: 1, preco_unitario: it.valor, estoque_id: it.estoque_id ?? undefined })),
     })
 
     return NextResponse.json({ ok: true })
