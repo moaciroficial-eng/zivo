@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Produto } from './page'
+import type { Produto, Membro, VendaClube } from './page'
 
 function fBRL(v: number | null | undefined) {
   if (v == null) return '—'
@@ -17,7 +17,7 @@ function totalQtd(t: Produto['tamanhos']) {
 }
 
 export default function ClubeClient({
-  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, mpToken, produtos, fotoMap, membros,
+  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, mpToken, produtos, fotoMap, membrosLista, vendasClube,
 }: {
   user: { id: string; email: string }
   nomeLoja: string
@@ -29,7 +29,8 @@ export default function ClubeClient({
   mpToken: string
   produtos: Produto[]
   fotoMap: Record<string, string>
-  membros: number
+  membrosLista: Membro[]
+  vendasClube: VendaClube[]
 }) {
   const supabase = createClient()
   const [ativo, setAtivo] = useState(clubeAtivo)
@@ -43,6 +44,25 @@ export default function ClubeClient({
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [comoTxt, setComoTxt] = useState(comoComprar)
   const [mp, setMp] = useState(mpToken)
+  const [vendas, setVendas] = useState<VendaClube[]>(vendasClube)
+  const membros = membrosLista.length
+
+  // Realtime: quando entra uma venda paga no clube, avisa na tela
+  useEffect(() => {
+    const ch = supabase.channel('clube-vendas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clube_pedidos', filter: `user_id=eq.${user.id}` }, payload => {
+        const novo = payload.new as VendaClube & { status?: string }
+        if (novo?.status === 'pago') {
+          setVendas(v => v.some(x => x.id === novo.id) ? v : [novo, ...v])
+          showToast(`💰 Venda no clube: ${novo.produto_nome ?? 'pedido'}`)
+          try { if ('Notification' in window && Notification.permission === 'granted') new Notification('Venda no Clube! 🎉', { body: `${novo.produto_nome ?? ''} — R$${Number(novo.valor ?? 0).toFixed(2)}` }) } catch {}
+        }
+      })
+      .subscribe()
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
+    return () => { supabase.removeChannel(ch) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
 
@@ -296,6 +316,47 @@ export default function ClubeClient({
                 </div>
               )
             })}
+          </div>
+        </div>
+
+        {/* Vendas do clube */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-800">
+            <h2 className="font-semibold text-sm">Vendas do clube ({vendas.length})</h2>
+          </div>
+          <div className="divide-y divide-zinc-800/60 max-h-72 overflow-y-auto">
+            {vendas.length === 0 && <p className="px-5 py-6 text-sm text-zinc-500 text-center">Nenhuma venda ainda.</p>}
+            {vendas.map(v => (
+              <div key={v.id} className="px-5 py-3 flex items-center gap-3 text-sm">
+                <div className="flex-1 min-w-0">
+                  <p className="truncate">{v.produto_nome}</p>
+                  <p className="text-xs text-zinc-500 truncate">{v.email_membro} · {v.criado_em ? new Date(v.criado_em).toLocaleDateString('pt-BR') : ''}</p>
+                </div>
+                <span className="text-emerald-400 font-semibold shrink-0">{fBRL(v.valor)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Membros VIP */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-800">
+            <h2 className="font-semibold text-sm">Membros VIP ({membrosLista.length})</h2>
+          </div>
+          <div className="divide-y divide-zinc-800/60 max-h-72 overflow-y-auto">
+            {membrosLista.length === 0 && <p className="px-5 py-6 text-sm text-zinc-500 text-center">Ninguém cadastrado ainda.</p>}
+            {membrosLista.map(m => (
+              <div key={m.id} className="px-5 py-3 flex items-center gap-3 text-sm">
+                <div className="w-8 h-8 rounded-full bg-violet-500/15 border border-violet-500/25 flex items-center justify-center text-violet-300 text-xs font-bold shrink-0">
+                  {(m.nome ?? m.email).charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate">{m.nome || m.email}</p>
+                  <p className="text-xs text-zinc-500 truncate">{m.email}{m.telefone ? ` · ${m.telefone}` : ''}</p>
+                </div>
+                <span className="text-xs text-zinc-600 shrink-0">{m.criado_em ? new Date(m.criado_em).toLocaleDateString('pt-BR') : ''}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

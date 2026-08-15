@@ -5,6 +5,7 @@ import { useState } from 'react'
 export default function ClubeLogin({ slug, nomeLoja, cadastroAberto }: { slug: string; nomeLoja: string; cadastroAberto: boolean }) {
   const [email, setEmail] = useState('')
   const [nome, setNome] = useState('')
+  const [telefone, setTelefone] = useState('')
   const [erro, setErro] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -16,7 +17,7 @@ export default function ClubeLogin({ slug, nomeLoja, cadastroAberto }: { slug: s
     try {
       const res = await fetch('/api/clube/entrar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, email: e, nome: nome.trim() }),
+        body: JSON.stringify({ slug, email: e, nome: nome.trim(), telefone: telefone.trim() }),
       })
       const d = await res.json().catch(() => ({}))
       if (d?.ok) { location.reload() }
@@ -37,8 +38,12 @@ export default function ClubeLogin({ slug, nomeLoja, cadastroAberto }: { slug: s
 
         <div className="space-y-3 text-left">
           {cadastroAberto && (
-            <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
+            <>
+              <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
+              <input value={telefone} onChange={e => setTelefone(e.target.value)} type="tel" inputMode="tel" placeholder="Seu WhatsApp (com DDD)"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
+            </>
           )}
           <input value={email} onChange={e => setEmail(e.target.value)} type="email" inputMode="email" placeholder="seu@email.com"
             onKeyDown={e => e.key === 'Enter' && entrar()}

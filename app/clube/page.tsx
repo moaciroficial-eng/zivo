@@ -27,12 +27,13 @@ export default async function ClubePage() {
     await supabase.from('loja_config').upsert({ user_id: user.id, clube_slug: slug }, { onConflict: 'user_id' })
   }
 
-  const [{ data: produtos }, { data: fotos }, { count: membros }] = await Promise.all([
+  const [{ data: produtos }, { data: fotos }, { data: membrosLista }, { data: vendasClube }] = await Promise.all([
     supabase.from('estoque')
       .select('id, nome, marca, cor, preco_venda, preco_custo, tamanhos, data_entrada, oportunidade, preco_oportunidade, combo, combo_texto, status')
       .eq('user_id', user.id).not('status', 'eq', 'vendido').order('data_entrada', { ascending: true }),
     supabase.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
-    supabase.from('clube_membros').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabase.from('clube_membros').select('id, nome, email, telefone, criado_em').eq('user_id', user.id).order('criado_em', { ascending: false }),
+    supabase.from('clube_pedidos').select('id, produto_nome, valor, email_membro, criado_em').eq('user_id', user.id).eq('status', 'pago').order('criado_em', { ascending: false }).limit(50),
   ])
 
   const fotoMap: Record<string, string> = {}
@@ -54,7 +55,8 @@ export default async function ClubePage() {
       mpToken={cfg?.mp_access_token ?? ''}
       produtos={(produtos ?? []) as Produto[]}
       fotoMap={fotoMap}
-      membros={membros ?? 0}
+      membrosLista={(membrosLista ?? []) as Membro[]}
+      vendasClube={(vendasClube ?? []) as VendaClube[]}
     />
   )
 }
@@ -74,3 +76,6 @@ export type Produto = {
   combo_texto: string | null
   status: string | null
 }
+
+export type Membro = { id: string; nome: string | null; email: string; telefone: string | null; criado_em: string | null }
+export type VendaClube = { id: string; produto_nome: string | null; valor: number | null; email_membro: string | null; criado_em: string | null }

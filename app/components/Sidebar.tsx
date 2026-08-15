@@ -212,6 +212,17 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           setWaNaoLidas((fresh ?? []).reduce((s, r) => s + ((r.nao_lidas as number) ?? 0), 0))
         })
         .subscribe()
+
+      /* Aviso global de venda no Clube (em qualquer tela) */
+      if ('Notification' in window && Notification.permission === 'default') { try { Notification.requestPermission() } catch { /* ignore */ } }
+      supabase.channel('sidebar-clube')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clube_pedidos', filter: `user_id=eq.${data.user.id}` }, payload => {
+          const novo = payload.new as { status?: string; produto_nome?: string; valor?: number }
+          if (novo?.status === 'pago') {
+            try { if ('Notification' in window && Notification.permission === 'granted') new Notification('💰 Venda no Clube!', { body: `${novo.produto_nome ?? ''} — R$${Number(novo.valor ?? 0).toFixed(2)}`, tag: 'clube-venda' }) } catch { /* ignore */ }
+          }
+        })
+        .subscribe()
     })
   }, [])
 

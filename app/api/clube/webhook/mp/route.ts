@@ -37,10 +37,30 @@ export async function POST(request: NextRequest) {
     if (pay?.status !== 'approved' || !pedidoId) return NextResponse.json({ ok: true })
 
     const { data: pedido } = await admin.from('clube_pedidos').select('*').eq('id', pedidoId).eq('user_id', loja.user_id).maybeSingle()
-    if (!pedido || pedido.status === 'pago') return NextResponse.json({ ok: true })   // idempotência
+    if (!pedido) return NextResponse.json({ ok: true })
 
-    // marca pago
-    await admin.from('clube_pedidos').update({ status: 'pago', mp_payment_id: String(paymentId) }).eq('id', pedidoId)
+    /* Idempotência ATÔMICA: o MP dispara o webhook mais de uma vez. Só segue
+       quem conseguir mudar de 'pendente' -> 'pago' (o update condicional).
+       Sem isso, duas notificações quase simultâneas duplicavam a venda. */
+    const { data: claim } = await admin.from('clube_pedidos')
+      .update({ status: 'pago', mp_payment_id: String(paymentId) })
+      .eq('id', pedidoId).eq('status', 'pendente').select('id')
+    if (!claim || claim.length === 0) return NextResponse.json({ ok: true })  // já processado
+
+    /* Linka o comprador ao cadastro existente (por email do clube) */
+    let clienteId: string | null = null
+    let clienteNome = pedido.email_membro || 'Cliente Clube'
+    if (pedido.email_membro) {
+      const { data: membro } = await admin.from('clube_membros')
+        .select('cliente_id, nome').eq('user_id', loja.user_id).ilike('email', pedido.email_membro).maybeSingle()
+      if (membro?.cliente_id) {
+        clienteId = membro.cliente_id
+        const { data: cli } = await admin.from('clientes').select('nome').eq('id', membro.cliente_id).maybeSingle()
+        clienteNome = cli?.nome || membro.nome || clienteNome
+      } else if (membro?.nome) {
+        clienteNome = membro.nome
+      }
+    }
 
     // itens do pedido (carrinho) — cai no item único se for pedido antigo
     type ItemPed = { estoque_id: string | null; nome: string; tamanho: string | null; valor: number }
@@ -61,10 +81,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // registra UMA venda no Zivo com todos os itens
+    // registra UMA venda no Zivo com todos os itens, linkada ao cliente
     await admin.from('vendas').insert({
       user_id: loja.user_id,
-      cliente_nome: pedido.email_membro || 'Cliente Clube',
+      cliente_id: clienteId,
+      cliente_nome: clienteNome,
       valor: Number(pedido.valor) || 0,
       data_venda: new Date().toISOString().split('T')[0],
       forma_pagamento: 'mercadopago',
