@@ -12,6 +12,8 @@ type LojaClube = {
   owner_phone: string | null
   clube_ativo: boolean | null
   clube_cadastro_aberto: boolean | null
+  logo_url: string | null
+  clube_como_comprar: string | null
 }
 
 export default async function ClubePublicoPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -19,7 +21,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: loja } = await admin.from('loja_config')
-    .select('user_id, nome_loja, owner_phone, clube_ativo, clube_cadastro_aberto')
+    .select('user_id, nome_loja, owner_phone, clube_ativo, clube_cadastro_aberto, logo_url, clube_como_comprar')
     .eq('clube_slug', slug).maybeSingle<LojaClube>()
 
   if (!loja || !loja.clube_ativo) {
@@ -53,7 +55,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
   // Vitrine: produtos de oportunidade com estoque
   const [{ data: produtos }, { data: fotos }] = await Promise.all([
     admin.from('estoque')
-      .select('id, nome, marca, cor, preco_venda, preco_oportunidade, tamanhos')
+      .select('id, nome, marca, cor, preco_venda, preco_oportunidade, tamanhos, combo, combo_texto')
       .eq('user_id', loja.user_id).eq('oportunidade', true).not('status', 'eq', 'vendido'),
     admin.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', loja.user_id),
   ])
@@ -67,10 +69,11 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
     .map(p => ({
       id: p.id, nome: p.nome, marca: p.marca, cor: p.cor,
       preco_venda: p.preco_venda, preco_oportunidade: p.preco_oportunidade,
+      combo: !!p.combo, combo_texto: (p.combo_texto as string | null) ?? null,
       tamanhos: ((p.tamanhos as { tamanho: string | number; qtd: number }[]) ?? []).filter(t => Number(t.qtd) > 0).map(t => String(t.tamanho)),
       foto: fotoMap[p.id] ?? null,
     }))
     .filter(p => p.tamanhos.length > 0)
 
-  return <ClubeVitrine nomeLoja={nomeLoja} ownerPhone={loja.owner_phone} itens={itens} />
+  return <ClubeVitrine nomeLoja={nomeLoja} logo={loja.logo_url} comoComprar={loja.clube_como_comprar} ownerPhone={loja.owner_phone} itens={itens} />
 }

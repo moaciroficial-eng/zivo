@@ -17,13 +17,15 @@ function totalQtd(t: Produto['tamanhos']) {
 }
 
 export default function ClubeClient({
-  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, produtos, fotoMap, membros,
+  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, produtos, fotoMap, membros,
 }: {
   user: { id: string; email: string }
   nomeLoja: string
   clubeAtivo: boolean
   cadastroAberto: boolean
   linkPublico: string
+  logoUrl: string | null
+  comoComprar: string
   produtos: Produto[]
   fotoMap: Record<string, string>
   membros: number
@@ -36,6 +38,9 @@ export default function ClubeClient({
   const [soParados, setSoParados] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [convidando, setConvidando] = useState(false)
+  const [logo, setLogo] = useState<string | null>(logoUrl)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [comoTxt, setComoTxt] = useState(comoComprar)
 
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
 
@@ -66,6 +71,34 @@ export default function ClubeClient({
     const preco = valor === '' ? null : Number(valor)
     setLista(l => l.map(x => x.id === p.id ? { ...x, preco_oportunidade: preco } : x))
     await supabase.from('estoque').update({ preco_oportunidade: preco }).eq('id', p.id)
+  }
+
+  async function toggleCombo(p: Produto) {
+    const novo = !p.combo
+    setLista(l => l.map(x => x.id === p.id ? { ...x, combo: novo } : x))
+    await supabase.from('estoque').update({ combo: novo }).eq('id', p.id)
+  }
+  async function setComboTexto(p: Produto, valor: string) {
+    setLista(l => l.map(x => x.id === p.id ? { ...x, combo_texto: valor } : x))
+    await supabase.from('estoque').update({ combo_texto: valor || null }).eq('id', p.id)
+  }
+
+  async function uploadLogo(file: File) {
+    setUploadingLogo(true)
+    try {
+      const path = `logos/${user.id}/${Date.now()}.${(file.name.split('.').pop() || 'png').toLowerCase()}`
+      const { data: up, error } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'image/png', upsert: true })
+      if (error) throw new Error(error.message)
+      const { data: pub } = supabase.storage.from('biblioteca').getPublicUrl(up.path)
+      setLogo(pub.publicUrl)
+      await supabase.from('loja_config').upsert({ user_id: user.id, logo_url: pub.publicUrl }, { onConflict: 'user_id' })
+      showToast('Logo salva!')
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Erro no upload.', false) } finally { setUploadingLogo(false) }
+  }
+
+  async function salvarComoComprar() {
+    await supabase.from('loja_config').upsert({ user_id: user.id, clube_como_comprar: comoTxt || null }, { onConflict: 'user_id' })
+    showToast('Texto salvo!')
   }
 
   function copiarLink() {
@@ -128,6 +161,31 @@ export default function ClubeClient({
           </div>
         </div>
 
+        {/* Personalização */}
+        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-zinc-300">Personalização do site</h2>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600 text-xs">
+              {logo ? <img src={logo} alt="logo" className="w-full h-full object-contain" /> : 'sem logo'}
+            </div>
+            <div>
+              <label className={`inline-block text-sm font-medium border rounded-lg px-3 py-2 cursor-pointer transition ${uploadingLogo ? 'opacity-50 pointer-events-none border-zinc-700' : 'border-zinc-700 hover:border-violet-500/50'}`}>
+                {uploadingLogo ? 'Enviando...' : logo ? 'Trocar logo' : 'Enviar logo'}
+                <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
+              </label>
+              <p className="text-xs text-zinc-600 mt-1">Aparece no topo do site do clube.</p>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Como comprar (aparece no rodapé do site)</label>
+            <textarea
+              value={comoTxt} onChange={e => setComoTxt(e.target.value)} onBlur={salvarComoComprar} rows={3}
+              placeholder={'Ex.: 1) Escolha a peça  2) Clique em "Quero essa"  3) Combinamos o pagamento e a retirada/entrega no WhatsApp.'}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 resize-none"
+            />
+          </div>
+        </div>
+
         {/* Resumo */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4">
@@ -163,7 +221,8 @@ export default function ClubeClient({
               const parado = (dias ?? 0) >= 30
               const semEstoque = totalQtd(p.tamanhos) <= 0
               return (
-                <div key={p.id} className={`px-5 py-3 flex items-center gap-3 ${p.oportunidade ? 'bg-emerald-500/5' : ''}`}>
+                <div key={p.id} className={`px-5 py-3 ${p.oportunidade ? 'bg-emerald-500/5' : ''}`}>
+                  <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
                     {fotoMap[p.id] ? <img src={fotoMap[p.id]} alt="" className="w-full h-full object-cover" /> : '—'}
                   </div>
@@ -195,6 +254,23 @@ export default function ClubeClient({
                   >
                     {p.oportunidade ? 'No clube ✓' : '+ Clube'}
                   </button>
+                  </div>
+                  {p.oportunidade && (
+                    <div className="mt-2 sm:pl-14 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer shrink-0">
+                        <input type="checkbox" checked={!!p.combo} onChange={() => toggleCombo(p)} className="accent-amber-500" />
+                        ⚡ Combo (isca)
+                      </label>
+                      {p.combo && (
+                        <input
+                          value={p.combo_texto ?? ''}
+                          onChange={e => setComboTexto(p, e.target.value)}
+                          placeholder="Condição — ex.: nesse preço, levando uma camiseta"
+                          className="flex-1 bg-zinc-800 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-sm text-amber-200 placeholder-zinc-600 outline-none focus:border-amber-400"
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
