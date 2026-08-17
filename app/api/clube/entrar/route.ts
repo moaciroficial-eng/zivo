@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 /* Login/cadastro do VIP no clube (público). Se o cadastro está aberto,
    qualquer email entra e vira membro. Se está fechado, só quem já é membro. */
 export async function POST(request: NextRequest) {
-  const { slug, email, nome, telefone } = await request.json() as { slug?: string; email?: string; nome?: string; telefone?: string }
+  const { slug, email, nome, telefone, modo } = await request.json() as { slug?: string; email?: string; nome?: string; telefone?: string; modo?: string }
   const e = (email ?? '').trim().toLowerCase()
   if (!slug || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return NextResponse.json({ ok: false, erro: 'Dados inválidos.' })
 
@@ -31,9 +31,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (!existente) {
-    // NOVO membro
+    // Clicou em "Entrar" mas não tem cadastro
+    if (modo === 'entrar') {
+      return NextResponse.json({ ok: false, erro: loja.clube_cadastro_aberto
+        ? 'Não achamos um cadastro com esse email. Toque em "Criar acesso".'
+        : 'Esse email não está na lista VIP.' })
+    }
+    // NOVO membro (cadastro)
     if (!loja.clube_cadastro_aberto) {
-      return NextResponse.json({ ok: false, erro: 'Esse email não está na lista VIP e o cadastro está encerrado.' })
+      return NextResponse.json({ ok: false, erro: 'O cadastro está encerrado — só quem já é VIP acessa.' })
     }
     if (tel.length < 10) {
       return NextResponse.json({ ok: false, erro: 'Informe seu WhatsApp com DDD (será sua senha nas próximas vezes).' })
