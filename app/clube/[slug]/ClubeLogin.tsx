@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 export default function ClubeLogin({ slug, nomeLoja, cadastroAberto }: { slug: string; nomeLoja: string; cadastroAberto: boolean }) {
+  // v2: alternador Já sou VIP / Criar acesso
   // 'entrar' = já é VIP | 'cadastrar' = criar acesso (só se aberto)
   const [modo, setModo] = useState<'entrar' | 'cadastrar'>('entrar')
   const [email, setEmail] = useState('')
