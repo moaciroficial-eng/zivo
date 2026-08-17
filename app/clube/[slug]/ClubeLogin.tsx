@@ -32,31 +32,29 @@ export default function ClubeLogin({ slug, nomeLoja, cadastroAberto }: { slug: s
         <h1 className="text-2xl font-bold">Clube {nomeLoja}</h1>
         <p className="text-zinc-400 text-sm mt-2 mb-6">
           {cadastroAberto
-            ? 'Ofertas secretas só pra VIP. Entre com seu email pra garantir seu acesso.'
-            : 'Área exclusiva de membros. Entre com o email do seu cadastro.'}
+            ? 'Ofertas secretas só pra VIP. Entre com seu email e WhatsApp pra garantir seu acesso.'
+            : 'Área exclusiva de membros. Entre com seu email e WhatsApp.'}
         </p>
 
         <div className="space-y-3 text-left">
           {cadastroAberto && (
-            <>
-              <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
-              <input value={telefone} onChange={e => setTelefone(e.target.value)} type="tel" inputMode="tel" placeholder="Seu WhatsApp (com DDD)"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
-            </>
+            <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome (primeiro acesso)"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
           )}
           <input value={email} onChange={e => setEmail(e.target.value)} type="email" inputMode="email" placeholder="seu@email.com"
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
+          <input value={telefone} onChange={e => setTelefone(e.target.value)} type="tel" inputMode="tel" placeholder="Seu WhatsApp com DDD (é sua senha)"
             onKeyDown={e => e.key === 'Enter' && entrar()}
             className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500" />
           {erro && <p className="text-sm text-red-400">{erro}</p>}
           <button onClick={entrar} disabled={busy}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-semibold text-sm transition disabled:opacity-50">
-            {busy ? 'Entrando...' : cadastroAberto ? 'Quero ser VIP' : 'Entrar'}
+            {busy ? 'Entrando...' : cadastroAberto ? 'Entrar / Quero ser VIP' : 'Entrar'}
           </button>
         </div>
 
         <p className="text-xs text-zinc-600 mt-6">
-          {cadastroAberto ? 'O cadastro fecha em breve — depois só quem já é VIP acessa.' : 'Cadastro encerrado. Só membros existentes.'}
+          Seu <b>WhatsApp</b> é a senha. {cadastroAberto ? 'Novo por aqui? É só entrar com email + WhatsApp que você vira VIP — mas o cadastro fecha em breve.' : 'Cadastro encerrado — só quem já é VIP acessa.'}
         </p>
       </div>
     </div>

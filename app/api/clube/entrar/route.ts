@@ -14,11 +14,12 @@ export async function POST(request: NextRequest) {
     .select('user_id, clube_ativo, clube_cadastro_aberto').eq('clube_slug', slug).maybeSingle()
   if (!loja || !loja.clube_ativo) return NextResponse.json({ ok: false, erro: 'Clube indisponível.' })
 
-  const { data: existente } = await admin.from('clube_membros')
-    .select('id, cliente_id').eq('user_id', loja.user_id).ilike('email', e).maybeSingle()
-
-  // Tenta casar com um cliente JÁ cadastrado (por telefone ou email) pra linkar
   const tel = (telefone ?? '').replace(/\D/g, '')
+
+  const { data: existente } = await admin.from('clube_membros')
+    .select('id, cliente_id, telefone').eq('user_id', loja.user_id).ilike('email', e).maybeSingle()
+
+  // Casa com um cliente JÁ cadastrado (por telefone ou email) pra linkar
   let clienteId: string | null = existente?.cliente_id ?? null
   if (!clienteId && tel.length >= 8) {
     const { data: cli } = await admin.from('clientes').select('id').eq('user_id', loja.user_id).ilike('telefone', `%${tel.slice(-8)}`).maybeSingle()
@@ -30,17 +31,30 @@ export async function POST(request: NextRequest) {
   }
 
   if (!existente) {
+    // NOVO membro
     if (!loja.clube_cadastro_aberto) {
-      return NextResponse.json({ ok: false, erro: 'Cadastro encerrado — esse email não está na lista VIP.' })
+      return NextResponse.json({ ok: false, erro: 'Esse email não está na lista VIP e o cadastro está encerrado.' })
+    }
+    if (tel.length < 10) {
+      return NextResponse.json({ ok: false, erro: 'Informe seu WhatsApp com DDD (será sua senha nas próximas vezes).' })
     }
     await admin.from('clube_membros').insert({
-      user_id: loja.user_id, email: e, nome: (nome ?? '').trim() || null, telefone: tel || null, cliente_id: clienteId,
+      user_id: loja.user_id, email: e, nome: (nome ?? '').trim() || null, telefone: tel, cliente_id: clienteId,
     })
   } else {
-    // completa dados que faltavam (nome/telefone/vínculo)
+    // MEMBRO existente → telefone funciona como senha
+    const telSalvo = (existente.telefone ?? '').replace(/\D/g, '')
+    if (telSalvo) {
+      if (!tel || tel.slice(-8) !== telSalvo.slice(-8)) {
+        return NextResponse.json({ ok: false, erro: 'Telefone não confere com o seu cadastro.' })
+      }
+    } else if (tel) {
+      // membro antigo sem telefone: define agora
+      await admin.from('clube_membros').update({ telefone: tel }).eq('id', existente.id)
+    }
+    // completa nome/vínculo que faltava
     const upd: Record<string, unknown> = {}
     if ((nome ?? '').trim()) upd.nome = (nome ?? '').trim()
-    if (tel) upd.telefone = tel
     if (clienteId && !existente.cliente_id) upd.cliente_id = clienteId
     if (Object.keys(upd).length) await admin.from('clube_membros').update(upd).eq('id', existente.id)
   }
