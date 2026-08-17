@@ -6,15 +6,15 @@
 - Environments: .env.production.local, .env.local
 
   Creating an optimized production build ...
-✓ Compiled successfully in 118s
+✓ Compiled successfully in 3.7min
   Running TypeScript ...
-  Finished TypeScript in 44s ...
+  Finished TypeScript in 72s ...
   Collecting page data using 3 workers ...
-  Generating static pages using 3 workers (0/98) ...
-  Generating static pages using 3 workers (24/98) 
-  Generating static pages using 3 workers (48/98) 
-  Generating static pages using 3 workers (73/98) 
-✓ Generating static pages using 3 workers (98/98) in 5.0s
+  Generating static pages using 3 workers (0/99) ...
+  Generating static pages using 3 workers (24/99) 
+  Generating static pages using 3 workers (49/99) 
+  Generating static pages using 3 workers (74/99) 
+✓ Generating static pages using 3 workers (99/99) in 28.7s
   Finalizing page optimization ...
 
 Route (app)
@@ -107,6 +107,7 @@ Route (app)
 ├ ○ /estoque/processando
 ├ ƒ /estoque/recebimento
 ├ ƒ /estoque/recebimento/[grupoId]
+├ ○ /exclusao-de-dados
 ├ ƒ /ia
 ├ ○ /icon
 ├ ○ /inteligencia
@@ -125,3 +126,14 @@ Route (app)
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 
+node.exe : npm notice
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice New major version of npm available! 11.13.0 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice

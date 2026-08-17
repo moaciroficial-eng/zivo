@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
+import { rateLimit } from '@/lib/rate-limit'
 
 /* Convida todos os clientes pro Clube: manda o link no WhatsApp (window-aware).
    Quem está na janela de 24h recebe o texto com o LINK; quem está frio recebe
@@ -19,6 +20,12 @@ export async function POST() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false }, { status: 401 })
+
+  /* Convite dispara pra TODOS os clientes: trava contra reenvio acidental
+     em sequência (3 disparos por 10 min por loja). */
+  if (!rateLimit(`clube-convidar:${user.id}`, 3, 10 * 60_000)) {
+    return NextResponse.json({ ok: false, erro: 'Você acabou de convidar. Aguarde alguns minutos antes de disparar de novo.' }, { status: 429 })
+  }
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const loja = await getLoja(admin, user.id).catch(() => null)

@@ -85,7 +85,7 @@ async function processarAniversarios(admin: any, userId: string, creds?: import(
 
   const { data: config } = await admin
     .from('loja_config').select('nome_loja, desconto_aniversario').eq('user_id', userId).maybeSingle()
-  const nomeLoja = config?.nome_loja || 'Moca'
+  const nomeLoja = config?.nome_loja || 'a loja'
   const desconto = config?.desconto_aniversario ?? 40
 
   /* Busca todos os clientes (com ou sem nascimento, para checar dependentes também) */

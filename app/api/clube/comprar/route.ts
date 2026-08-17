@@ -1,5 +1,6 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, ipDaRequisicao } from '@/lib/rate-limit'
 
 /* Cria um checkout do Mercado Pago pra uma peça do clube.
    Retorna a URL (init_point) pra redirecionar o cliente. O pagamento é
@@ -8,6 +9,11 @@ import { NextRequest, NextResponse } from 'next/server'
 type ItemCarrinho = { estoqueId: string; tamanho?: string | null }
 
 export async function POST(request: NextRequest) {
+  /* Rota pública: limita criação de checkout por IP pra evitar flood. */
+  if (!rateLimit(`clube-comprar:${ipDaRequisicao(request)}`, 20, 60_000)) {
+    return NextResponse.json({ ok: false, erro: 'Muitas tentativas. Aguarde um instante.' }, { status: 429 })
+  }
+
   const body = await request.json() as { slug?: string; email?: string; itens?: ItemCarrinho[]; estoqueId?: string; tamanho?: string }
   const slug = body.slug
   // aceita carrinho (itens[]) OU compra única (estoqueId) por retrocompat

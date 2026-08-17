@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 
   const loja = await getLoja(admin, user.id).catch(() => null)
-  const nomeLoja = loja?.nomeLoja || 'Moca'
+  const nomeLoja = loja?.nomeLoja || 'a loja'
   const nomeCliente = (contato.nome ?? clienteNome ?? 'você').split(' ')[0]
 
   const variantes = [

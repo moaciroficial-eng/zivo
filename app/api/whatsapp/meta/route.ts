@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -5,6 +6,22 @@ import { processarEventoInbound } from '@/lib/whatsapp-inbound'
 import { getLojaByMetaPhoneId } from '@/lib/loja'
 
 const META_API_VERSION = process.env.META_API_VERSION || 'v21.0'
+
+/* Confere a assinatura HMAC-SHA256 que a Meta manda em X-Hub-Signature-256.
+   Sem isso qualquer um que descobrir a URL poderia forjar mensagens (spam +
+   gasto de IA). Só valida quando META_APP_SECRET está configurado. */
+function assinaturaMetaValida(rawBody: string, header: string | null): boolean {
+  const appSecret = process.env.META_APP_SECRET
+  if (!appSecret) return true // sem segredo configurado: não bloqueia (retrocompat)
+  if (!header) return false
+  const esperado = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex')
+  if (header.length !== esperado.length) return false
+  try {
+    return crypto.timingSafeEqual(Buffer.from(header), Buffer.from(esperado))
+  } catch {
+    return false
+  }
+}
 
 /* Baixa a mídia da Meta (URL protegida por token, expira) e re-hospeda no
    storage público pra o inbox conseguir exibir. Retorna a URL pública. */
@@ -128,10 +145,16 @@ function normalizarStatus(s: Record<string, unknown>): Record<string, unknown> |
 
 export async function POST(request: NextRequest) {
   try {
+    const rawBody = await request.text()
+
+    /* Rejeita webhooks forjados (assinatura inválida) */
+    if (!assinaturaMetaValida(rawBody, request.headers.get('x-hub-signature-256'))) {
+      return new NextResponse('Invalid signature', { status: 401 })
+    }
+
     let body: unknown
     try {
-      const text = await request.text()
-      if (text) body = JSON.parse(text)
+      if (rawBody) body = JSON.parse(rawBody)
     } catch { return NextResponse.json({ ok: true }) }
 
     if (!body || typeof body !== 'object') return NextResponse.json({ ok: true })

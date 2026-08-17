@@ -1,10 +1,18 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, ipDaRequisicao } from '@/lib/rate-limit'
 
 /* Login/cadastro do VIP no clube (público). Se o cadastro está aberto,
    qualquer email entra e vira membro. Se está fechado, só quem já é membro. */
 export async function POST(request: NextRequest) {
+  /* Anti brute-force: o telefone funciona como senha, então limitamos as
+     tentativas por IP (10/min) para não dar pra chutar sem parar. */
+  const ip = ipDaRequisicao(request)
+  if (!rateLimit(`clube-entrar:${ip}`, 10, 60_000)) {
+    return NextResponse.json({ ok: false, erro: 'Muitas tentativas. Aguarde um minuto e tente de novo.' }, { status: 429 })
+  }
+
   const { slug, email, nome, telefone, modo } = await request.json() as { slug?: string; email?: string; nome?: string; telefone?: string; modo?: string }
   const e = (email ?? '').trim().toLowerCase()
   if (!slug || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return NextResponse.json({ ok: false, erro: 'Dados inválidos.' })
