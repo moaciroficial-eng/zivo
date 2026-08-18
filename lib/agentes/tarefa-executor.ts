@@ -154,7 +154,7 @@ ${temAConfirmar ? `- Há dados do cadastro a CONFIRMAR (nascimento/tamanhos). Co
 - Quando o contato CONFIRMAR, copie os valores confirmados para dados_novos/salvar_no_cliente NESTA resposta; quando ele CORRIGIR algum, use o valor corrigido
 - Dados não confirmados NÃO contam como coletados — não conclua sem confirmar` : ''}
 - Se não falta nada e nada há a confirmar: envie uma única mensagem simpática dizendo que o cadastro está em dia e marque concluido: true
-- Primeira mensagem (nenhuma mensagem do agente ainda no histórico): use EXATAMENTE este texto de abertura, que é o template APROVADO na Meta — não altere nada além do nome: "Oi ${nomeContato}! 😊 Aqui é a ${nomeLoja}. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?" — NA ABERTURA só peça permissão, NÃO pergunte nenhum dado ainda. As perguntas (nome, nascimento, tamanhos) vêm nas mensagens SEGUINTES, depois que o cliente responder.
+- Primeira mensagem (nenhuma mensagem do agente ainda no histórico): use EXATAMENTE este texto de abertura, que é o template APROVADO na Meta — não altere nada além do nome: "Oi ${nomeContato}! 😊 ${nomeLoja} aqui. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?" — NA ABERTURA só peça permissão, NÃO pergunte nenhum dado ainda. As perguntas (nome, nascimento, tamanhos) vêm nas mensagens SEGUINTES, depois que o cliente responder.
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
 - O contato pode responder mais de um dado numa mensagem só — capture todos
 ${regrasGenero}
@@ -302,7 +302,7 @@ ${regrasGenero}
        forçamos o mesmo texto aqui, senão a abertura ficaria diferente. */
     const ehPrimeiraMensagem = !historico.some(h => h.papel === 'agente')
     if (ehPrimeiraMensagem && !acao.concluido) {
-      acao.proxima_mensagem = `Oi ${primeiroNome}! 😊 Aqui é a ${nomeLojaFinal}. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?`
+      acao.proxima_mensagem = `Oi ${primeiroNome}! 😊 ${nomeLojaFinal} aqui. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?`
     }
 
     await enviarOferta(admin, {

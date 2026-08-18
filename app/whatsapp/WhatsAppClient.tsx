@@ -69,6 +69,24 @@ function fmtTime(ts: string | null): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+/* Avatar sem foto: cor consistente por contato (a Meta não dá foto de perfil).
+   Classes fixas pra o Tailwind não podar. */
+const AVATAR_CORES = [
+  'bg-violet-600/30 text-violet-200',
+  'bg-blue-600/30 text-blue-200',
+  'bg-emerald-600/30 text-emerald-200',
+  'bg-amber-600/30 text-amber-200',
+  'bg-rose-600/30 text-rose-200',
+  'bg-cyan-600/30 text-cyan-200',
+  'bg-fuchsia-600/30 text-fuchsia-200',
+  'bg-teal-600/30 text-teal-200',
+]
+function corAvatar(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_CORES[h % AVATAR_CORES.length]
+}
+
 export default function WhatsAppClient({ user, initialContatos }: Props) {
   const supabase = createClient()
   const [contatos, setContatos] = useState<Contato[]>(initialContatos)
@@ -144,25 +162,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }, [])
 
-  /* Busca fotos dos contatos que ainda não têm */
-  useEffect(() => {
-    const semFoto = contatos.filter(c => !c.foto_url && c.phone)
-    if (semFoto.length === 0) return
-    let cancelled = false
-    ;(async () => {
-      for (const c of semFoto) {
-        if (cancelled) break
-        try {
-          const res = await fetch(`/api/whatsapp/foto?phone=${c.phone}&contatoId=${c.id}`)
-          const data = await res.json()
-          if (data.photo) {
-            setContatos(prev => prev.map(x => x.id === c.id ? { ...x, foto_url: data.photo } : x))
-          }
-        } catch { /* silencioso */ }
-      }
-    })()
-    return () => { cancelled = true }
-  }, [contatos.length])
+  /* Foto de perfil de contato: a API oficial da Meta NÃO fornece (privacidade),
+     ao contrário da Z-API antiga. Então não buscamos — o avatar mostra a
+     inicial colorida do nome (ver corAvatar). */
 
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
@@ -565,10 +567,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   selectedId === c.id ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
                 }`}
               >
-                <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm font-semibold text-zinc-200 uppercase select-none overflow-hidden">
+                <div className={`w-10 h-10 rounded-full ${corAvatar(c.nome ?? c.phone ?? '?')} flex items-center justify-center shrink-0 text-sm font-semibold uppercase select-none overflow-hidden`}>
                   {c.foto_url
                     ? <img src={c.foto_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                    : (c.nome ?? c.phone)[0]
+                    : (c.nome ?? c.phone ?? '?')[0]
                   }
                 </div>
                 <div className="flex-1 min-w-0">
@@ -615,10 +617,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     <path d="M19 12H5M12 5l-7 7 7 7"/>
                   </svg>
                 </button>
-                <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-semibold uppercase text-zinc-200 select-none overflow-hidden">
+                <div className={`w-9 h-9 rounded-full ${corAvatar(selectedContato.nome ?? selectedContato.phone ?? '?')} flex items-center justify-center text-sm font-semibold uppercase select-none overflow-hidden`}>
                   {selectedContato.foto_url
                     ? <img src={selectedContato.foto_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                    : (selectedContato.nome ?? selectedContato.phone)[0]
+                    : (selectedContato.nome ?? selectedContato.phone ?? '?')[0]
                   }
                 </div>
                 <div className="flex-1 min-w-0">
