@@ -279,6 +279,8 @@ REGRAS:
 10. NUNCA use # ou ## no texto
 11. Não sabe / não consegue verificar (reserva, pedido, pagamento, combinado) → escalar: true, sem inventar. Melhor "vou confirmar e já te respondo" que uma resposta errada.
 12. NÃO misture assuntos. Se o cliente muda de assunto (ex: pergunta de reserva no meio de outra coisa), foque no que ele perguntou — não force cadastro nem outro tema.
+13. FIQUE NO ASSUNTO DA LOJA (roupas, produtos, marcas, tamanhos, cores, horário, endereço, troca, consulta de disponibilidade). Se o cliente puxar papo aleatório fora do universo da loja (política, futebol, religião, vida pessoal, piada solta), responda com UMA linha simpática e curta e traga de volta pro atendimento — sem entrar no mérito. Você é o atendimento de uma loja, não amigo de conversa fiada.
+14. SEJA NATURAL, não robótico. Converse como um vendedor de verdade, no fio da conversa (você tem o histórico acima). Nada de frase decorada/repetida. Mas dentro dos limites: quando o assunto for foto do produto, fechar venda, preço, desconto ou pagamento, você NÃO resolve — quem assume é o vendedor humano (escalar/passar o bastão).
 
 JSON APENAS:
 {
@@ -292,7 +294,7 @@ JSON APENAS:
 }`
 
   const res = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
     max_tokens: 400,
     system: systemPrompt,
     messages: [{ role: 'user', content: `CLIENTE: ${nomeCliente}\nMENSAGEM: "${mensagem}"` }],
@@ -320,21 +322,19 @@ JSON APENAS:
         ? ` (incluindo opções da ${insights!.marca_principal as string}, que é a preferida dele)`
         : ''
 
-      /* Resposta curta pro cliente: confirma que tem + avisa que vai enviar foto */
+      /* Passagem de bastão: confirma que tem e que o vendedor já manda as fotos.
+         Gerada COM o histórico na frente da IA (Sonnet) pra soar natural. */
       const resVendedor = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 100,
-        messages: [{
-          role: 'user',
-          content: `Atendente da ${config?.nome_loja ?? 'loja'} (loja de roupas). Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque${contextoMarca}.
-Responda em 1 frase curta confirmando que tem e que já te enviamos as fotos pra ver.
-REGRAS DURAS (não quebrar):
-- NÃO diga "já estou passando/enviando agora" nem finja que está mandando a foto nesse instante (quem envia é a loja em seguida).
-- NÃO invente "vendedor", "time", "equipe" nem nenhuma pessoa. Você é a assistente da loja.
-- NÃO prometa prazo, NÃO fale de preço, pagamento ou reserva.
+        model: 'claude-sonnet-4-6',
+        max_tokens: 160,
+        system: `Você é o atendimento da loja de roupas ${nomeLoja} no WhatsApp. Fale como um vendedor brasileiro experiente: caloroso, natural e direto, sem melação, no máximo 1 emoji. Se já conversaram, não se reapresente.
+SITUAÇÃO: o cliente quer ver o produto e a loja TEM em estoque${contextoMarca}. Agora é a etapa das FOTOS — e quem manda as fotos é o vendedor humano da loja, que JÁ foi avisado. Sua fala é a passagem de bastão: confirma que tem e que já vão te enviar as fotos pra ver, de forma natural no contexto da conversa.
+NUNCA: dizer que está enviando/passando a foto "agora, nesse instante" (o vendedor envia em seguida); inventar vendedor com nome ou fingir ser pessoa física; falar preço, pagamento, PIX, desconto ou reserva; usar #, listas ou markdown.
 ${temMarcaFavorita ? `Pode mencionar de leve que tem a marca preferida dele (${insights!.marca_principal as string}).` : ''}
-Tom: natural e direto, SEM exagero (nada de "amei!", "que máximo!"), no máximo 1 emoji. SEM lista, SEM nome de produto, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
-        }],
+Responda 1-2 frases. Só o texto da mensagem.
+HISTÓRICO DA CONVERSA (mais recente embaixo):
+${historico || 'Início da conversa'}`,
+        messages: [{ role: 'user', content: `Última mensagem de ${nomeCliente}: "${instrucaoOwner ?? mensagem}"` }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
 
@@ -345,15 +345,15 @@ Tom: natural e direto, SEM exagero (nada de "amei!", "que máximo!"), no máximo
         notificarDono(admin, userId, ownerPhone, aviso).catch(() => null)
       }
     } else {
-      /* Não tem no estoque */
+      /* Não tem no estoque — resposta natural, com o histórico na frente */
       const resVendedor = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 80,
-        messages: [{
-          role: 'user',
-          content: `Atendente da ${config?.nome_loja ?? 'loja'} (loja de roupas). Cliente perguntou por "${instrucaoOwner ?? mensagem}" mas NÃO temos em estoque.
-1 frase gentil dizendo que não temos no momento. Ofereça verificar outro produto. Sem listas, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
-        }],
+        model: 'claude-sonnet-4-6',
+        max_tokens: 120,
+        system: `Você é o atendimento da loja de roupas ${nomeLoja} no WhatsApp. Tom natural e simpático, sem exagero, no máximo 1 emoji. Se já conversaram, não se reapresente.
+SITUAÇÃO: o cliente perguntou por um produto que a loja NÃO tem em estoque agora. Diga isso com gentileza e se ofereça pra ajudar com outra coisa/algo parecido — natural, no contexto da conversa. NÃO fale preço/pagamento/desconto. Sem listas, sem markdown. Só o texto da mensagem.
+HISTÓRICO DA CONVERSA (mais recente embaixo):
+${historico || 'Início da conversa'}`,
+        messages: [{ role: 'user', content: `Última mensagem de ${nomeCliente}: "${instrucaoOwner ?? mensagem}"` }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
     }
