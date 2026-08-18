@@ -120,6 +120,17 @@ export default function ClubeClient({
     await supabase.from('estoque').update({ combo_texto: valor || null }).eq('id', p.id)
   }
 
+  /* Liga/desliga um tamanho na oferta do clube. clube_tamanhos null = todos
+     ativos; ao mexer, materializa a lista explícita (na ordem do estoque). */
+  async function toggleTamanho(p: Produto, size: string) {
+    const emEstoque = tamanhosComEstoque(p.tamanhos)
+    const atual = p.clube_tamanhos ?? emEstoque
+    const alvo = atual.includes(size) ? atual.filter(s => s !== size) : [...atual, size]
+    const ordenado = emEstoque.filter(s => alvo.includes(s))
+    setLista(l => l.map(x => x.id === p.id ? { ...x, clube_tamanhos: ordenado } : x))
+    await supabase.from('estoque').update({ clube_tamanhos: ordenado }).eq('id', p.id)
+  }
+
   async function uploadLogo(file: File) {
     setUploadingLogo(true)
     try {
@@ -288,13 +299,33 @@ export default function ClubeClient({
                       {[p.marca, p.cor].filter(Boolean).join(' · ') || '—'} · {fBRL(p.preco_venda)}
                     </p>
 
-                    {/* Tamanhos disponíveis */}
+                    {/* Tamanhos — no clube viram botões pra ligar/desligar da oferta */}
                     {tams.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {tams.map(s => (
-                          <span key={s} className="text-[10px] font-bold bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded-full">{s}</span>
-                        ))}
-                      </div>
+                      <>
+                        {p.oportunidade && <p className="text-[10px] text-zinc-500 mt-1.5">Tamanhos na oferta (clique pra ligar/desligar):</p>}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {tams.map(s => {
+                            if (!p.oportunidade) {
+                              return <span key={s} className="text-[10px] font-bold bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded-full">{s}</span>
+                            }
+                            const ativa = !p.clube_tamanhos || p.clube_tamanhos.includes(s)
+                            return (
+                              <button
+                                key={s}
+                                onClick={() => toggleTamanho(p, s)}
+                                title={ativa ? 'Na oferta — clique pra tirar' : 'Fora da oferta — clique pra incluir'}
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition cursor-pointer ${
+                                  ativa
+                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                    : 'bg-zinc-800/40 text-zinc-600 border-zinc-700 line-through'
+                                }`}
+                              >
+                                {s}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </>
                     )}
 
                     {/* Botão adicionar/tirar */}

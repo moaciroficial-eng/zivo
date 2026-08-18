@@ -29,7 +29,7 @@ export default async function ClubePage() {
 
   const [{ data: produtos }, { data: fotos }, { data: membrosLista }, { data: vendasClube }, { data: clientes }] = await Promise.all([
     supabase.from('estoque')
-      .select('id, nome, marca, cor, preco_venda, preco_custo, tamanhos, data_entrada, oportunidade, preco_oportunidade, combo, combo_texto, status')
+      .select('id, nome, marca, cor, preco_venda, preco_custo, tamanhos, data_entrada, oportunidade, preco_oportunidade, combo, combo_texto, status, clube_tamanhos')
       .eq('user_id', user.id).not('status', 'eq', 'vendido').order('data_entrada', { ascending: true }),
     supabase.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
     supabase.from('clube_membros').select('id, nome, email, telefone, cliente_id, criado_em').eq('user_id', user.id).order('criado_em', { ascending: false }),
@@ -77,6 +77,7 @@ export type Produto = {
   combo: boolean | null
   combo_texto: string | null
   status: string | null
+  clube_tamanhos: string[] | null
 }
 
 export type Membro = { id: string; nome: string | null; email: string; telefone: string | null; cliente_id: string | null; criado_em: string | null }

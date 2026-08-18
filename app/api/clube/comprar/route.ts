@@ -35,9 +35,12 @@ export async function POST(request: NextRequest) {
   const itensPedido: { estoque_id: string; nome: string; tamanho: string | null; valor: number }[] = []
   for (const it of carrinho) {
     const { data: prod } = await admin.from('estoque')
-      .select('id, nome, marca, preco_venda, preco_oportunidade, oportunidade, status')
+      .select('id, nome, marca, preco_venda, preco_oportunidade, oportunidade, status, clube_tamanhos')
       .eq('id', it.estoqueId).eq('user_id', loja.user_id).maybeSingle()
     if (!prod || !prod.oportunidade || prod.status === 'vendido') continue
+    /* Respeita os tamanhos habilitados na oferta do clube (se houver restrição) */
+    const permitidos = prod.clube_tamanhos as string[] | null
+    if (permitidos && it.tamanho && !permitidos.includes(String(it.tamanho))) continue
     const preco = Number(prod.preco_oportunidade ?? prod.preco_venda ?? 0)
     if (!(preco > 0)) continue
     const titulo = `${prod.nome}${prod.marca ? ` (${prod.marca})` : ''}${it.tamanho ? ` — ${it.tamanho}` : ''}`
