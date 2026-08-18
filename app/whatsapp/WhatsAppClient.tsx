@@ -99,6 +99,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
 
+  /* Deep-link: /whatsapp?contato=<id> (vindo de "Clientes para responder" no dashboard) abre a conversa direto */
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('contato')
+    if (id) setSelectedId(id)
+  }, [])
+
   /* ── Nova conversa ── */
   async function abrirNovaConversa() {
     setNovaConversa(true)

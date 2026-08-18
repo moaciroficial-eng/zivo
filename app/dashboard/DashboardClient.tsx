@@ -77,7 +77,10 @@ type Props = {
   vendasPorDia: { day: number; valor: number }[]
   setup?: SetupEstado
   modo?: 'dono' | 'funcionaria'
+  paraResponder?: ItemResponder[]
 }
+
+export type ItemResponder = { id: string; pergunta: string; quando: string; contatoId: string | null; nome: string }
 
 type SetupEstado = { loja: boolean; clientes: boolean; estoque: boolean; marcas: boolean; whatsapp: boolean; meta: boolean }
 
@@ -502,8 +505,67 @@ function PrimeirosPassos({ setup }: { setup: SetupEstado }) {
   )
 }
 
+function tempoAtras(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'agora'
+  const m = Math.floor(s / 60); if (m < 60) return `${m}min`
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
+
+/* Fila "clientes para responder" — o que a IA escalou pro dono */
+function ParaResponder({ itens }: { itens: ItemResponder[] }) {
+  const [lista, setLista] = useState(itens)
+  const [resolvendo, setResolvendo] = useState<string | null>(null)
+
+  async function resolver(id: string) {
+    setResolvendo(id)
+    try {
+      await fetch('/api/atendimento/resolver', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      setLista(l => l.filter(x => x.id !== id))
+    } catch { /* ignora */ }
+    setResolvendo(null)
+  }
+
+  if (lista.length === 0) return null
+
+  return (
+    <div className="mb-6 bg-amber-500/5 border border-amber-500/25 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">🙋</span>
+        <h2 className="font-bold text-amber-200">Clientes para responder</h2>
+        <span className="text-xs font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">{lista.length}</span>
+      </div>
+      <p className="text-xs text-zinc-500 mb-3">A IA fez o primeiro contato e passou a bola pra você (fotos, pagamento, desconto).</p>
+      <div className="flex flex-col gap-2">
+        {lista.map(it => (
+          <div key={it.id} className="flex items-center gap-3 bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate">{it.nome}</p>
+              <p className="text-xs text-zinc-400 truncate">{it.pergunta}</p>
+            </div>
+            <span className="text-[11px] text-zinc-600 shrink-0 hidden sm:block">{tempoAtras(it.quando)}</span>
+            {it.contatoId && (
+              <Link href={`/whatsapp?contato=${it.contatoId}`} className="shrink-0 text-xs font-semibold text-violet-300 border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15 rounded-lg px-3 py-1.5 transition">
+                Responder
+              </Link>
+            )}
+            <button onClick={() => resolver(it.id)} disabled={resolvendo === it.id} title="Marcar como resolvido"
+              className="shrink-0 text-zinc-500 hover:text-emerald-400 disabled:opacity-40 transition cursor-pointer p-1 text-sm font-bold">
+              ✓
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono',
+  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono', paraResponder = [],
 }: Props) {
   const restrito = modo === 'funcionaria'   // modo funcionária: oculta todo valor financeiro
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
@@ -666,6 +728,8 @@ export default function DashboardClient({
             </button>
           )}
         </div>
+
+        {paraResponder.length > 0 && <ParaResponder itens={paraResponder} />}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">

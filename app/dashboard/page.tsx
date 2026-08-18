@@ -93,8 +93,29 @@ export default async function DashboardPage() {
   const modo = await getModo()
   const restrito = modo === 'funcionaria'
 
+  /* Clientes para responder — o que a IA escalou pro dono (fotos, pagamento…) */
+  const { data: escalacoesRaw } = await supabase
+    .from('atendimento_escalacoes')
+    .select('id, pergunta, created_at, updated_at, contato:whatsapp_contatos(id, nome, phone)')
+    .eq('user_id', user.id)
+    .eq('status', 'pendente')
+    .order('updated_at', { ascending: false })
+    .limit(30)
+
+  const paraResponder = (escalacoesRaw ?? []).map(e => {
+    const c = (Array.isArray(e.contato) ? e.contato[0] : e.contato) as { id: string; nome: string | null; phone: string | null } | null
+    return {
+      id: e.id as string,
+      pergunta: e.pergunta as string,
+      quando: (e.updated_at ?? e.created_at) as string,
+      contatoId: c?.id ?? null,
+      nome: c?.nome ?? 'Cliente',
+    }
+  })
+
   return (
     <DashboardClient
+      paraResponder={paraResponder}
       user={{ id: user.id, email: user.email ?? '' }}
       mes={mes}
       totalReceita={totalReceita}

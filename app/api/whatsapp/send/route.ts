@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
         ultima_mensagem:    message,
         ultima_mensagem_at: timestamp,
       }).eq('id', cId)
+
+      /* Dono respondeu esse cliente → tira ele da fila "para responder" */
+      await admin.from('atendimento_escalacoes')
+        .update({ status: 'respondida', updated_at: timestamp })
+        .eq('user_id', user.id).eq('contato_id', cId).eq('status', 'pendente')
+        .then(() => {}, () => {})
     }
   } catch (err) {
     console.error('Erro ao salvar mensagem no banco:', err)

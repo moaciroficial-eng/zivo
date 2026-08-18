@@ -75,6 +75,26 @@ async function notificarDono(admin: any, userId: string, ownerPhone: string, men
   } catch { /* silencioso — não deixa cair o atendimento */ }
 }
 
+/* Coloca o cliente na fila "para responder" do dashboard. Dedupe: mantém UMA
+   pendência aberta por contato (atualiza em vez de empilhar várias). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function registrarEscalacao(admin: any, userId: string, contatoId: string, pergunta: string, agenteMsg?: string | null) {
+  try {
+    const { data: existente } = await admin.from('atendimento_escalacoes')
+      .select('id').eq('user_id', userId).eq('contato_id', contatoId).eq('status', 'pendente').maybeSingle()
+    if (existente?.id) {
+      await admin.from('atendimento_escalacoes').update({
+        pergunta, agente_msg: agenteMsg ?? null, updated_at: new Date().toISOString(),
+      }).eq('id', existente.id)
+    } else {
+      await admin.from('atendimento_escalacoes').insert({
+        user_id: userId, contato_id: contatoId, pergunta,
+        status: 'pendente', agente_msg: agenteMsg ?? null, updated_at: new Date().toISOString(),
+      })
+    }
+  } catch { /* silencioso */ }
+}
+
 export async function POST(request: NextRequest) {
   try {
     return await handleAtendimento(request)
@@ -338,12 +358,14 @@ ${historico || 'Início da conversa'}`,
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
 
-      /* Avisa o dono com o catálogo detalhado */
+      /* Avisa o dono (WhatsApp) + coloca na fila "clientes para responder" do
+         dashboard — é a hora das fotos, o vendedor humano assume daqui. */
+      const nomeProduto = acao.produto ?? acao.marca ?? 'produto'
       if (ownerPhone) {
-        const nomeProduto = acao.produto ?? acao.marca ?? 'produto'
         const aviso = `🛍️ *${nomeCliente}* quer *${nomeProduto}*\n\n${catalogo}\n\n📸 Envie as fotos pra ele!`
         notificarDono(admin, userId, ownerPhone, aviso).catch(() => null)
       }
+      await registrarEscalacao(admin, userId, contatoId, `Quer ver as fotos de ${nomeProduto}`, respostaFinal)
     } else {
       /* Não tem no estoque — resposta natural, com o histórico na frente */
       const resVendedor = await anthropic.messages.create({
@@ -365,14 +387,7 @@ ${historico || 'Início da conversa'}`,
     if (ownerPhone && !contatoEhDono) {
       const msgOwner = `🔔 *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda o cliente pelo Zivo (aba WhatsApp).`
       notificarDono(admin, userId, ownerPhone, msgOwner).catch(() => null)
-      try {
-        await admin.from('atendimento_escalacoes').insert({
-          user_id: userId, contato_id: contatoId,
-          pergunta: acao.motivo_escalar ?? mensagem,
-          status: 'pendente', agente_msg: msgOwner,
-          updated_at: new Date().toISOString(),
-        })
-      } catch { /* silencioso */ }
+      await registrarEscalacao(admin, userId, contatoId, acao.motivo_escalar ?? mensagem, msgOwner)
     }
     return NextResponse.json({ ok: true, escalado: true })
   }
