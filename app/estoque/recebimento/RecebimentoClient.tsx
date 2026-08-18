@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { NfeGrupoMeta } from '../types'
+import AvisarNovidades, { type NovidadeMarca } from './AvisarNovidades'
 
 type ProdutoPendente = {
   id: string
@@ -44,46 +45,72 @@ const IconBack = () => (
   </svg>
 )
 
+function agruparPorNota(produtos: ProdutoPendente[]): GrupoPendente[] {
+  const map = new Map<string, ProdutoPendente[]>()
+  for (const p of produtos) {
+    const arr = map.get(p.nfe_grupo_id) ?? []
+    arr.push(p)
+    map.set(p.nfe_grupo_id, arr)
+  }
+  const result: GrupoPendente[] = []
+  for (const [grupoId, prods] of map) {
+    let meta: NfeGrupoMeta | undefined
+    try {
+      const raw = localStorage.getItem(`nfe_grupo_${grupoId}`)
+      if (raw) meta = JSON.parse(raw)
+    } catch { /* ignore */ }
+    result.push({
+      grupoId,
+      emitente: meta?.emitente ?? prods[0].marca,
+      num_nfe:  meta?.num_nfe  ?? null,
+      total_itens: prods.length,
+      data: meta?.data ?? prods[0].created_at,
+      meta,
+    })
+  }
+  result.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+  return result
+}
+
 export default function RecebimentoClient({
   user,
   produtosPendentes,
+  recebidosRecentes = [],
 }: {
   user: { id: string; email: string }
   produtosPendentes: ProdutoPendente[]
+  recebidosRecentes?: ProdutoPendente[]
 }) {
   const [grupos, setGrupos] = useState<GrupoPendente[]>([])
+  const [recebidos, setRecebidos] = useState<GrupoPendente[]>([])
 
-  useEffect(() => {
-    // Agrupa produtos por nfe_grupo_id
-    const map = new Map<string, ProdutoPendente[]>()
-    for (const p of produtosPendentes) {
-      const arr = map.get(p.nfe_grupo_id) ?? []
-      arr.push(p)
-      map.set(p.nfe_grupo_id, arr)
-    }
+  // Modal de "avisar novidades"
+  const [carregando, setCarregando] = useState<string | null>(null)  // grupoId em carregamento
+  const [modalMarcas, setModalMarcas] = useState<NovidadeMarca[] | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
 
-    const result: GrupoPendente[] = []
-    for (const [grupoId, prods] of map) {
-      let meta: NfeGrupoMeta | undefined
-      try {
-        const raw = localStorage.getItem(`nfe_grupo_${grupoId}`)
-        if (raw) meta = JSON.parse(raw)
-      } catch { /* ignore */ }
+  useEffect(() => { setGrupos(agruparPorNota(produtosPendentes)) }, [produtosPendentes])
+  useEffect(() => { setRecebidos(agruparPorNota(recebidosRecentes)) }, [recebidosRecentes])
 
-      result.push({
-        grupoId,
-        emitente: meta?.emitente ?? prods[0].marca,
-        num_nfe:  meta?.num_nfe  ?? null,
-        total_itens: prods.length,
-        data: meta?.data ?? prods[0].created_at,
-        meta,
+  async function abrirNovidades(grupoId: string) {
+    setCarregando(grupoId); setAviso(null)
+    try {
+      const res = await fetch('/api/conferencia/novidades', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grupoId, incluirVazias: true }),
       })
+      const d = await res.json()
+      const marcas: NovidadeMarca[] = Array.isArray(d?.marcas) ? d.marcas : []
+      if (marcas.length === 0) {
+        setAviso('Essa nota não tem marca cadastrada pra avisar clientes.')
+      } else {
+        setModalMarcas(marcas)
+      }
+    } catch {
+      setAviso('Não foi possível carregar. Tente de novo.')
     }
-
-    // Ordena por data decrescente
-    result.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-    setGrupos(result)
-  }, [produtosPendentes])
+    setCarregando(null)
+  }
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
@@ -103,6 +130,10 @@ export default function RecebimentoClient({
             </p>
           </div>
         </div>
+
+        {aviso && (
+          <div className="mb-4 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm rounded-xl px-4 py-3">{aviso}</div>
+        )}
 
         {grupos.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-16 flex flex-col items-center gap-3 text-center">
@@ -154,7 +185,45 @@ export default function RecebimentoClient({
             ))}
           </div>
         )}
+
+        {/* ── Notas já recebidas: avisar novidades depois ── */}
+        {recebidos.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-sm font-semibold text-zinc-300 mb-1">Notas recebidas recentemente</h2>
+            <p className="text-xs text-zinc-500 mb-4">Avise os clientes que curtem cada marca — mesmo depois de já ter conferido a nota.</p>
+            <div className="flex flex-col gap-3">
+              {recebidos.map(grupo => (
+                <div key={grupo.grupoId} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 text-emerald-400">
+                        <IconBox />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{grupo.emitente ?? 'Emitente desconhecido'}</p>
+                        <p className="text-sm text-zinc-500 mt-0.5">
+                          {grupo.total_itens} produto{grupo.total_itens !== 1 ? 's' : ''} · {formatDate(grupo.data)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => abrirNovidades(grupo.grupoId)}
+                      disabled={carregando === grupo.grupoId}
+                      className="shrink-0 text-sm font-semibold text-violet-300 border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15 disabled:opacity-50 rounded-lg px-3 py-2 transition cursor-pointer"
+                    >
+                      {carregando === grupo.grupoId ? 'Carregando…' : '📣 Avisar novidades'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
+
+      {modalMarcas && (
+        <AvisarNovidades marcas={modalMarcas} onClose={() => setModalMarcas(null)} />
+      )}
     </div>
   )
 }

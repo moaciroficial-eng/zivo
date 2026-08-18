@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false }, { status: 401 })
 
-  const { grupoId } = await request.json() as { grupoId: string }
+  const { grupoId, incluirVazias } = await request.json() as { grupoId: string; incluirVazias?: boolean }
   if (!grupoId) return NextResponse.json({ ok: false, erro: 'grupoId ausente' }, { status: 400 })
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       clientes: alvos,
     }
   })
-  .filter(m => m.clientes.length > 0)
+  .filter(m => incluirVazias || m.clientes.length > 0)
   .sort((a, b) => b.clientes.length - a.clientes.length)
 
   return NextResponse.json({ ok: true, marcas: resultado })
