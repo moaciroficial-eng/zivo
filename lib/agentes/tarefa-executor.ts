@@ -154,7 +154,7 @@ ${temAConfirmar ? `- Há dados do cadastro a CONFIRMAR (nascimento/tamanhos). Co
 - Quando o contato CONFIRMAR, copie os valores confirmados para dados_novos/salvar_no_cliente NESTA resposta; quando ele CORRIGIR algum, use o valor corrigido
 - Dados não confirmados NÃO contam como coletados — não conclua sem confirmar` : ''}
 - Se não falta nada e nada há a confirmar: envie uma única mensagem simpática dizendo que o cadastro está em dia e marque concluido: true
-- Primeira mensagem (histórico vazio): apresente-se como ${nomeLoja} e faça UMA coisa só — se falta o nome, pergunte o nome; senão, ${temAConfirmar ? 'confirme os dados do cadastro (só a confirmação).' : 'pergunte o primeiro dado que FALTA.'} Exemplo de abertura: "Oi ${nomeContato}! Aqui é da ${nomeLoja} 😊 Estou atualizando o cadastro dos meus clientes pra atender vocês cada vez melhor. Tudo bem te fazer umas perguntinhas rápidas? Pra começar, qual é seu nome completo?"
+- Primeira mensagem (nenhuma mensagem do agente ainda no histórico): use EXATAMENTE este texto de abertura, que é o template APROVADO na Meta — não altere nada além do nome: "Oi ${nomeContato}! 😊 Aqui é a ${nomeLoja}. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?" — NA ABERTURA só peça permissão, NÃO pergunte nenhum dado ainda. As perguntas (nome, nascimento, tamanhos) vêm nas mensagens SEGUINTES, depois que o cliente responder.
 - Histórico com mensagens anteriores: NÃO se reapresente, continue naturalmente
 - O contato pode responder mais de um dado numa mensagem só — capture todos
 ${regrasGenero}
@@ -294,11 +294,22 @@ ${regrasGenero}
   if (acao.proxima_mensagem) {
     const loja = await getLoja(admin, userId).catch(() => null)
     const primeiroNome = String(nomeContato || 'você').split(' ')[0]
+    const nomeLojaFinal = loja?.nomeLoja || 'a loja'
+
+    /* GARANTIA: a PRIMEIRA mensagem tem que ser IDÊNTICA ao template aprovado
+       na Meta (`atualizacao_cadastro`). Pra cliente frio o WhatsApp já manda o
+       template; mas pra cliente quente (janela aberta) sai texto livre — então
+       forçamos o mesmo texto aqui, senão a abertura ficaria diferente. */
+    const ehPrimeiraMensagem = !historico.some(h => h.papel === 'agente')
+    if (ehPrimeiraMensagem && !acao.concluido) {
+      acao.proxima_mensagem = `Oi ${primeiroNome}! 😊 Aqui é a ${nomeLojaFinal}. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?`
+    }
+
     await enviarOferta(admin, {
       userId, contatoId: contato.id, phone: contato.phone,
       texto: acao.proxima_mensagem,
       templateName: 'atualizacao_cadastro',
-      templateVars: [primeiroNome, loja?.nomeLoja || 'a loja'],
+      templateVars: [primeiroNome, nomeLojaFinal],
       creds: loja?.creds,
     })
     historico.push({ papel: 'agente', texto: acao.proxima_mensagem })
