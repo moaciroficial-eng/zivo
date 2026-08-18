@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
-import { normalizarTelefoneBR } from '@/lib/whatsapp'
+import { normalizarTelefoneBR, primeiroNome } from '@/lib/whatsapp'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -57,11 +57,12 @@ export async function POST(request: NextRequest) {
 
   const loja = await getLoja(admin, user.id).catch(() => null)
   const nomeLoja = loja?.nomeLoja || 'a loja'
-  const nomeCliente = (contato.nome ?? clienteNome ?? 'você').split(' ')[0]
+  const nomeCliente = primeiroNome(contato.nome ?? clienteNome)  // '' se for email/vazio
+  const saud = nomeCliente ? `, ${nomeCliente}` : ''
 
   const variantes = [
-    `Obrigado pela sua compra, ${nomeCliente}! 🙏\nFoi um prazer te atender.\n\n${nomeLoja}`,
-    `Parabéns pela escolha, ${nomeCliente}! 😊\nFoi um prazer te atender.\n\n${nomeLoja}`,
+    `Obrigado pela sua compra${saud}! 🙏\nFoi um prazer te atender.\n\n${nomeLoja}`,
+    `Parabéns pela escolha${saud}! 😊\nFoi um prazer te atender.\n\n${nomeLoja}`,
   ]
   const mensagem = variantes[Math.floor(Math.random() * variantes.length)]
 

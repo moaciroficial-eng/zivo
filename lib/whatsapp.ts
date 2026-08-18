@@ -52,6 +52,14 @@ type SendOptions = { phone: string; message: string; creds?: WhatsAppCreds; user
    contato → conversa rachava em dois (caso Adriane).
    Formato canônico: 55 + DDD + 9 + 8 dígitos (13 dígitos).
    ══════════════════════════════════════════════════════════════ */
+/* Primeiro nome "limpo" pra usar em mensagem ao cliente. Cadastro só com email
+   (ex: membros do Clube) deixa o email no campo nome — nunca mostrar isso. */
+export function primeiroNome(nome?: string | null, fallback = ''): string {
+  const n = (nome ?? '').trim()
+  if (!n || n.includes('@')) return fallback
+  return n.split(/\s+/)[0]
+}
+
 export function normalizarTelefoneBR(raw: string): string {
   const d = String(raw ?? '').replace(/\D/g, '')
   const with55 = d.startsWith('55') ? d : `55${d}`

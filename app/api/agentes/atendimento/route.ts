@@ -1,7 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage, sendWhatsAppImage, humanoAtivoNaConversa } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendWhatsAppImage, humanoAtivoNaConversa, primeiroNome } from '@/lib/whatsapp'
 import { carregarConhecimento } from '@/lib/conhecimento'
 import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
 
@@ -211,7 +211,7 @@ async function handleAtendimento(request: NextRequest) {
     .join('\n')
 
   const respostasLoja = mensagensOrdenadas.filter(m => m.direcao === 'enviada').length
-  const nomeCliente = contato.nome?.split(' ')[0] ?? 'cliente'
+  const nomeCliente = primeiroNome(contato.nome, 'cliente')  // ignora email/vazio
 
   /* Perfil do cliente baseado em histórico de compras */
   const perfilCliente = (() => {
@@ -273,7 +273,7 @@ REGRAS:
 4. Palavra solta de produto ("camiseta", "boné", "calça", "vestido") → buscar_estoque: true
 5. Cliente reagiu a PREÇO ("caro", "salgado") → pode_responder: true, sem buscar estoque, ofereça alternativa mais barata
 6. Cliente reagiu negativamente ("não gostei", "não quero") → empatia + ofereça alternativa
-7. Emoji, figurinha, "ok", "sim", "não" sozinhos SEM histórico → pode_responder: false. COM histórico de conversa recente → pode_responder: true, responda brevemente confirmando
+7. ENCERRAMENTO / CORTESIA — o pior erro é responder cortesia com cortesia pra sempre. Se o cliente só está agradecendo ou encerrando ("ok", "ta bom", "valeu", "obrigado", "por nada", "beleza", "👍", "🧡", figurinha, emoji solto) E a loja JÁ respondeu / já se despediu, então pode_responder: FALSE (fique em silêncio). Uma despedida basta — depois dela, NÃO responda mais nada. Só responda uma cortesia UMA vez, nunca em sequência.
 8. NUNCA diga que mensagem chegou em branco
 9. NUNCA mais de 1 pergunta por vez
 10. NUNCA use # ou ## no texto
@@ -327,9 +327,13 @@ JSON APENAS:
         messages: [{
           role: 'user',
           content: `Atendente da ${config?.nome_loja ?? 'loja'} (loja de roupas). Cliente ${nomeCliente} perguntou: "${instrucaoOwner ?? mensagem}". TEMOS em estoque${contextoMarca}.
-Responda em 1-2 frases curtas confirmando que temos e que vai chamar o vendedor pra enviar as fotos.
-${temMarcaFavorita ? `Mencione que tem a marca favorita dele (${insights!.marca_principal as string}) de forma natural.` : ''}
-Tom: educada e natural, SEM exagero (nada de "amei!", "que máximo!"), no máximo 1 emoji. SEM lista, SEM preço, SEM nome de produto, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
+Responda em 1 frase curta confirmando que tem e que já te enviamos as fotos pra ver.
+REGRAS DURAS (não quebrar):
+- NÃO diga "já estou passando/enviando agora" nem finja que está mandando a foto nesse instante (quem envia é a loja em seguida).
+- NÃO invente "vendedor", "time", "equipe" nem nenhuma pessoa. Você é a assistente da loja.
+- NÃO prometa prazo, NÃO fale de preço, pagamento ou reserva.
+${temMarcaFavorita ? `Pode mencionar de leve que tem a marca preferida dele (${insights!.marca_principal as string}).` : ''}
+Tom: natural e direto, SEM exagero (nada de "amei!", "que máximo!"), no máximo 1 emoji. SEM lista, SEM nome de produto, SEM título, SEM markdown (#). Responda SÓ o texto da mensagem.`,
         }],
       })
       respostaFinal = (resVendedor.content[0] as { text: string }).text.trim()
