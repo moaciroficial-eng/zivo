@@ -266,8 +266,9 @@ Para TAREFAS de mensagem automática via WhatsApp, inclua o campo "tarefa":
     "titulo": "título curto",
     "tipo": "atualizar_cadastro | campanha | cobranca | personalizado",
     "instrucao": "instrução para o agente executar. ATUALIZAR CADASTRO: perguntar nome completo, data de nascimento, tamanho de camiseta (para mulheres: tamanho de BLUSA, e sem tênis), numeração de calça (e tênis, só para homens). Ser rápido e encerrar agradecendo.",
-    "filtro_contatos": "todos | sem_nascimento | funil_topo | funil_fundo | nome_letra",
+    "filtro_contatos": "todos | sem_nascimento | sem_tamanhos | funil_topo | funil_fundo | nome_letra",
     "filtro_valor": "quando filtro_contatos = nome_letra, a letra inicial. Ex: A",
+    "filtro_faltando": "null | nascimento | tamanhos — combina com nome_letra pra mandar SÓ pra quem falta esse dado",
     "contatos_especificos": [],
     "clientes_especificos": []
   },
@@ -322,6 +323,7 @@ REGRAS:
 - [CAD] → cliente_id em "clientes_especificos"
 - Grupos genéricos → "filtro_contatos"
 - CRÍTICO: "clientes com nome começando com A/B/...", "clientes da letra X" → use filtro_contatos: "nome_letra" + filtro_valor: "A". NUNCA liste os cliente_id um por um nesses casos — o sistema resolve a lista sozinho. Listar dezenas de IDs quebra a resposta.
+- CRÍTICO: "clientes da letra A QUE NÃO TÊM tamanho / sem tamanho no cadastro" → filtro_contatos: "nome_letra" + filtro_valor: "A" + filtro_faltando: "tamanhos". "...que não têm aniversário/data de nascimento" → filtro_faltando: "nascimento". Sem letra (todos que faltam tamanho) → filtro_contatos: "sem_tamanhos".
 - Só use contatos_especificos/clientes_especificos quando o dono citar POUCAS pessoas por nome (até ~5).`
 
   const messages = [
@@ -533,9 +535,11 @@ REGRAS:
       previewContatos = (preview ?? []) as { id: string; nome: string }[]
     } else if (parsed.tarefa.filtro_contatos === 'nome_letra' && parsed.tarefa.filtro_valor) {
       const letra = String(parsed.tarefa.filtro_valor).trim().charAt(0)
-      const { data: preview } = await admin
-        .from('clientes').select('id, nome')
-        .eq('user_id', user.id).ilike('nome', `${letra}%`).limit(500)
+      let ql = admin.from('clientes').select('id, nome').eq('user_id', user.id).ilike('nome', `${letra}%`)
+      const falt = parsed.tarefa.filtro_faltando
+      if (falt === 'nascimento') ql = ql.is('data_nascimento', null)
+      else if (falt === 'tamanhos') ql = ql.or('tamanho_camiseta.is.null,tamanho_calca.is.null')
+      const { data: preview } = await ql.limit(500)
       previewContatos = (preview ?? []) as { id: string; nome: string }[]
     } else {
       let q = admin.from('whatsapp_contatos').select('id, nome').eq('user_id', user.id)
@@ -546,6 +550,12 @@ REGRAS:
         const ids = (semNasc ?? []).map((c: { id: string }) => c.id)
         if (ids.length > 0) q = q.in('cliente_id', ids)
         else return NextResponse.json({ ok: true, resposta: 'Todos os clientes já têm data de nascimento cadastrada!', tarefa: null, previewContatos: [] })
+      }
+      else if (parsed.tarefa.filtro_contatos === 'sem_tamanhos') {
+        const { data: semTam } = await admin.from('clientes').select('id').eq('user_id', user.id).or('tamanho_camiseta.is.null,tamanho_calca.is.null')
+        const ids = (semTam ?? []).map((c: { id: string }) => c.id)
+        if (ids.length > 0) q = q.in('cliente_id', ids)
+        else return NextResponse.json({ ok: true, resposta: 'Todos os clientes já têm os tamanhos cadastrados!', tarefa: null, previewContatos: [] })
       }
       const { data: preview } = await q.limit(500)
       previewContatos = (preview ?? []) as { id: string; nome: string }[]
@@ -657,10 +667,15 @@ export async function PUT(request: NextRequest) {
   let clientesAlvoIds: string[] | null = null
   if (tarefa.filtro_contatos === 'nome_letra' && tarefa.filtro_valor) {
     const letra = String(tarefa.filtro_valor).trim().charAt(0)
-    const { data: porLetra } = await admin
-      .from('clientes').select('id')
-      .eq('user_id', user.id).ilike('nome', `${letra}%`).limit(500)
+    let ql = admin.from('clientes').select('id').eq('user_id', user.id).ilike('nome', `${letra}%`)
+    const falt = tarefa.filtro_faltando
+    if (falt === 'nascimento') ql = ql.is('data_nascimento', null)
+    else if (falt === 'tamanhos') ql = ql.or('tamanho_camiseta.is.null,tamanho_calca.is.null')
+    const { data: porLetra } = await ql.limit(500)
     clientesAlvoIds = (porLetra ?? []).map((c: { id: string }) => c.id)
+  } else if (tarefa.filtro_contatos === 'sem_tamanhos') {
+    const { data: semTam } = await admin.from('clientes').select('id').eq('user_id', user.id).or('tamanho_camiseta.is.null,tamanho_calca.is.null').limit(500)
+    clientesAlvoIds = (semTam ?? []).map((c: { id: string }) => c.id)
   }
 
   if (clientesAlvoIds?.length || tarefa.clientes_especificos?.length > 0) {
