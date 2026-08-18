@@ -248,6 +248,18 @@ export type TemplateOptions = {
   userId?: string
 }
 
+/* A Meta REJEITA variável de template com quebra de linha, tab ou muitos
+   espaços seguidos (erro 132000). Como a IA gera texto livre, limpamos a
+   variável antes de mandar: tira quebras/tabs, colapsa espaços e corta no
+   tamanho que cabe no corpo do template. Assim qualquer texto da IA "cabe". */
+export function limparVariavelTemplate(v: unknown): string {
+  return String(v ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 700)
+}
+
 export async function sendWhatsAppTemplate(opts: TemplateOptions): Promise<{ messageId?: string }> {
   const creds = opts.creds ?? await credsPara(opts.userId)
   const { phoneNumberId, accessToken } = resolverMeta(creds?.meta)
@@ -261,7 +273,7 @@ export async function sendWhatsAppTemplate(opts: TemplateOptions): Promise<{ mes
     componentes.push({ type: 'header', parameters: [{ type: 'image', image: { link: opts.imagemHeader } }] })
   }
   if (opts.variaveis && opts.variaveis.length > 0) {
-    componentes.push({ type: 'body', parameters: opts.variaveis.map(v => ({ type: 'text', text: String(v ?? '') })) })
+    componentes.push({ type: 'body', parameters: opts.variaveis.map(v => ({ type: 'text', text: limparVariavelTemplate(v) })) })
   }
 
   const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {

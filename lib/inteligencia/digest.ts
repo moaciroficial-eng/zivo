@@ -1,4 +1,5 @@
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { enviarOferta } from '@/lib/agentes/envio'
 
 /* ══════════════════════════════════════════════════════════════
    RESUMO DIÁRIO NO WHATSAPP DO DONO
@@ -145,17 +146,24 @@ export async function aprovarSugestaoDigest(admin: any, userId: string, sugestao
     .eq('id', acao.contato_id).maybeSingle()
   if (!contato?.phone) return 'Não achei o telefone desse cliente. 😕'
 
-  const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: mensagem, userId })
+  /* Janela aberta → texto livre; fechada → moldura novidade_loja com o texto
+     na variável (assim a sugestão da IA chega mesmo pra cliente frio).
+     enviarOferta já grava o histórico do chat. */
+  const primeiroNome = String(contato.nome ?? '').split(' ')[0] || 'você'
+  const { data: cfg } = await admin.from('loja_config').select('nome_loja').eq('user_id', userId).maybeSingle()
+  const nomeLoja = (cfg as { nome_loja?: string } | null)?.nome_loja || 'a loja'
+
+  const envio = await enviarOferta(admin, {
+    userId,
+    contatoId: contato.id,
+    phone: contato.phone,
+    texto: mensagem,
+    templateName: 'novidade_loja',
+    templateVars: [primeiroNome, nomeLoja, mensagem],
+  })
+  if (!envio.ok) return 'Não consegui enviar agora — tenta pela aba Ações no app. 😕'
 
   const timestamp = new Date().toISOString()
-  await admin.from('whatsapp_mensagens').insert({
-    user_id: userId, contato_id: contato.id, message_id: messageId ?? null,
-    direcao: 'enviada', tipo: 'texto', conteudo: mensagem, status: 'enviada', timestamp,
-    raw: { origem: 'ia' },
-  })
-  await admin.from('whatsapp_contatos').update({
-    ultima_mensagem: mensagem, ultima_mensagem_at: timestamp,
-  }).eq('id', contato.id)
 
   /* Registra cadência (não abordar de novo em poucos dias) e resolve a sugestão */
   if (acao.cliente_id) {

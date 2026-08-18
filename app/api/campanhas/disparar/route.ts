@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { sendWhatsAppMessage, normalizarTelefoneBR } from '@/lib/whatsapp'
+import { normalizarTelefoneBR } from '@/lib/whatsapp'
+import { enviarOferta } from '@/lib/agentes/envio'
 import { resolverPublico } from '@/lib/inteligencia/campanhas'
 
 export const maxDuration = 60
@@ -36,6 +37,10 @@ export async function POST(request: NextRequest) {
     status: 'ativa',
   }).select('id').single()
 
+  /* Nome da loja pra moldura de template (janela fechada) */
+  const { data: cfgLoja } = await admin.from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
+  const nomeLoja = (cfgLoja as { nome_loja?: string } | null)?.nome_loja || 'a loja'
+
   let enviados = 0
   for (const cli of alvo) {
     if (!cli.telefone) continue
@@ -43,11 +48,8 @@ export async function POST(request: NextRequest) {
     const texto = String(mensagem).replace(/\{nome\}/gi, primeiroNome)
     const phone = normalizarTelefoneBR(cli.telefone)
 
-    let messageId: string | undefined
-    try { messageId = (await sendWhatsAppMessage({ phone, message: texto, userId: user.id })).messageId }
-    catch { continue }
-
-    /* Acha/cria o contato pra a resposta cair no atendimento */
+    /* Acha/cria o contato ANTES do envio — o enviarOferta usa ele pra checar
+       a janela de 24h (aberta = texto livre; fechada = moldura novidade_loja). */
     const last8 = phone.slice(-8)
     const { data: cands } = await admin
       .from('whatsapp_contatos').select('id').eq('user_id', user.id).ilike('phone', `%${last8}`)
@@ -59,18 +61,21 @@ export async function POST(request: NextRequest) {
       contatoId = novo?.id
     }
 
-    const ts = new Date().toISOString()
-    if (contatoId) {
-      await admin.from('whatsapp_mensagens').insert({
-        user_id: user.id, contato_id: contatoId, message_id: messageId ?? null,
-        direcao: 'enviada', tipo: 'texto', conteudo: texto, status: 'enviada', timestamp: ts,
-        raw: { origem: 'ia' },
-      })
-      await admin.from('whatsapp_contatos').update({ ultima_mensagem: texto, ultima_mensagem_at: ts }).eq('id', contatoId)
-    }
+    /* enviarOferta já grava o histórico do chat e cai na moldura quando frio,
+       então nenhuma mensagem "some" pra quem está fora da janela de 24h. */
+    const r = await enviarOferta(admin, {
+      userId: user.id,
+      contatoId: contatoId ?? null,
+      phone,
+      texto,
+      templateName: 'novidade_loja',
+      templateVars: [primeiroNome, nomeLoja, texto],
+    })
+    if (!r.ok) continue
+
     /* atribuição: registra o toque pra medir venda em até 7 dias */
     try {
-      await admin.from('inteligencia_acoes').insert({ user_id: user.id, cliente_id: cli.id, mensagem: texto, enviada_em: ts })
+      await admin.from('inteligencia_acoes').insert({ user_id: user.id, cliente_id: cli.id, mensagem: texto, enviada_em: new Date().toISOString() })
     } catch { /* ignora */ }
 
     enviados++
