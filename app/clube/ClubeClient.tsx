@@ -12,8 +12,9 @@ function diasDe(data: string | null): number | null {
   if (!data) return null
   return Math.floor((Date.now() - new Date(data).getTime()) / 86400000)
 }
-function totalQtd(t: Produto['tamanhos']) {
-  return (t ?? []).reduce((s, x) => s + (Number(x.qtd) || 0), 0)
+/* Só os tamanhos que ainda têm peça em estoque (pra mostrar no card) */
+function tamanhosComEstoque(t: Produto['tamanhos']): string[] {
+  return (t ?? []).filter(x => (Number(x.qtd) || 0) > 0).map(x => String(x.tamanho))
 }
 
 export default function ClubeClient({
@@ -260,66 +261,82 @@ export default function ClubeClient({
               <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar..." className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-violet-500" />
             </div>
           </div>
-          <div className="divide-y divide-zinc-800/60 max-h-[560px] overflow-y-auto">
-            {filtrados.length === 0 && <p className="px-5 py-8 text-sm text-zinc-500 text-center">Nenhum produto.</p>}
-            {filtrados.map(p => {
-              const dias = diasDe(p.data_entrada)
-              const parado = (dias ?? 0) >= 30
-              const semEstoque = totalQtd(p.tamanhos) <= 0
-              return (
-                <div key={p.id} className={`px-5 py-3 ${p.oportunidade ? 'bg-emerald-500/5' : ''}`}>
-                  <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
-                    {fotoMap[p.id] ? <img src={fotoMap[p.id]} alt="" className="w-full h-full object-cover" /> : '—'}
-                  </div>
-                  <div className="flex-1 min-w-0">
+          <div className="p-4 sm:p-5 max-h-[640px] overflow-y-auto">
+            {filtrados.length === 0 && <p className="py-8 text-sm text-zinc-500 text-center">Nenhum produto.</p>}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filtrados.map(p => {
+                const dias = diasDe(p.data_entrada)
+                const parado = (dias ?? 0) >= 30
+                const tams = tamanhosComEstoque(p.tamanhos)
+                const semEstoque = tams.length === 0
+                return (
+                  <div key={p.id} className={`rounded-2xl border p-2.5 transition ${p.oportunidade ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/40'}`}>
+                    {/* Foto */}
+                    <div className="aspect-square rounded-xl overflow-hidden bg-zinc-800 relative mb-2">
+                      {fotoMap[p.id]
+                        ? <img src={fotoMap[p.id]} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-zinc-600 text-3xl">👕</div>}
+                      <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+                        {parado && <span className="text-[10px] font-bold bg-amber-500/90 text-black px-1.5 py-0.5 rounded-full">parado {dias}d</span>}
+                        {semEstoque && <span className="text-[10px] font-bold bg-red-500/90 text-white px-1.5 py-0.5 rounded-full">sem estoque</span>}
+                      </div>
+                    </div>
+
+                    {/* Nome + marca/preço */}
                     <p className="text-sm font-medium truncate">{p.nome}</p>
                     <p className="text-xs text-zinc-500 truncate">
-                      {[p.marca, p.cor].filter(Boolean).join(' · ')}
-                      {' · '}{fBRL(p.preco_venda)}
-                      {parado && <span className="ml-1.5 text-amber-400">parado {dias}d</span>}
-                      {semEstoque && <span className="ml-1.5 text-red-400">sem estoque</span>}
+                      {[p.marca, p.cor].filter(Boolean).join(' · ') || '—'} · {fBRL(p.preco_venda)}
                     </p>
+
+                    {/* Tamanhos disponíveis */}
+                    {tams.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {tams.map(s => (
+                          <span key={s} className="text-[10px] font-bold bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded-full">{s}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Botão adicionar/tirar */}
+                    <button
+                      onClick={() => toggleProduto(p)}
+                      className={`mt-2.5 w-full text-xs font-semibold px-3 py-1.5 rounded-lg border transition cursor-pointer ${
+                        p.oportunidade ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/15' : 'border-zinc-700 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {p.oportunidade ? 'No clube ✓' : '+ Clube'}
+                    </button>
+
+                    {/* Preço de oferta + combo (quando está no clube) */}
+                    {p.oportunidade && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-zinc-500">R$</span>
+                          <input
+                            type="number" min="0" step="0.01" value={p.preco_oportunidade ?? ''}
+                            onChange={e => setPreco(p, e.target.value)}
+                            placeholder="oferta"
+                            className="w-full bg-zinc-800 border border-emerald-500/40 rounded-lg px-2 py-1 text-sm text-emerald-300 outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                        <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+                          <input type="checkbox" checked={!!p.combo} onChange={() => toggleCombo(p)} className="accent-amber-500" />
+                          ⚡ Combo (isca)
+                        </label>
+                        {p.combo && (
+                          <input
+                            value={p.combo_texto ?? ''}
+                            onChange={e => setComboTexto(p, e.target.value)}
+                            placeholder="Condição — ex.: levando uma camiseta"
+                            className="w-full bg-zinc-800 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 placeholder-zinc-600 outline-none focus:border-amber-400"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {p.oportunidade && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-xs text-zinc-500">R$</span>
-                      <input
-                        type="number" min="0" step="0.01" value={p.preco_oportunidade ?? ''}
-                        onChange={e => setPreco(p, e.target.value)}
-                        placeholder="oferta"
-                        className="w-20 bg-zinc-800 border border-emerald-500/40 rounded-lg px-2 py-1 text-sm text-emerald-300 outline-none focus:border-emerald-400"
-                      />
-                    </div>
-                  )}
-                  <button
-                    onClick={() => toggleProduto(p)}
-                    className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition cursor-pointer ${
-                      p.oportunidade ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/15' : 'border-zinc-700 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {p.oportunidade ? 'No clube ✓' : '+ Clube'}
-                  </button>
-                  </div>
-                  {p.oportunidade && (
-                    <div className="mt-2 sm:pl-14 flex flex-col sm:flex-row sm:items-center gap-2">
-                      <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer shrink-0">
-                        <input type="checkbox" checked={!!p.combo} onChange={() => toggleCombo(p)} className="accent-amber-500" />
-                        ⚡ Combo (isca)
-                      </label>
-                      {p.combo && (
-                        <input
-                          value={p.combo_texto ?? ''}
-                          onChange={e => setComboTexto(p, e.target.value)}
-                          placeholder="Condição — ex.: nesse preço, levando uma camiseta"
-                          className="flex-1 bg-zinc-800 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-sm text-amber-200 placeholder-zinc-600 outline-none focus:border-amber-400"
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </div>
 
