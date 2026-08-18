@@ -1051,8 +1051,7 @@ export default function EstoqueFormPage({
         <div className="flex items-center gap-2 text-xs text-zinc-600">
           <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-              <circle cx="12" cy="12" r="3" fill="white"/>
+              <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
             </svg>
           </div>
           Claude Vision

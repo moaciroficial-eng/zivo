@@ -109,8 +109,7 @@ export default function AiChat() {
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-                <circle cx="12" cy="12" r="3" fill="white"/>
+                <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
               </svg>
             </div>
             <div>
@@ -145,8 +144,7 @@ export default function AiChat() {
             <div className="flex flex-col items-center gap-4 py-4">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 border border-violet-500/20 flex items-center justify-center">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="#8b5cf6" strokeWidth="1.5" strokeLinejoin="round"/>
-                  <circle cx="12" cy="12" r="3" fill="#8b5cf6"/>
+                  <circle cx="12" cy="12" r="8" fill="none" stroke="#8b5cf6" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
                 </svg>
               </div>
               <p className="text-zinc-400 text-sm text-center leading-relaxed px-2">

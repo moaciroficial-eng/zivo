@@ -48,8 +48,7 @@ function ResetForm() {
         <div className="flex flex-col items-center mb-10">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-              <circle cx="12" cy="12" r="3" fill="white" />
+              <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">zivo</h1>

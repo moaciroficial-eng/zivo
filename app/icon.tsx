@@ -17,10 +17,7 @@ export default function Icon() {
           justifyContent: 'center',
         }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L20 7V17L12 22L4 17V7L12 2Z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-          <circle cx="12" cy="12" r="3.5" fill="white" />
-        </svg>
+        <div style={{ width: 17, height: 17, borderRadius: '50%', border: '3px solid white' }} />
       </div>
     ),
     { ...size }
