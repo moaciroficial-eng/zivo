@@ -8,8 +8,12 @@ import { diagnosticoCompleto, clientesPorMarca } from '@/lib/agentes/analitico'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
 import { previewLembrete, enviarLembretes } from '@/lib/agentes/lembrete'
 import { FERRAMENTAS_CONSULTA, executarConsulta } from '@/lib/agentes/consultas'
+import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+/* Dá tempo pro disparo direto da 1ª mensagem (LLM + envio) rodar no after() */
+export const maxDuration = 60
 
 function inferCategoria(nome: string): string {
   const n = nome.toUpperCase()
@@ -843,21 +847,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ ok: false, error: `Erro ao criar conversas: ${estadoErr.message}` }, { status: 500 })
   }
 
-  /* Dispara a primeira mensagem para os primeiros 10 contatos imediatamente.
+  /* Dispara a primeira mensagem para os primeiros contatos DIRETO no processo
+     (após a resposta), sem fetch HTTP interno — que podia ser bloqueado pela
+     proteção da Vercel e fazer a mensagem sumir sem erro nem retry.
      Os demais são encadeados pelo executor conforme cada envio inicial conclui. */
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://zivo-navy.vercel.app'
   const primeiros = lista.slice(0, 10)
-  for (const contato of primeiros) {
-    after(fetch(`${baseUrl}/api/gerente/executar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
-      body: JSON.stringify({
-        userId:    user.id,
-        tarefaId:  novaTarefa.id,
-        contatoId: contato.id,
-      }),
-    }).catch(() => null))
-  }
+  after(async () => {
+    for (const contato of primeiros) {
+      try {
+        await executarTurnoTarefa(admin, user.id, novaTarefa.id, contato.id)
+      } catch { /* segue pros próximos */ }
+    }
+  })
 
   await admin.from('gerente_mensagens').insert({
     user_id:   user.id,
