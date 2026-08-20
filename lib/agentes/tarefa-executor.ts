@@ -1,6 +1,6 @@
 import { after } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { donoAssumiuConversa, sendWhatsAppMessage } from '@/lib/whatsapp'
+import { donoAssumiuConversa, sendWhatsAppMessage, primeiroNome } from '@/lib/whatsapp'
 import { juntarTamanhos } from '@/lib/tamanhos'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
@@ -72,6 +72,32 @@ export async function processarRespostaTarefa(
 
   if (respostaContato) {
     historico.push({ papel: 'contato', texto: respostaContato })
+  }
+
+  /* ── ABERTURA sem depender da IA ──────────────────────────────
+     Se o contato ainda não respondeu E o agente ainda não falou, esta é a
+     PRIMEIRA mensagem: manda o texto aprovado (= template) DIRETO, sem chamar
+     o modelo. Antes a abertura dependia da IA gerar a mensagem — se a IA
+     falhasse (sem crédito, timeout...), o envio nem acontecia e o chat ficava
+     vazio em silêncio. As perguntas de verdade só vêm depois que o cliente
+     responder (aí sim o modelo roda). */
+  if (!respostaContato && !historico.some(h => h.papel === 'agente')) {
+    const loja = await getLoja(admin, userId).catch(() => null)
+    const nome = primeiroNome(contato.nome, 'você')
+    const nomeLojaFinal = loja?.nomeLoja || nomeLoja
+    const abertura = `Oi ${nome}! 😊 ${nomeLojaFinal} aqui. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?`
+    const r = await enviarOferta(admin, {
+      userId, contatoId: contato.id, phone: contato.phone,
+      texto: abertura, templateName: 'atualizacao_cadastro',
+      templateVars: [nome, nomeLojaFinal], creds: loja?.creds,
+    })
+    if (!r.ok) {
+      await admin.from('agente_conversa_estado').update({ status: 'aguardando', updated_at: new Date().toISOString() }).eq('id', estado.id)
+      return { respondeu: false, concluido: false, ok: false, erro: r.erro }
+    }
+    historico.push({ papel: 'agente', texto: abertura })
+    await admin.from('agente_conversa_estado').update({ historico, status: 'aguardando', updated_at: new Date().toISOString() }).eq('id', estado.id)
+    return { respondeu: true, concluido: false, ok: true }
   }
 
   /* Campos internos (prefixo _) não vão pro prompt */
