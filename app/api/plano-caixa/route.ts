@@ -61,78 +61,51 @@ export async function POST(request: NextRequest) {
   const mediana = totais.length ? totais[Math.floor(totais.length / 2)] : 0
   const escasso = (tam: string) => (porTamanho.get(tam) ?? 0) < mediana  // abaixo da mediana = escasso
 
-  /* Monta candidatos */
-  type ItemPlano = {
+  /* Uma LINHA por tamanho (peça + tamanho) — o dono revisa e dispensa o que
+     não faz sentido. Oferta a qtd cheia; só MARCA os tamanhos escassos. */
+  type Linha = {
     id: string; nome: string; marca: string | null; cor: string | null
-    dias: number; manual: boolean; preco_venda: number; preco_custo: number | null
-    desconto: number; preco_promo: number
-    tamanhos: { tamanho: string; qtd: number; escasso: boolean }[]
-    pecas: number; valor_promo: number
+    tamanho: string; qtd: number; escasso: boolean
+    dias: number; manual: boolean
+    preco_venda: number; preco_custo: number | null
+    desconto: number; preco_promo: number; valor: number
   }
-  const candidatos: ItemPlano[] = []
+  const linhas: Linha[] = []
   for (const p of elegiveis) {
     const manual = !p.nfe_grupo_id
     const dias = diasDe(p.data_entrada ?? p.created_at)
-    /* manual = estoque antigo cadastrado na mão: trata como bem parado */
-    const diasEfetivo = manual ? Math.max(dias, 90) : dias
+    const diasEfetivo = manual ? Math.max(dias, 90) : dias  // manual = estoque antigo
     const preco = Number(p.preco_venda)
     let desc = descontoPorTempo(diasEfetivo)
     let promo = Math.round(preco * (1 - desc))
-    /* nunca abaixo do custo: se floor no custo, reduz o desconto efetivo */
     if (p.preco_custo != null && promo < Number(p.preco_custo)) {
       promo = Math.ceil(Number(p.preco_custo))
       desc = preco > 0 ? Math.max(0, 1 - promo / preco) : 0
     }
     if (desc <= 0.02) continue // sem margem pra desconto real
-
-    /* Tamanhos: escasso → oferta no máx 1 (protege); resto → tudo */
-    const tams = (p.tamanhos ?? [])
-      .filter(t => (Number(t.qtd) || 0) > 0)
-      .map(t => {
-        const esc = escasso(String(t.tamanho))
-        const qtd = esc ? Math.min(1, Number(t.qtd)) : Number(t.qtd)
-        return { tamanho: String(t.tamanho), qtd, escasso: esc }
+    for (const t of (p.tamanhos ?? [])) {
+      const qtd = Number(t.qtd) || 0
+      if (qtd <= 0) continue
+      linhas.push({
+        id: p.id, nome: p.nome, marca: p.marca, cor: p.cor,
+        tamanho: String(t.tamanho), qtd, escasso: escasso(String(t.tamanho)),
+        dias, manual, preco_venda: preco, preco_custo: p.preco_custo,
+        desconto: Math.round(desc * 100), preco_promo: promo, valor: promo * qtd,
       })
-      .filter(t => t.qtd > 0)
-    const pecas = tams.reduce((s, t) => s + t.qtd, 0)
-    if (pecas === 0) continue
-
-    candidatos.push({
-      id: p.id, nome: p.nome, marca: p.marca, cor: p.cor,
-      dias, manual, preco_venda: preco, preco_custo: p.preco_custo,
-      desconto: Math.round(desc * 100), preco_promo: promo,
-      tamanhos: tams, pecas, valor_promo: promo * pecas,
-    })
+    }
   }
 
-  /* Prioriza o mais parado + com mais peças (manual = trata como muito antigo) */
-  const idade = (x: ItemPlano) => x.manual ? Math.max(x.dias, 200) : x.dias
-  candidatos.sort((a, b) => (idade(b) * b.pecas) - (idade(a) * a.pecas))
-
-  /* Acumula até ~1.3x a meta (nem tudo vende de primeira, então oferta com folga) */
-  const alvo = meta * 1.3
-  const plano: ItemPlano[] = []
-  let acumulado = 0
-  for (const c of candidatos) {
-    if (acumulado >= alvo && plano.length >= 8) break
-    plano.push(c)
-    acumulado += c.valor_promo
-  }
-
-  const totalPecas = plano.reduce((s, c) => s + c.pecas, 0)
-  const economia = plano.reduce((s, c) => s + (c.preco_venda - c.preco_promo) * c.pecas, 0)
+  /* Mais parado primeiro (manual = muito antigo) */
+  const idade = (x: Linha) => x.manual ? Math.max(x.dias, 200) : x.dias
+  linhas.sort((a, b) => (idade(b) * b.qtd) - (idade(a) * a.qtd))
 
   return NextResponse.json({
     ok: true,
     meta,
     resumo: {
       valor_estoque_elegivel: Math.round(elegiveis.reduce((s, p) => s + Number(p.preco_venda) * (p.tamanhos ?? []).reduce((a, t) => a + (Number(t.qtd) || 0), 0), 0)),
-      produtos_no_plano: plano.length,
-      pecas: totalPecas,
-      valor_promocional: Math.round(acumulado),
-      desconto_total: Math.round(economia),
       tamanhos_protegidos: [...porTamanho.keys()].filter(escasso),
     },
-    itens: plano,
+    itens: linhas.slice(0, 80),
   })
 }
