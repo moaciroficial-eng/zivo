@@ -174,6 +174,24 @@ async function handleAtendimento(request: NextRequest) {
     }
   }
 
+  /* ── QUEBRA-LOOP (IA × IA) ──────────────────────────────────────
+     Se o número do cliente também tem atendimento automático, os dois bots
+     ficam respondendo um ao outro pra sempre. Se a IA já enviou 5+ mensagens
+     pra este contato nos últimos 5 min, é loop: para de responder e joga na
+     fila "clientes para responder" (dedupe embutido) pro dono decidir. */
+  if (!instrucaoOwner) {
+    const cincoMin = Date.now() - 5 * 60_000
+    const enviadasIaRecentes = (mensagens ?? []).filter((m: { direcao: string; timestamp: string; raw: unknown }) =>
+      m.direcao === 'enviada'
+      && (m.raw as { origem?: string } | null)?.origem === 'ia'
+      && new Date(m.timestamp).getTime() > cincoMin
+    ).length
+    if (enviadasIaRecentes >= 5) {
+      await registrarEscalacao(admin, userId, contatoId, 'Conversa possivelmente em loop com outro atendimento automático — pausei a IA aqui.', null)
+      return NextResponse.json({ ok: true, skipped: 'possível loop IA×IA — pausado' })
+    }
+  }
+
   /* ── CAMPANHA SEM FOTO: o cliente respondeu → manda as fotos do produto
      que ficaram pendentes (a copy prometeu "quer que eu te mande as fotos?").
      Envia, grava no histórico e limpa a pendência. */
