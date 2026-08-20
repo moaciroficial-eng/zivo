@@ -522,21 +522,28 @@ export async function executarTurnoTarefa(
        mensagem ENVIADA foi manual do dono — mesmo que tenha sido horas atrás.
        (Caso Camila: o dono atendeu de manhã, a cliente respondeu 1h depois e
        a IA atropelou. Agora, se o dono foi o último a falar, a IA fica calada.) */
-    const { data: ultEnv } = await admin.from('whatsapp_mensagens')
-      .select('raw').eq('contato_id', contatoId).eq('direcao', 'enviada')
-      .order('timestamp', { ascending: false }).limit(1).maybeSingle()
-    const ultimaEnviadaEhManual = !!ultEnv && ((ultEnv.raw as { origem?: string } | null)?.origem !== 'ia')
-    if (ultimaEnviadaEhManual || await donoAssumiuConversa(admin, contatoId)) {
-      await admin.from('agente_conversa_estado')
-        .update({ status: estadoRef.status, updated_at: new Date().toISOString() })
-        .eq('id', estadoTravado.id)
-        .eq('status', 'processando')
-      return { ok: true, skipped: 'dono ativo na conversa — IA em silêncio' }
-    }
-
     const historicoAtual: HistoricoItem[] = Array.isArray(estadoTravado.historico) ? estadoTravado.historico : []
     const dados = (estadoTravado.dados_coletados ?? {}) as Record<string, unknown>
     const primeiroEnvio = historicoAtual.length === 0
+
+    /* "Dono assumiu a conversa" → IA fica calada. MAS isso NÃO se aplica à
+       ABERTURA de uma campanha (primeiroEnvio): aí o dono está INICIANDO o
+       contato, não sendo interrompido. Sem essa exceção, todo cliente com quem
+       o dono já conversou manualmente antes era PULADO e nunca recebia a
+       campanha (era o bug do cadastro que "sumia"). */
+    if (!primeiroEnvio) {
+      const { data: ultEnv } = await admin.from('whatsapp_mensagens')
+        .select('raw').eq('contato_id', contatoId).eq('direcao', 'enviada')
+        .order('timestamp', { ascending: false }).limit(1).maybeSingle()
+      const ultimaEnviadaEhManual = !!ultEnv && ((ultEnv.raw as { origem?: string } | null)?.origem !== 'ia')
+      if (ultimaEnviadaEhManual || await donoAssumiuConversa(admin, contatoId)) {
+        await admin.from('agente_conversa_estado')
+          .update({ status: estadoRef.status, updated_at: new Date().toISOString() })
+          .eq('id', estadoTravado.id)
+          .eq('status', 'processando')
+        return { ok: true, skipped: 'dono ativo na conversa — IA em silêncio' }
+      }
+    }
 
     /* ── 3. Agrega mensagens ainda não processadas ── */
     let respostaContato: string | null = null
