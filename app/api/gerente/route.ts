@@ -852,33 +852,18 @@ export async function PUT(request: NextRequest) {
      proteção da Vercel e fazer a mensagem sumir sem erro nem retry.
      Os demais são encadeados pelo executor conforme cada envio inicial conclui. */
   const primeiros = lista.slice(0, 10)
-  /* Envia o 1º contato SÍNCRONO — assim capturamos erro de envio (template/Meta)
-     e mostramos pro dono, em vez de falhar mudo. O resto vai em after(). */
-  const [head, ...resto] = primeiros
-  let primeiroResultado: { ok?: boolean; erro?: string } | null = null
-  if (head) {
-    try { primeiroResultado = await executarTurnoTarefa(admin, user.id, novaTarefa.id, head.id) }
-    catch (e) { primeiroResultado = { ok: false, erro: e instanceof Error ? e.message : 'erro' } }
-  }
-  if (resto.length) {
-    after(async () => {
-      for (const contato of resto) {
-        try { await executarTurnoTarefa(admin, user.id, novaTarefa.id, contato.id) } catch { /* segue */ }
-      }
-    })
-  }
-
-  const falhou = primeiroResultado && primeiroResultado.ok === false
-  const conteudo = falhou
-    ? `⚠️ A primeira mensagem NÃO foi enviada. Erro da Meta: ${String(primeiroResultado?.erro ?? 'desconhecido').slice(0, 500)}`
-    : `✅ Tarefa "${tarefa.titulo}" criada! Iniciando com ${lista.length} contatos. Dados que já existem no cadastro serão confirmados com o cliente, e só o que falta será perguntado.`
+  after(async () => {
+    for (const contato of primeiros) {
+      try { await executarTurnoTarefa(admin, user.id, novaTarefa.id, contato.id) } catch { /* segue */ }
+    }
+  })
 
   await admin.from('gerente_mensagens').insert({
     user_id:   user.id,
     papel:     'gerente',
-    conteudo,
+    conteudo:  `✅ Tarefa "${tarefa.titulo}" criada! Iniciando com ${lista.length} contatos. Dados que já existem no cadastro serão confirmados com o cliente, e só o que falta será perguntado.`,
     tarefa_id: novaTarefa.id,
   })
 
-  return NextResponse.json({ ok: true, tarefaId: novaTarefa.id, total: lista.length, primeiro: primeiroResultado })
+  return NextResponse.json({ ok: true, tarefaId: novaTarefa.id, total: lista.length })
 }
