@@ -584,6 +584,8 @@ export async function PUT(request: NextRequest) {
 
   const body = await request.json()
   const { tarefa, operacao } = body
+  /* ids que o dono dispensou no preview (contato_id OU cliente_id) */
+  const excluir = new Set<string>(Array.isArray(body.excluir) ? body.excluir : [])
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -787,6 +789,11 @@ export async function PUT(request: NextRequest) {
   /* Dedupe por contato: dois clientes podem compartilhar o mesmo telefone
      (ex: casal, mesmo número no cadastro). Sem isso o insert dos estados
      viola UNIQUE(tarefa_id, contato_id) e falha inteiro — a campanha some. */
+  /* Remove os contatos que o dono dispensou no preview (× na tela) */
+  if (excluir.size > 0) {
+    contatosList = contatosList.filter(c => !excluir.has(c.id) && !(c.cliente_id && excluir.has(c.cliente_id)))
+  }
+
   const vistos = new Set<string>()
   const listaComSeed = contatosList
     .filter(c => {

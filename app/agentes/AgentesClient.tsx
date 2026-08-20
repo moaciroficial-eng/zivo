@@ -91,6 +91,7 @@ export default function AgentesClient({
   const [gerentePensando, setGerentePensando] = useState(false)
   const [tarefaPendente, setTarefaPendente] = useState<Record<string, unknown> | null>(null)
   const [previewContatos, setPreviewContatos] = useState<{id:string;nome:string}[]>([])
+  const [excluidos, setExcluidos] = useState<Set<string>>(new Set())
   const [confirmando, setConfirmando] = useState(false)
   /* Aprendizado */
   const [aprendMsgs, setAprendMsgs] = useState<Array<{ papel: string; conteudo: string }>>([])
@@ -120,6 +121,7 @@ export default function AgentesClient({
       if (data.tarefa) {
         setTarefaPendente(data.tarefa)
         setPreviewContatos(data.previewContatos ?? [])
+        setExcluidos(new Set())
       }
     } finally {
       setGerentePensando(false)
@@ -133,7 +135,7 @@ export default function AgentesClient({
       const res = await fetch('/api/gerente', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tarefa: tarefaPendente }),
+        body: JSON.stringify({ tarefa: tarefaPendente, excluir: [...excluidos] }),
       })
       const data = await res.json()
       setGerenteMsgs(prev => [...prev, { papel: 'gerente', conteudo: `✅ Tarefa iniciada! Enviando mensagens para ${data.total} contatos.` }])
@@ -244,24 +246,34 @@ export default function AgentesClient({
                       {previewContatos.length > 0 && (
                         <div className="mb-3">
                           <p className="text-[11px] text-zinc-400 mb-1.5">
-                            Vai enviar para {previewContatos.length} contato{previewContatos.length > 1 ? 's' : ''}:
+                            Vai enviar para {previewContatos.length - excluidos.size} de {previewContatos.length} contato{previewContatos.length > 1 ? 's' : ''} <span className="text-zinc-600">(× pra dispensar)</span>:
                           </p>
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                            {previewContatos.map(c => (
-                              <span key={c.id} className="text-[11px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full">
-                                {c.nome}
-                              </span>
-                            ))}
+                          <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+                            {previewContatos.map(c => {
+                              const fora = excluidos.has(c.id)
+                              return (
+                                <span key={c.id} className={`text-[11px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${fora ? 'bg-zinc-800 text-zinc-600 line-through' : 'bg-zinc-700 text-zinc-300'}`}>
+                                  {c.nome}
+                                  <button
+                                    onClick={() => setExcluidos(prev => { const s = new Set(prev); if (s.has(c.id)) s.delete(c.id); else s.add(c.id); return s })}
+                                    className="text-zinc-500 hover:text-white cursor-pointer leading-none font-bold"
+                                    title={fora ? 'Incluir de volta' : 'Dispensar'}
+                                  >
+                                    {fora ? '+' : '×'}
+                                  </button>
+                                </span>
+                              )
+                            })}
                           </div>
                         </div>
                       )}
                       <div className="flex gap-2">
                         <button
                           onClick={confirmarTarefa}
-                          disabled={confirmando}
+                          disabled={confirmando || previewContatos.length - excluidos.size <= 0}
                           className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition cursor-pointer"
                         >
-                          {confirmando ? 'Iniciando...' : `✓ Confirmar e enviar para ${previewContatos.length}`}
+                          {confirmando ? 'Iniciando...' : `✓ Confirmar e enviar para ${previewContatos.length - excluidos.size}`}
                         </button>
                         <button
                           onClick={() => { setTarefaPendente(null); setPreviewContatos([]) }}
