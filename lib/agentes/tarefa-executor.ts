@@ -60,7 +60,7 @@ export async function processarRespostaTarefa(
   estado: Estado,
   contato: Contato,
   respostaContato: string | null
-): Promise<{ respondeu: boolean; concluido: boolean }> {
+): Promise<{ respondeu: boolean; concluido: boolean; ok?: boolean; erro?: string }> {
   const nomeContato = contato.nome?.split(' ')[0] ?? 'você'
   const { data: cfgLoja } = await admin.from('loja_config').select('nome_loja').eq('user_id', userId).maybeSingle()
   const nomeLoja = (cfgLoja as { nome_loja?: string } | null)?.nome_loja ?? 'a loja'
@@ -305,13 +305,19 @@ ${regrasGenero}
       acao.proxima_mensagem = `Oi ${primeiroNome}! 😊 ${nomeLojaFinal} aqui. Estamos atualizando o cadastro dos nossos clientes pra te atender melhor e avisar das novidades do seu estilo. Posso te fazer algumas perguntinhas rápidas?`
     }
 
-    await enviarOferta(admin, {
+    const r = await enviarOferta(admin, {
       userId, contatoId: contato.id, phone: contato.phone,
       texto: acao.proxima_mensagem,
       templateName: 'atualizacao_cadastro',
       templateVars: [primeiroNome, nomeLojaFinal],
       creds: loja?.creds,
     })
+    if (!r.ok) {
+      /* Envio falhou (template/Meta). NÃO avança o estado (libera pra retry) e
+         devolve o erro cru — antes isso ficava mudo e o chat aparecia vazio. */
+      await admin.from('agente_conversa_estado').update({ status: 'aguardando', updated_at: new Date().toISOString() }).eq('id', estado.id)
+      return { ok: false, respondeu: false, concluido: false, erro: r.erro ?? 'falha no envio' }
+    }
     historico.push({ papel: 'agente', texto: acao.proxima_mensagem })
   }
 
@@ -428,7 +434,7 @@ export async function executarTurnoTarefa(
   userId: string,
   tarefaId: string,
   contatoId: string,
-): Promise<{ ok: boolean; skipped?: string; respondeu?: boolean; concluido?: boolean }> {
+): Promise<{ ok: boolean; skipped?: string; respondeu?: boolean; concluido?: boolean; erro?: string }> {
   /* ── 1. Estado mais recente dessa tarefa+contato ── */
   const { data: estados } = await admin
     .from('agente_conversa_estado')
