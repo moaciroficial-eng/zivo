@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 type Linha = {
-  id: string; nome: string; marca: string | null; cor: string | null
+  id: string; nome: string; marca: string | null; cor: string | null; foto: string | null
   tamanho: string; qtd: number; escasso: boolean
   dias: number; manual: boolean
   preco_venda: number; preco_custo: number | null
@@ -108,7 +108,10 @@ A IA cruza o que <b className="text-zinc-300">mais vende</b> (histórico) com o 
                   const k = chave(l)
                   const fora = dispensados.has(k)
                   return (
-                    <div key={k} className={`border rounded-xl px-4 py-3 flex items-center gap-3 transition ${fora ? 'border-zinc-800/50 bg-zinc-900/30 opacity-45' : 'border-zinc-800 bg-zinc-900/60'}`}>
+                    <div key={k} className={`border rounded-xl px-3 py-3 flex items-center gap-3 transition ${fora ? 'border-zinc-800/50 bg-zinc-900/30 opacity-45' : 'border-zinc-800 bg-zinc-900/60'}`}>
+                      <div className="w-12 h-12 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
+                        {l.foto ? <img src={l.foto} alt="" className="w-full h-full object-cover" loading="lazy" /> : <span className="text-lg">👕</span>}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${l.escasso ? 'bg-violet-500/15 text-violet-300 border border-violet-500/30' : 'bg-zinc-800 text-zinc-300'}`}>{l.tamanho}{l.escasso ? ' 🛡️' : ''}</span>

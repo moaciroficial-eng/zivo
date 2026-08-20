@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
 
   const itens = (estoque ?? []) as EstoqueRow[]
 
+  /* Fotos da biblioteca (estoque_id → url) */
+  const { data: fotos } = await admin.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id)
+  const fotoMap: Record<string, string> = {}
+  for (const f of (fotos ?? []) as { url: string; estoque_ids: string[] | null }[]) {
+    for (const id of (f.estoque_ids ?? [])) if (!fotoMap[id]) fotoMap[id] = f.url
+  }
+
   /* Elegíveis: produto da NOTA só entra com +60 dias (recém-chegado é novo).
      Produto SEM nota (cadastrado na mão) = estoque antigo → entra sempre. */
   const elegiveis = itens.filter(p =>
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
   /* Uma LINHA por tamanho (peça + tamanho) — o dono revisa e dispensa o que
      não faz sentido. Oferta a qtd cheia; só MARCA os tamanhos escassos. */
   type Linha = {
-    id: string; nome: string; marca: string | null; cor: string | null
+    id: string; nome: string; marca: string | null; cor: string | null; foto: string | null
     tamanho: string; qtd: number; escasso: boolean
     dias: number; manual: boolean
     preco_venda: number; preco_custo: number | null
@@ -110,7 +117,7 @@ export async function POST(request: NextRequest) {
       if (qtd <= 0) continue
       if (protegido(t.tamanho)) continue  // tamanho bom vendedor → fora da queima
       linhas.push({
-        id: p.id, nome: p.nome, marca: p.marca, cor: p.cor,
+        id: p.id, nome: p.nome, marca: p.marca, cor: p.cor, foto: fotoMap[p.id] ?? null,
         tamanho: String(t.tamanho), qtd, escasso: false,
         dias, manual, preco_venda: preco, preco_custo: p.preco_custo,
         desconto: Math.round(desc * 100), preco_promo: promo, valor: promo * qtd,
