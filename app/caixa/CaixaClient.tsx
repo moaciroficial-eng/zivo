@@ -56,7 +56,7 @@ export default function CaixaClient() {
           <h1 className="text-2xl font-bold">Levantar Caixa</h1>
         </div>
         <p className="text-sm text-zinc-500 mb-6 max-w-2xl">
-          A IA lista suas peças paradas com um desconto sugerido pra você fazer caixa. <b className="text-zinc-300">Cada linha é uma peça + tamanho</b> — dá um <b className="text-zinc-300">×</b> pra dispensar o que não faz sentido. Só produtos com +60 dias de nota (cadastro manual = estoque antigo, sempre entra), desconto até 50%, nunca abaixo do custo. 🛡️ = tamanho que você mais vende (pense 2x antes de queimar).
+A IA cruza o que <b className="text-zinc-300">mais vende</b> (histórico) com o que está <b className="text-zinc-300">parado</b>: já <b className="text-zinc-300">tira da queima os tamanhos bons vendedores</b> (ficam no preço cheio) e lista só o encalhe. <b className="text-zinc-300">Cada linha é uma peça + tamanho</b> — dá um <b className="text-zinc-300">×</b> pra dispensar o que não faz sentido. Só produtos com +60 dias de nota (cadastro manual = estoque antigo), desconto até 50%, nunca abaixo do custo.
         </p>
 
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
@@ -92,7 +92,7 @@ export default function CaixaClient() {
                 <div className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 transition-all" style={{ width: `${pctMeta}%` }} />
               </div>
               {plano.resumo.tamanhos_protegidos.length > 0 && (
-                <p className="text-[11px] text-zinc-500 mt-3">🛡️ Tamanhos que você mais vende: {plano.resumo.tamanhos_protegidos.map(t => (
+                <p className="text-[11px] text-zinc-500 mt-3">🛡️ Já tirei da queima (você vende bem, giro alto): {plano.resumo.tamanhos_protegidos.map(t => (
                   <span key={t} className="inline-block text-[10px] font-bold bg-violet-500/20 text-violet-200 px-1.5 py-0.5 rounded-full ml-1">{t}</span>
                 ))}</p>
               )}

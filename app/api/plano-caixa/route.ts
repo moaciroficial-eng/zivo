@@ -52,14 +52,36 @@ export async function POST(request: NextRequest) {
     (!p.nfe_grupo_id || diasDe(p.data_entrada ?? p.created_at) >= 60)
   )
 
-  /* Total de peças por TAMANHO (loja toda) → tamanhos escassos = protege */
-  const porTamanho = new Map<string, number>()
-  for (const p of elegiveis) for (const t of (p.tamanhos ?? [])) {
-    const s = String(t.tamanho); porTamanho.set(s, (porTamanho.get(s) ?? 0) + (Number(t.qtd) || 0))
+  const normTam = (t: unknown) => String(t ?? '').trim().toUpperCase()
+
+  /* Histórico: quanto cada TAMANHO já VENDEU ("o que mais sai") */
+  const { data: vendas } = await admin.from('vendas').select('produtos').eq('user_id', user.id)
+  const vendidoPorTam = new Map<string, number>()
+  for (const v of (vendas ?? [])) {
+    const prods = Array.isArray((v as { produtos?: unknown }).produtos) ? (v as { produtos: { tamanho?: unknown; qtd?: unknown }[] }).produtos : []
+    for (const pr of prods) {
+      const tam = normTam(pr?.tamanho)
+      if (!tam) continue
+      vendidoPorTam.set(tam, (vendidoPorTam.get(tam) ?? 0) + (Number(pr?.qtd) || 1))
+    }
   }
-  const totais = [...porTamanho.values()].sort((a, b) => a - b)
-  const mediana = totais.length ? totais[Math.floor(totais.length / 2)] : 0
-  const escasso = (tam: string) => (porTamanho.get(tam) ?? 0) < mediana  // abaixo da mediana = escasso
+
+  /* Estoque atual por TAMANHO (só elegíveis) */
+  const emEstoquePorTam = new Map<string, number>()
+  for (const p of elegiveis) for (const t of (p.tamanhos ?? [])) {
+    const s = normTam(t.tamanho); emEstoquePorTam.set(s, (emEstoquePorTam.get(s) ?? 0) + (Number(t.qtd) || 0))
+  }
+
+  /* PROTEGE o tamanho que MAIS SAI e MENOS TEM: se vendeu bem (>=2) e o que
+     sobra é <= o que já vendeu (bom giro), é vendedor forte (tipo G) → NÃO
+     entra na queima, fica no preço cheio. */
+  const protegido = (tam: string) => {
+    const t = normTam(tam)
+    const vend = vendidoPorTam.get(t) ?? 0
+    const emEst = emEstoquePorTam.get(t) ?? 0
+    return vend >= 2 && emEst <= vend
+  }
+  const tamanhosProtegidos = [...emEstoquePorTam.keys()].filter(protegido)
 
   /* Uma LINHA por tamanho (peça + tamanho) — o dono revisa e dispensa o que
      não faz sentido. Oferta a qtd cheia; só MARCA os tamanhos escassos. */
@@ -86,9 +108,10 @@ export async function POST(request: NextRequest) {
     for (const t of (p.tamanhos ?? [])) {
       const qtd = Number(t.qtd) || 0
       if (qtd <= 0) continue
+      if (protegido(t.tamanho)) continue  // tamanho bom vendedor → fora da queima
       linhas.push({
         id: p.id, nome: p.nome, marca: p.marca, cor: p.cor,
-        tamanho: String(t.tamanho), qtd, escasso: escasso(String(t.tamanho)),
+        tamanho: String(t.tamanho), qtd, escasso: false,
         dias, manual, preco_venda: preco, preco_custo: p.preco_custo,
         desconto: Math.round(desc * 100), preco_promo: promo, valor: promo * qtd,
       })
@@ -104,7 +127,7 @@ export async function POST(request: NextRequest) {
     meta,
     resumo: {
       valor_estoque_elegivel: Math.round(elegiveis.reduce((s, p) => s + Number(p.preco_venda) * (p.tamanhos ?? []).reduce((a, t) => a + (Number(t.qtd) || 0), 0), 0)),
-      tamanhos_protegidos: [...porTamanho.keys()].filter(escasso),
+      tamanhos_protegidos: tamanhosProtegidos,
     },
     itens: linhas.slice(0, 80),
   })
