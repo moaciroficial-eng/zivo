@@ -16,7 +16,7 @@ export default async function ClubePage() {
 
   const { data: cfg } = await supabase
     .from('loja_config')
-    .select('nome_loja, clube_ativo, clube_slug, clube_cadastro_aberto, logo_url, clube_como_comprar, mp_access_token')
+    .select('nome_loja, clube_ativo, clube_slug, clube_cadastro_aberto, logo_url, clube_como_comprar, mp_access_token, clube_dominio')
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -43,6 +43,9 @@ export default async function ClubePage() {
   }
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://zivo-navy.vercel.app'
+  const dominio = cfg?.clube_dominio ?? null
+  // Se a loja tem domínio próprio, o link do clube é a raiz dele.
+  const linkPublico = dominio ? `https://${dominio}` : `${origin}/clube/${slug}`
 
   return (
     <ClubeClient
@@ -50,7 +53,8 @@ export default async function ClubePage() {
       nomeLoja={cfg?.nome_loja ?? 'sua loja'}
       clubeAtivo={cfg?.clube_ativo ?? false}
       cadastroAberto={cfg?.clube_cadastro_aberto ?? true}
-      linkPublico={`${origin}/clube/${slug}`}
+      linkPublico={linkPublico}
+      clubeDominio={dominio}
       logoUrl={cfg?.logo_url ?? null}
       comoComprar={cfg?.clube_como_comprar ?? ''}
       mpToken={cfg?.mp_access_token ?? ''}

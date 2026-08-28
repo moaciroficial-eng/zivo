@@ -62,7 +62,11 @@ export async function POST(request: NextRequest) {
   }).select('id').single()
   if (!pedido) return NextResponse.json({ ok: false, erro: 'Falha ao criar o pedido.' }, { status: 500 })
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://zivo-navy.vercel.app'
+  // Mantém checkout/retorno no mesmo domínio que o cliente está usando
+  // (ex.: clubemoca.com.br), caindo pro site padrão se não vier host.
+  const hostReq = request.headers.get('host')
+  const proto = request.headers.get('x-forwarded-proto') || 'https'
+  const origin = hostReq ? `${proto}://${hostReq}` : (process.env.NEXT_PUBLIC_SITE_URL || 'https://zivo-navy.vercel.app')
   try {
     const res = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',

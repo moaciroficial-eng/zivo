@@ -18,13 +18,14 @@ function tamanhosComEstoque(t: Produto['tamanhos']): string[] {
 }
 
 export default function ClubeClient({
-  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, logoUrl, comoComprar, mpToken, produtos, fotoMap, membrosLista, vendasClube, clientes,
+  user, nomeLoja, clubeAtivo, cadastroAberto, linkPublico, clubeDominio, logoUrl, comoComprar, mpToken, produtos, fotoMap, membrosLista, vendasClube, clientes,
 }: {
   user: { id: string; email: string }
   nomeLoja: string
   clubeAtivo: boolean
   cadastroAberto: boolean
   linkPublico: string
+  clubeDominio: string | null
   logoUrl: string | null
   comoComprar: string
   mpToken: string
@@ -46,6 +47,7 @@ export default function ClubeClient({
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [comoTxt, setComoTxt] = useState(comoComprar)
   const [mp, setMp] = useState(mpToken)
+  const [dominio, setDominio] = useState(clubeDominio ?? '')
   const [vendas, setVendas] = useState<VendaClube[]>(vendasClube)
   const [membros, setMembros] = useState<Membro[]>(membrosLista)
   const [configAberta, setConfigAberta] = useState(false)
@@ -154,6 +156,16 @@ export default function ClubeClient({
     showToast(mp.trim() ? 'Pagamento ligado!' : 'Token removido.')
   }
 
+  async function salvarDominio() {
+    // normaliza: tira http(s)://, www., barra final e espaços; guarda minúsculo
+    const limpo = dominio.trim().toLowerCase()
+      .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').trim()
+    setDominio(limpo)
+    const { error } = await supabase.from('loja_config').upsert({ user_id: user.id, clube_dominio: limpo || null }, { onConflict: 'user_id' })
+    if (error) showToast('Esse domínio já está em uso em outra loja.', false)
+    else showToast(limpo ? 'Domínio salvo! Pode levar alguns minutos.' : 'Domínio removido.')
+  }
+
   function copiarLink() {
     navigator.clipboard.writeText(linkPublico).then(() => showToast('Link copiado!')).catch(() => showToast('Copie manualmente.', false))
   }
@@ -254,6 +266,17 @@ export default function ClubeClient({
                 <div className="flex gap-2">
                   <input type="password" value={mp} onChange={e => setMp(e.target.value)} placeholder="APP_USR-..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
                   <button onClick={salvarMp} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
+                </div>
+              </div>
+              <div className="border-t border-zinc-800/60 pt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Domínio próprio do clube</p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${dominio.trim() ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800/40'}`}>{dominio.trim() ? 'Ligado' : 'Desligado'}</span>
+                </div>
+                <p className="text-xs text-zinc-500">Se você tem um domínio só pro clube (ex.: <b className="text-zinc-400">clubemoca.com.br</b>), coloque aqui. O endereço abre direto a vitrine — sem o &quot;/clube/...&quot;. Antes precisa apontar o domínio pra Vercel.</p>
+                <div className="flex gap-2">
+                  <input type="text" value={dominio} onChange={e => setDominio(e.target.value)} onBlur={salvarDominio} placeholder="clubemoca.com.br" className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+                  <button onClick={salvarDominio} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
                 </div>
               </div>
             </div>
