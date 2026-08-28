@@ -20,7 +20,7 @@ function fBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
-type CartItem = { key: string; estoqueId: string; nome: string; tamanho: string; preco: number }
+type CartItem = { key: string; estoqueId: string; nome: string; tamanho: string; preco: number; foto: string | null }
 
 export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, slug, email, mpAtivo, itens }: { nomeLoja: string; logo: string | null; comoComprar: string | null; ownerPhone: string | null; slug: string; email: string; mpAtivo: boolean; itens: Item[] }) {
   const [tamSel, setTamSel] = useState<Record<string, string>>({})
@@ -41,7 +41,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
     const tam = it.tamanhos.length === 1 ? it.tamanhos[0] : (tamSel[it.id] || '')
     if (it.tamanhos.length > 1 && !tam) { alert('Escolha o tamanho primeiro.'); return }
     const preco = it.preco_oportunidade ?? it.preco_venda ?? 0
-    setCart(c => [...c, { key: `${it.id}-${tam}-${Date.now()}`, estoqueId: it.id, nome: `${it.nome}${it.marca ? ` (${it.marca})` : ''}${tam ? ` — ${tam}` : ''}`, tamanho: tam, preco }])
+    setCart(c => [...c, { key: `${it.id}-${tam}-${Date.now()}`, estoqueId: it.id, nome: `${it.nome}${it.marca ? ` (${it.marca})` : ''}${tam ? ` — ${tam}` : ''}`, tamanho: tam, preco, foto: it.foto }])
     setShowCart(true)
   }
 
@@ -60,68 +60,88 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <header className="sticky top-0 z-10 bg-[#0a0a0f]/90 backdrop-blur border-b border-zinc-800/60 px-5 py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-2.5">
+    <div className="relative min-h-screen bg-[#07070a] text-white">
+      {/* brilho de fundo */}
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute left-1/2 top-[-200px] h-[500px] w-[600px] -translate-x-1/2 rounded-full bg-violet-700/12 blur-[140px]" />
+      </div>
+
+      {/* Cabeçalho branded */}
+      <header className="sticky top-0 z-20 bg-[#07070a]/85 backdrop-blur-md border-b border-white/[0.06]">
+        <div className="max-w-3xl mx-auto flex items-center gap-3 px-5 py-3.5">
           {logo
-            ? <img src={logo} alt={nomeLoja} className="w-9 h-9 rounded-lg object-contain bg-white/5" />
-            : <span className="text-xl">👑</span>}
-          <div>
-            <h1 className="font-bold leading-tight">Clube {nomeLoja}</h1>
-            <p className="text-[11px] text-zinc-500 leading-tight">Ofertas exclusivas de VIP</p>
+            ? <div className="w-10 h-10 rounded-xl bg-black ring-1 ring-white/10 overflow-hidden flex items-center justify-center shrink-0"><img src={logo} alt={nomeLoja} className="w-full h-full object-contain" /></div>
+            : <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-lg shrink-0">👑</div>}
+          <div className="min-w-0">
+            <h1 className="font-bold leading-tight truncate">{nomeLoja}</h1>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-300/80 leading-tight">👑 Clube VIP</p>
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto p-5">
+      <main className="relative z-10 max-w-3xl mx-auto px-5 pb-28 pt-6">
+        {/* Hero */}
+        <div className="mb-6">
+          <h2 className="text-xl font-bold tracking-tight">Ofertas exclusivas de VIP</h2>
+          <p className="text-sm text-zinc-400 mt-1">
+            {itens.length > 0
+              ? <>Preços que só quem é do clube vê. <span className="text-violet-300 font-medium">{itens.length} {itens.length === 1 ? 'peça disponível' : 'peças disponíveis'}.</span></>
+              : 'As ofertas do clube aparecem aqui.'}
+          </p>
+        </div>
+
         {itens.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-20 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
             <p className="text-4xl mb-3">🛍️</p>
-            <p className="text-zinc-400">Nenhuma oferta no momento.</p>
-            <p className="text-zinc-600 text-sm mt-1">Fica de olho — a gente avisa quando chegar coisa nova!</p>
+            <p className="text-zinc-300 font-medium">Nenhuma oferta no momento.</p>
+            <p className="text-zinc-500 text-sm mt-1">Fica de olho — a gente avisa quando chegar coisa nova!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {itens.map(it => {
               const desc = it.preco_venda && it.preco_oportunidade && it.preco_venda > it.preco_oportunidade
                 ? Math.round((1 - it.preco_oportunidade / it.preco_venda) * 100) : 0
               return (
-                <div key={it.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
-                  <div className="aspect-square bg-zinc-800 relative">
-                    {it.foto ? <img src={it.foto} alt={it.nome} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-600 text-3xl">🛍️</div>}
-                    {desc > 0 && <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">-{desc}%</span>}
+                <div key={it.id} className="group bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden flex flex-col transition hover:border-violet-500/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-950/30">
+                  <div className="aspect-square bg-zinc-900 relative overflow-hidden">
+                    {it.foto ? <img src={it.foto} alt={it.nome} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="w-full h-full flex items-center justify-center text-zinc-700 text-3xl">🛍️</div>}
+                    {desc > 0 && <span className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-rose-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-lg">-{desc}%</span>}
+                    {it.combo && <span className="absolute top-2 right-2 bg-amber-500/90 text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow">⚡ COMBO</span>}
                   </div>
                   <div className="p-3 flex flex-col gap-1 flex-1">
                     <p className="text-sm font-medium leading-tight line-clamp-2">{it.nome}</p>
                     <p className="text-[11px] text-zinc-500">{[it.marca, it.cor].filter(Boolean).join(' · ')}</p>
-                    <p className="text-[11px] text-zinc-600">Tam: {it.tamanhos.join(' / ')}</p>
                     {it.combo && it.combo_texto && (
-                      <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-1 leading-snug">⚡ {it.combo_texto}</p>
+                      <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-md px-1.5 py-1 leading-snug mt-0.5">{it.combo_texto}</p>
                     )}
-                    <div className="mt-auto pt-1">
-                      {desc > 0 && <p className="text-[11px] text-zinc-600 line-through">{fBRL(it.preco_venda)}</p>}
+                    <div className="mt-auto pt-1.5">
+                      {desc > 0 && <p className="text-[11px] text-zinc-600 line-through leading-none">{fBRL(it.preco_venda)}</p>}
                       <p className="text-lg font-bold text-emerald-400 leading-tight">{fBRL(it.preco_oportunidade ?? it.preco_venda)}</p>
                     </div>
                     {mpAtivo && !it.combo ? (
                       <>
                         {it.tamanhos.length > 1 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex flex-wrap gap-1 mt-1.5">
                             {it.tamanhos.map(t => (
                               <button key={t} onClick={() => setTamSel(s => ({ ...s, [it.id]: t }))}
-                                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-zinc-700 text-zinc-400 hover:text-white'}`}>{t}</button>
+                                className={`min-w-[28px] px-2 py-0.5 rounded-md text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
                             ))}
                           </div>
                         )}
+                        {it.tamanhos.length === 1 && <p className="text-[11px] text-zinc-600 mt-1">Tam: {it.tamanhos[0]}</p>}
                         <button onClick={() => adicionar(it)}
-                          className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-2 transition">
-                          Adicionar
+                          className="mt-2 flex items-center justify-center gap-1.5 text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-2 transition active:scale-[0.98]">
+                          <span>🛒</span> Adicionar
                         </button>
                       </>
                     ) : (
-                      <a href={zap(it)} target="_blank" rel="noopener noreferrer"
-                        className="mt-2 text-center text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition">
-                        Quero essa
-                      </a>
+                      <>
+                        <p className="text-[11px] text-zinc-600 mt-1">Tam: {it.tamanhos.join(' / ')}</p>
+                        <a href={zap(it)} target="_blank" rel="noopener noreferrer"
+                          className="mt-2 flex items-center justify-center gap-1.5 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition active:scale-[0.98]">
+                          Quero essa
+                        </a>
+                      </>
                     )}
                   </div>
                 </div>
@@ -129,49 +149,53 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
             })}
           </div>
         )}
+
         {comoComprar && comoComprar.trim() && (
-          <div className="mt-8 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-            <h2 className="font-semibold text-sm mb-2">Como comprar</h2>
+          <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
+            <h2 className="font-semibold text-sm mb-2 flex items-center gap-2">💡 Como comprar</h2>
             <p className="text-sm text-zinc-400 whitespace-pre-wrap leading-relaxed">{comoComprar}</p>
           </div>
         )}
-        <p className="text-center text-xs text-zinc-700 mt-8 mb-24">Clube {nomeLoja} · ofertas por tempo limitado</p>
+        <p className="text-center text-xs text-zinc-700 mt-8">Clube {nomeLoja} · ofertas por tempo limitado</p>
       </main>
 
       {/* Barra do carrinho */}
       {cart.length > 0 && !showCart && (
         <button onClick={() => setShowCart(true)}
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full pl-5 pr-3 py-3 shadow-2xl transition">
-          <span className="font-semibold text-sm">{cart.length} {cart.length === 1 ? 'item' : 'itens'} · {fBRL(total)}</span>
-          <span className="bg-white/20 rounded-full px-3 py-1 text-sm font-bold">Ver carrinho</span>
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-full pl-5 pr-3 py-3 shadow-2xl shadow-emerald-950/50 transition active:scale-[0.98]">
+          <span className="font-semibold text-sm">🛒 {cart.length} {cart.length === 1 ? 'item' : 'itens'} · {fBRL(total)}</span>
+          <span className="bg-white/20 rounded-full px-3 py-1 text-sm font-bold">Ver</span>
         </button>
       )}
 
       {/* Carrinho */}
       {showCart && (
-        <div className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowCart(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
-              <h2 className="font-bold">Seu carrinho</h2>
+        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowCart(false)}>
+          <div className="bg-[#0c0c11] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0">
+              <h2 className="font-bold flex items-center gap-2">🛒 Seu carrinho</h2>
               <button onClick={() => setShowCart(false)} className="text-zinc-500 hover:text-white text-sm">Fechar</button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {cart.length === 0 && <p className="text-sm text-zinc-500 text-center py-8">Carrinho vazio.</p>}
               {cart.map(c => (
-                <div key={c.key} className="flex items-center gap-2 bg-zinc-800/60 rounded-lg px-3 py-2 text-sm">
+                <div key={c.key} className="flex items-center gap-3 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 text-sm">
+                  <div className="w-11 h-11 rounded-lg bg-zinc-800 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600">
+                    {c.foto ? <img src={c.foto} alt="" className="w-full h-full object-cover" /> : <span>🛍️</span>}
+                  </div>
                   <span className="flex-1 min-w-0 truncate">{c.nome}</span>
                   <span className="text-emerald-400 font-semibold shrink-0">{fBRL(c.preco)}</span>
-                  <button onClick={() => setCart(x => x.filter(i => i.key !== c.key))} className="text-zinc-500 hover:text-red-400 shrink-0 text-lg leading-none">×</button>
+                  <button onClick={() => setCart(x => x.filter(i => i.key !== c.key))} className="text-zinc-500 hover:text-red-400 shrink-0 text-lg leading-none px-1">×</button>
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t border-zinc-800 shrink-0 space-y-3">
+            <div className="p-4 border-t border-white/10 shrink-0 space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-zinc-400">Total</span>
                 <span className="text-xl font-bold text-emerald-400">{fBRL(total)}</span>
               </div>
               <button onClick={finalizar} disabled={comprando || cart.length === 0}
-                className="w-full text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-3 transition disabled:opacity-60">
+                className="w-full text-center text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-3 transition disabled:opacity-60 active:scale-[0.99]">
                 {comprando ? 'Abrindo pagamento...' : 'Finalizar compra'}
               </button>
               <button onClick={() => setShowCart(false)} className="w-full text-center text-xs text-zinc-500 hover:text-white transition">Continuar comprando</button>
