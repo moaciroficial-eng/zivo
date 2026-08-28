@@ -55,6 +55,10 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
   // Tamanhos existentes na vitrine (pro filtro), em ordem natural
   const tamanhosDisponiveis = Array.from(new Set(itens.flatMap(i => i.tamanhos.map(t => t.toUpperCase().trim()))))
     .sort((a, b) => ordTam(a) - ordTam(b))
+  // Separa letras (roupa) de numeração (calçado/calça numérica)
+  const ehNumero = (t: string) => /^\d+$/.test(t.trim())
+  const tamsLetra = tamanhosDisponiveis.filter(t => !ehNumero(t))
+  const tamsNumero = tamanhosDisponiveis.filter(t => ehNumero(t))
 
   // Ordem fixa por categoria + filtro por tamanho
   const visiveis = itens
@@ -135,16 +139,31 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
               {filtroAberto && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setFiltroAberto(false)} />
-                  <div className="absolute right-0 mt-2 z-30 w-56 rounded-2xl border border-white/10 bg-[#0d0d13] p-3 shadow-2xl shadow-black/60">
-                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Escolha o tamanho</p>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      <button onClick={() => { setTamFiltro(''); setFiltroAberto(false) }}
-                        className={`col-span-4 rounded-lg py-1.5 text-xs font-semibold border transition ${!tamFiltro ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-400 hover:text-white hover:border-white/30'}`}>Todos</button>
-                      {tamanhosDisponiveis.map(t => (
-                        <button key={t} onClick={() => { setTamFiltro(f => f === t ? '' : t); setFiltroAberto(false) }}
-                          className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-300 hover:text-white hover:border-white/30'}`}>{t}</button>
-                      ))}
-                    </div>
+                  <div className="absolute right-0 mt-2 z-30 w-60 rounded-2xl border border-white/10 bg-[#0d0d13] p-3 shadow-2xl shadow-black/60">
+                    <button onClick={() => { setTamFiltro(''); setFiltroAberto(false) }}
+                      className={`w-full rounded-lg py-1.5 text-xs font-semibold border transition ${!tamFiltro ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-400 hover:text-white hover:border-white/30'}`}>Todos</button>
+                    {tamsLetra.length > 0 && (
+                      <div className="mt-3">
+                        <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Tamanho</p>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {tamsLetra.map(t => (
+                            <button key={t} onClick={() => { setTamFiltro(f => f === t ? '' : t); setFiltroAberto(false) }}
+                              className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-300 hover:text-white hover:border-white/30'}`}>{t}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {tamsNumero.length > 0 && (
+                      <div className="mt-3">
+                        <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Numeração</p>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {tamsNumero.map(t => (
+                            <button key={t} onClick={() => { setTamFiltro(f => f === t ? '' : t); setFiltroAberto(false) }}
+                              className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-300 hover:text-white hover:border-white/30'}`}>{t}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
