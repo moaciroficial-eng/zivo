@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         items: mpItems,
         external_reference: pedido.id,
+        // Limita o parcelamento (menos juros aparecendo pro cliente)
+        payment_methods: { installments: 3 },
         notification_url: `${origin}/api/clube/webhook/mp?slug=${slug}`,
         back_urls: {
           success: `${origin}/clube/${slug}?status=sucesso`,
