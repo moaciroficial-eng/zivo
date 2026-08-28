@@ -4,7 +4,12 @@ import type { Metadata } from 'next'
 import ClubeLogin from './ClubeLogin'
 import ClubeVitrine from './ClubeVitrine'
 
-export const metadata: Metadata = { title: 'Clube de Oportunidades', robots: 'noindex, nofollow' }
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data } = await admin.from('loja_config').select('nome_loja').eq('clube_slug', slug).maybeSingle()
+  return { title: data?.nome_loja ? `Clube ${data.nome_loja}` : 'Clube de Oportunidades', robots: 'noindex, nofollow' }
+}
 
 type LojaClube = {
   user_id: string
