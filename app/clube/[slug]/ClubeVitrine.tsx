@@ -47,6 +47,8 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
   const [showCart, setShowCart] = useState(false)
   const [comprando, setComprando] = useState(false)
   const [tamFiltro, setTamFiltro] = useState<string>('')
+  const [filtroAberto, setFiltroAberto] = useState(false)
+  const [alertaTam, setAlertaTam] = useState<string | null>(null)  // peça pedindo tamanho
 
   const total = cart.reduce((s, c) => s + c.preco, 0)
 
@@ -68,7 +70,8 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
 
   function adicionar(it: Item) {
     const tam = it.tamanhos.length === 1 ? it.tamanhos[0] : (tamSel[it.id] || '')
-    if (it.tamanhos.length > 1 && !tam) { alert('Escolha o tamanho primeiro.'); return }
+    if (it.tamanhos.length > 1 && !tam) { setAlertaTam(it.id); return }  // pede o tamanho ali mesmo
+    setAlertaTam(null)
     const preco = it.preco_oportunidade ?? it.preco_venda ?? 0
     setCart(c => [...c, { key: `${it.id}-${tam}-${Date.now()}`, estoqueId: it.id, nome: `${it.nome}${it.marca ? ` (${it.marca})` : ''}${tam ? ` — ${tam}` : ''}`, tamanho: tam, preco, foto: it.foto }])
     setShowCart(true)
@@ -119,16 +122,33 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
           </p>
         </div>
 
-        {/* Filtro por tamanho */}
+        {/* Filtro por tamanho (retrátil) */}
         {itens.length > 0 && tamanhosDisponiveis.length > 1 && (
-          <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 shrink-0">Tamanho</span>
-            <button onClick={() => setTamFiltro('')}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition ${!tamFiltro ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>Todos</button>
-            {tamanhosDisponiveis.map(t => (
-              <button key={t} onClick={() => setTamFiltro(f => f === t ? '' : t)}
-                className={`shrink-0 min-w-[36px] px-3 py-1 rounded-full text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
-            ))}
+          <div className="mb-5 flex justify-end">
+            <div className="relative">
+              <button onClick={() => setFiltroAberto(o => !o)}
+                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition ${tamFiltro || filtroAberto ? 'border-violet-500/50 bg-violet-600/15 text-violet-100' : 'border-white/[0.12] bg-white/[0.04] text-zinc-300 hover:border-white/25'}`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+                {tamFiltro ? <>Tamanho <span className="rounded-full bg-violet-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{tamFiltro}</span></> : 'Filtrar tamanho'}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`opacity-60 transition-transform ${filtroAberto ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              {filtroAberto && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setFiltroAberto(false)} />
+                  <div className="absolute right-0 mt-2 z-30 w-56 rounded-2xl border border-white/10 bg-[#0d0d13] p-3 shadow-2xl shadow-black/60">
+                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Escolha o tamanho</p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <button onClick={() => { setTamFiltro(''); setFiltroAberto(false) }}
+                        className={`col-span-4 rounded-lg py-1.5 text-xs font-semibold border transition ${!tamFiltro ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-400 hover:text-white hover:border-white/30'}`}>Todos</button>
+                      {tamanhosDisponiveis.map(t => (
+                        <button key={t} onClick={() => { setTamFiltro(f => f === t ? '' : t); setFiltroAberto(false) }}
+                          className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-300 hover:text-white hover:border-white/30'}`}>{t}</button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -168,18 +188,24 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                     </div>
                     {mpAtivo && !it.combo ? (
                       <>
-                        {it.tamanhos.length > 1 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {it.tamanhos.map(t => (
-                              <button key={t} onClick={() => setTamSel(s => ({ ...s, [it.id]: t }))}
-                                className={`min-w-[28px] px-2 py-0.5 rounded-md text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
-                            ))}
-                          </div>
-                        )}
+                        {it.tamanhos.length > 1 && (() => {
+                          const pedindo = alertaTam === it.id
+                          return (
+                            <div className={`mt-1.5 rounded-lg transition ${pedindo ? 'ring-1 ring-amber-400/60 bg-amber-500/[0.07] p-1.5' : ''}`}>
+                              {pedindo && <p className="text-[11px] font-semibold text-amber-300 mb-1">👇 Escolha o tamanho</p>}
+                              <div className="flex flex-wrap gap-1">
+                                {it.tamanhos.map(t => (
+                                  <button key={t} onClick={() => { setTamSel(s => ({ ...s, [it.id]: t })); setAlertaTam(a => a === it.id ? null : a) }}
+                                    className={`min-w-[28px] px-2 py-0.5 rounded-md text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : pedindo ? 'border-amber-400/50 text-amber-100 hover:border-amber-300' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })()}
                         {it.tamanhos.length === 1 && <p className="text-[11px] text-zinc-600 mt-1">Tam: {it.tamanhos[0]}</p>}
                         <button onClick={() => adicionar(it)}
                           className="mt-2 flex items-center justify-center gap-1.5 text-sm font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg py-2 transition active:scale-[0.98]">
-                          <span>🛒</span> Adicionar
+                          <span>🛒</span> {alertaTam === it.id ? 'Escolha o tamanho acima' : 'Adicionar'}
                         </button>
                       </>
                     ) : (
