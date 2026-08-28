@@ -13,6 +13,7 @@ type Item = {
   combo: boolean
   combo_texto: string | null
   tamanhos: string[]
+  opcoes: { tamanho: string; estoqueId: string; preco: number }[]
   foto: string | null
 }
 
@@ -76,8 +77,11 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
     const tam = it.tamanhos.length === 1 ? it.tamanhos[0] : (tamSel[it.id] || '')
     if (it.tamanhos.length > 1 && !tam) { setAlertaTam(it.id); return }  // pede o tamanho ali mesmo
     setAlertaTam(null)
-    const preco = it.preco_oportunidade ?? it.preco_venda ?? 0
-    setCart(c => [...c, { key: `${it.id}-${tam}-${Date.now()}`, estoqueId: it.id, nome: `${it.nome}${it.marca ? ` (${it.marca})` : ''}${tam ? ` — ${tam}` : ''}`, tamanho: tam, preco, foto: it.foto }])
+    // cada tamanho é um item de estoque diferente (nota split por tamanho)
+    const opt = it.opcoes.find(o => o.tamanho.toUpperCase() === (tam || '').toUpperCase())
+    const estoqueId = opt?.estoqueId ?? it.id
+    const preco = opt?.preco ?? it.preco_oportunidade ?? it.preco_venda ?? 0
+    setCart(c => [...c, { key: `${estoqueId}-${tam}-${Date.now()}`, estoqueId, nome: `${it.nome}${it.marca ? ` (${it.marca})` : ''}${tam ? ` — ${tam}` : ''}`, tamanho: tam, preco, foto: it.foto }])
     setShowCart(true)
   }
 
@@ -213,7 +217,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                             <div className={`mt-1.5 rounded-lg transition ${pedindo ? 'ring-1 ring-amber-400/60 bg-amber-500/[0.07] p-1.5' : ''}`}>
                               {pedindo && <p className="text-[11px] font-semibold text-amber-300 mb-1">👇 Escolha o tamanho</p>}
                               <div className="flex flex-wrap gap-1">
-                                {it.tamanhos.map(t => (
+                                {[...it.tamanhos].sort((a, b) => ordTam(a) - ordTam(b)).map(t => (
                                   <button key={t} onClick={() => { setTamSel(s => ({ ...s, [it.id]: t })); setAlertaTam(a => a === it.id ? null : a) }}
                                     className={`min-w-[28px] px-2 py-0.5 rounded-md text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : pedindo ? 'border-amber-400/50 text-amber-100 hover:border-amber-300' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
                                 ))}
@@ -229,7 +233,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                       </>
                     ) : (
                       <>
-                        <p className="text-[11px] text-zinc-600 mt-1">Tam: {it.tamanhos.join(' / ')}</p>
+                        <p className="text-[11px] text-zinc-600 mt-1">Tam: {[...it.tamanhos].sort((a, b) => ordTam(a) - ordTam(b)).join(' / ')}</p>
                         <a href={zap(it)} target="_blank" rel="noopener noreferrer"
                           className="mt-2 flex items-center justify-center gap-1.5 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition active:scale-[0.98]">
                           Quero essa

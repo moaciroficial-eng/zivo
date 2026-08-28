@@ -66,7 +66,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
     for (const id of (f.estoque_ids ?? [])) if (!fotoMap[id]) fotoMap[id] = f.url
   }
 
-  const itens = (produtos ?? [])
+  const planos = (produtos ?? [])
     .map(p => ({
       id: p.id, nome: p.nome, marca: p.marca, cor: p.cor, categoria: (p.categoria as string | null) ?? null,
       preco_venda: p.preco_venda, preco_oportunidade: p.preco_oportunidade,
@@ -79,6 +79,35 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
       foto: fotoMap[p.id] ?? null,
     }))
     .filter(p => p.tamanhos.length > 0)
+
+  /* Agrupa peças que são o MESMO produto e só mudam o tamanho.
+     A nota fiscal traz cada tamanho como um item separado (e escreve o tamanho
+     no fim do nome, ex.: "... INDIGO 117 P" / "... 117 M"). Aqui juntamos num
+     card só, mantendo cada tamanho ligado ao seu id de estoque (pra baixa certa). */
+  type Opcao = { tamanho: string; estoqueId: string; preco: number }
+  type Grupo = (typeof planos)[number] & { opcoes: Opcao[] }
+  const baseNome = (nome: string, tams: string[]) => {
+    const toks = nome.trim().split(/\s+/)
+    const ultimo = toks[toks.length - 1] ?? ''
+    // só tira o último token se ele for exatamente o tamanho daquele item (nota split por tamanho)
+    if (toks.length > 1 && tams.length === 1 && ultimo.toUpperCase() === tams[0].toUpperCase()) return toks.slice(0, -1).join(' ')
+    return nome.trim()
+  }
+  const mapaG = new Map<string, Grupo>()
+  for (const it of planos) {
+    const base = baseNome(it.nome, it.tamanhos)
+    const chave = `${base.toLowerCase()}||${(it.marca ?? '').toLowerCase()}||${(it.cor ?? '').toLowerCase()}||${it.combo ? 'c' : ''}`
+    const preco = Number(it.preco_oportunidade ?? it.preco_venda ?? 0)
+    const opcoes: Opcao[] = it.tamanhos.map(t => ({ tamanho: t, estoqueId: it.id, preco }))
+    const g = mapaG.get(chave)
+    if (!g) {
+      mapaG.set(chave, { ...it, nome: base, opcoes })
+    } else {
+      for (const o of opcoes) if (!g.opcoes.some(x => x.tamanho.toUpperCase() === o.tamanho.toUpperCase())) g.opcoes.push(o)
+      if (!g.foto && it.foto) g.foto = it.foto
+    }
+  }
+  const itens = [...mapaG.values()].map(g => ({ ...g, tamanhos: g.opcoes.map(o => o.tamanho) }))
 
   return <ClubeVitrine nomeLoja={nomeLoja} logo={loja.logo_url} comoComprar={loja.clube_como_comprar} ownerPhone={loja.owner_phone} slug={slug} email={email ?? ''} mpAtivo={!!loja.mp_access_token} itens={itens} />
 }
