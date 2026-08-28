@@ -56,7 +56,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
   // Vitrine: produtos de oportunidade com estoque
   const [{ data: produtos }, { data: fotos }] = await Promise.all([
     admin.from('estoque')
-      .select('id, nome, marca, cor, preco_venda, preco_oportunidade, tamanhos, combo, combo_texto, clube_tamanhos')
+      .select('id, nome, marca, cor, categoria, preco_venda, preco_oportunidade, tamanhos, combo, combo_texto, clube_tamanhos')
       .eq('user_id', loja.user_id).eq('oportunidade', true).not('status', 'eq', 'vendido'),
     admin.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', loja.user_id),
   ])
@@ -68,7 +68,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
 
   const itens = (produtos ?? [])
     .map(p => ({
-      id: p.id, nome: p.nome, marca: p.marca, cor: p.cor,
+      id: p.id, nome: p.nome, marca: p.marca, cor: p.cor, categoria: (p.categoria as string | null) ?? null,
       preco_venda: p.preco_venda, preco_oportunidade: p.preco_oportunidade,
       combo: !!p.combo, combo_texto: (p.combo_texto as string | null) ?? null,
       tamanhos: (() => {

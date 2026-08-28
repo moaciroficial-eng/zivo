@@ -7,6 +7,7 @@ type Item = {
   nome: string
   marca: string | null
   cor: string | null
+  categoria: string | null
   preco_venda: number | null
   preco_oportunidade: number | null
   combo: boolean
@@ -20,6 +21,24 @@ function fBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
+/* Ordem fixa da vitrine: camiseta → polo → calça → bermuda → resto */
+const ORDEM_CAT = ['camiseta', 'polo', 'calca', 'bermuda']
+function ordCat(c: string | null) {
+  const i = ORDEM_CAT.indexOf((c ?? '').toLowerCase())
+  return i >= 0 ? i : ORDEM_CAT.length
+}
+
+/* Ordem natural de tamanho (letras primeiro, numéricos depois em ordem) */
+const ORDEM_TAM = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG', 'EG', 'EGG', 'EXG']
+function ordTam(t: string) {
+  const up = t.toUpperCase().trim()
+  const i = ORDEM_TAM.indexOf(up)
+  if (i >= 0) return i
+  const n = parseInt(up, 10)
+  if (!isNaN(n)) return 100 + n
+  return 999
+}
+
 type CartItem = { key: string; estoqueId: string; nome: string; tamanho: string; preco: number; foto: string | null }
 
 export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, slug, email, mpAtivo, itens }: { nomeLoja: string; logo: string | null; comoComprar: string | null; ownerPhone: string | null; slug: string; email: string; mpAtivo: boolean; itens: Item[] }) {
@@ -27,8 +46,18 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
   const [comprando, setComprando] = useState(false)
+  const [tamFiltro, setTamFiltro] = useState<string>('')
 
   const total = cart.reduce((s, c) => s + c.preco, 0)
+
+  // Tamanhos existentes na vitrine (pro filtro), em ordem natural
+  const tamanhosDisponiveis = Array.from(new Set(itens.flatMap(i => i.tamanhos.map(t => t.toUpperCase().trim()))))
+    .sort((a, b) => ordTam(a) - ordTam(b))
+
+  // Ordem fixa por categoria + filtro por tamanho
+  const visiveis = itens
+    .filter(i => !tamFiltro || i.tamanhos.some(t => t.toUpperCase().trim() === tamFiltro))
+    .sort((a, b) => ordCat(a.categoria) - ordCat(b.categoria))
 
   const zap = (it: Item) => {
     const fone = (ownerPhone ?? '').replace(/\D/g, '')
@@ -90,15 +119,34 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
           </p>
         </div>
 
+        {/* Filtro por tamanho */}
+        {itens.length > 0 && tamanhosDisponiveis.length > 1 && (
+          <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 shrink-0">Tamanho</span>
+            <button onClick={() => setTamFiltro('')}
+              className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition ${!tamFiltro ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>Todos</button>
+            {tamanhosDisponiveis.map(t => (
+              <button key={t} onClick={() => setTamFiltro(f => f === t ? '' : t)}
+                className={`shrink-0 min-w-[36px] px-3 py-1 rounded-full text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
+            ))}
+          </div>
+        )}
+
         {itens.length === 0 ? (
           <div className="text-center py-20 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
             <p className="text-4xl mb-3">🛍️</p>
             <p className="text-zinc-300 font-medium">Nenhuma oferta no momento.</p>
             <p className="text-zinc-500 text-sm mt-1">Fica de olho — a gente avisa quando chegar coisa nova!</p>
           </div>
+        ) : visiveis.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+            <p className="text-3xl mb-2">🔍</p>
+            <p className="text-zinc-300 font-medium">Nada no tamanho {tamFiltro}.</p>
+            <button onClick={() => setTamFiltro('')} className="text-violet-300 text-sm mt-1 hover:underline">Ver todos os tamanhos</button>
+          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-            {itens.map(it => {
+            {visiveis.map(it => {
               const desc = it.preco_venda && it.preco_oportunidade && it.preco_venda > it.preco_oportunidade
                 ? Math.round((1 - it.preco_oportunidade / it.preco_venda) * 100) : 0
               return (
