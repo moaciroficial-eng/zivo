@@ -50,7 +50,7 @@ export default async function ClubePublicoPage({ params }: { params: Promise<{ s
   }
 
   if (!membro) {
-    return <ClubeLogin slug={slug} nomeLoja={nomeLoja} cadastroAberto={loja.clube_cadastro_aberto ?? true} />
+    return <ClubeLogin slug={slug} nomeLoja={nomeLoja} logo={loja.logo_url} cadastroAberto={loja.clube_cadastro_aberto ?? true} />
   }
 
   // Vitrine: produtos de oportunidade com estoque
