@@ -59,11 +59,12 @@ export async function gerarCampanhaOcasiao(admin: any, userId: string, ocasiaoKe
       .eq('user_id', userId).limit(5000),
     admin.from('clientes').select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis')
       .eq('user_id', userId).limit(1000),
-    admin.from('loja_config').select('nome_loja').eq('user_id', userId).maybeSingle(),
+    admin.from('loja_config').select('nome_loja, anotacoes_dono').eq('user_id', userId).maybeSingle(),
   ])
 
   const perfis = calcularPerfis(vendas ?? [], clientes ?? [], estoque ?? [])
   const nomeLoja = config?.nome_loja ?? 'a loja'
+  const anotacoesDono = (config?.anotacoes_dono ?? '').trim()
 
   /* Quando é a próxima ocorrência da data */
   let inicio = new Date(agora.getFullYear(), oc.janela[0][0] - 1, oc.janela[0][1])
@@ -108,6 +109,7 @@ Crie uma campanha de WhatsApp para ${oc.nome}, que acontece em ${diasAte} dias.
 CONTEXTO DA LOJA:
 - ${compraramAnoPassado.length} cliente(s) compraram nessa mesma data no ano passado
 - ${perfis.length} clientes com histórico
+${anotacoesDono ? `\nANOTAÇÕES DO DONO (como está o negócio, escrito por ele — leve a sério, principalmente se o mês está fraco):\n"""${anotacoesDono.slice(0, 1200)}"""` : ''}
 
 CLIENTES (nome | temperatura | compras | marcas | comprou nessa data ano passado?):
 ${clientesStr || '(poucos dados)'}

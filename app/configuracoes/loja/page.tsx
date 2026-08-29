@@ -12,7 +12,7 @@ export default async function LojaConfigPage() {
 
   const { data: config } = await supabase
     .from('loja_config')
-    .select('nome_loja, horario, endereco, info_extra, owner_phone, ativo, proativo_ativo, desconto_aniversario, vende_tenis, vende_feminino, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token')
+    .select('nome_loja, horario, endereco, info_extra, owner_phone, ativo, proativo_ativo, desconto_aniversario, vende_tenis, vende_feminino, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token, anotacoes_dono')
     .eq('user_id', user.id)
     .maybeSingle()
 

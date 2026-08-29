@@ -91,8 +91,9 @@ export async function POST(request: NextRequest) {
   const generoProduto: string | null = gProd === 'M' || gProd === 'F' ? gProd : null
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { data: config } = await admin.from('loja_config').select('nome_loja').eq('user_id', user.id).maybeSingle()
+  const { data: config } = await admin.from('loja_config').select('nome_loja, anotacoes_dono').eq('user_id', user.id).maybeSingle()
   const nomeLoja = config?.nome_loja || 'a loja'
+  const anotacoesDono = (config?.anotacoes_dono ?? '').trim()
 
   /* Datas comemorativas REAIS (feriados móveis calculados) — a consultora
      usa a data certa e agenda os posts a partir dela. */
@@ -112,6 +113,7 @@ HOJE É ${hojeStr}. DATAS COMEMORATIVAS REAIS (use SEMPRE estas, nunca invente d
 
 O QUE JÁ FUNCIONA NESTA LOJA (resultado real das campanhas anteriores — use pra guiar tom, foto e desconto, mas sem citar números crus pro dono):
 ${aprendizado.resumo || '(sem histórico ainda)'}
+${anotacoesDono ? `\nANOTAÇÕES DO DONO (contexto do negócio escrito por ele — como está o mês, o que vendeu/parou, promoções, preocupações). LEVE ISSO A SÉRIO ao propor a estratégia, principalmente se o mês está fraco — a campanha tem que responder a esse momento real:\n"""\n${anotacoesDono.slice(0, 1500)}\n"""` : ''}
 
 Seu jeito: você CONDUZ. O dono não sabe de marketing — você tira a resposta dele com as perguntas certas, UMA de cada vez, curtas e claras. Nada de formulário nem textão.
 

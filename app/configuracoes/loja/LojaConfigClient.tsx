@@ -19,6 +19,7 @@ type Config = {
   meta_phone_number_id: string | null
   meta_waba_id: string | null
   meta_access_token: string | null
+  anotacoes_dono: string | null
 }
 
 function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc: string }) {
@@ -60,6 +61,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
   const [desconto, setDesconto]         = useState(config?.desconto_aniversario ?? 40)
   const [vendeTenis, setVendeTenis]     = useState(config?.vende_tenis ?? true)
   const [vendeFeminino, setVendeFeminino] = useState(config?.vende_feminino ?? false)
+  const [anotacoes, setAnotacoes]       = useState(config?.anotacoes_dono ?? '')
 
   // Conexão WhatsApp (Meta Cloud API)
   const [usaMeta, setUsaMeta]           = useState(config?.whatsapp_provider === 'meta')
@@ -93,6 +95,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
         desconto_aniversario: desconto,
         vende_tenis: vendeTenis,
         vende_feminino: vendeFeminino,
+        anotacoes_dono: anotacoes.trim() || null,
         whatsapp_provider: usaMeta ? 'meta' : 'zapi',
         meta_phone_number_id: usaMeta ? (metaPhoneId.trim() || null) : null,
         meta_waba_id: usaMeta ? (metaWabaId.trim() || null) : null,
@@ -195,6 +198,25 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
             />
             <p className="text-xs text-zinc-600 mt-1">O assistente usa essas informações para responder clientes.</p>
           </div>
+        </div>
+
+        {/* Anotações pro consultor de IA */}
+        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA]" />
+            Anotações pro consultor de IA
+          </h2>
+          <p className="text-xs text-zinc-500">
+            Escreva com suas palavras como está o negócio: como foi o mês, o que vendeu bem ou parou, promoções que rolaram, o que anda te preocupando. Quando você pedir uma <b className="text-zinc-400">estratégia ou campanha</b>, a IA lê isso pra bolar algo que faça sentido pra sua realidade.
+          </p>
+          <textarea
+            className={`${inputClass} resize-none`}
+            rows={5}
+            value={anotacoes}
+            onChange={e => setAnotacoes(e.target.value)}
+            placeholder={'Ex: Início do mês foi muito bom, do dia 15 pra cá caiu bastante. Acho que foi o frio que passou. Camiseta parada, calça saindo bem. Semana passada fiz um sorteio no Instagram e engajou.'}
+          />
+          <p className="text-xs text-zinc-600">Dica: vá atualizando conforme o mês anda — quanto mais atual, melhor a estratégia.</p>
         </div>
 
         {/* Atendimento */}
