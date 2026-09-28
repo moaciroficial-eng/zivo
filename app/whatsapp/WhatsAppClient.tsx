@@ -108,6 +108,9 @@ const EMOJIS = [
   '👋','😃','😄','🤩','😋','😜','🤗','💯','👀','🛍️',
 ]
 
+/* Reações rápidas (menu de cada mensagem) */
+const REACOES = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
 export default function WhatsAppClient({ user, initialContatos }: Props) {
   const supabase = createClient()
   const [contatos, setContatos] = useState<Contato[]>(initialContatos)
@@ -128,6 +131,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
+  const [replyTo, setReplyTo] = useState<Mensagem | null>(null)   // mensagem que estou citando
+  const [acaoMsgId, setAcaoMsgId] = useState<string | null>(null) // menu de ação aberto
   const [view, setView] = useState<'list' | 'chat'>('list')
   /* Conexão/QR removidos — Meta oficial não usa QR nem "instância". */
   const [novaConversa, setNovaConversa] = useState(false)
@@ -194,6 +199,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
+    setReplyTo(null); setAcaoMsgId(null)
     if (!selectedId) { setMensagens([]); return }
     setLoadingMsgs(true)
     supabase
@@ -295,11 +301,31 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     return () => { supabase.removeChannel(ch) }
   }, [selectedId])
 
+  /* Reagir a uma mensagem com emoji */
+  async function reagir(m: Mensagem, emoji: string) {
+    setAcaoMsgId(null)
+    if (!selectedContato || !m.message_id) return
+    const nota: Mensagem = {
+      id: `tmp-r-${Date.now()}`, contato_id: selectedContato.id,
+      direcao: 'enviada', tipo: 'reacao', conteudo: `reagiu ${emoji}`,
+      status: 'enviada', timestamp: new Date().toISOString(),
+    }
+    setMensagens(prev => [...prev, nota])
+    try {
+      await fetch('/api/whatsapp/reagir', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoId: selectedContato.id, messageId: m.message_id, emoji }),
+      })
+    } catch { /* silencioso */ }
+  }
+
   /* ── Enviar mensagem ── */
   async function handleSend() {
     if (!input.trim() || !selectedContato || sending) return
     const text = input.trim()
+    const citada = replyTo
     setInput('')
+    setReplyTo(null)
     setSending(true)
     setSendError(null)
 
@@ -315,6 +341,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       conteudo: text,
       status: 'enviada',
       timestamp: new Date().toISOString(),
+      raw: citada?.message_id ? { context: { id: citada.message_id } } : null,
     }
     setMensagens(prev => [...prev, msgOtimista])
     setContatos(cs => cs.map(c => c.id === selectedContato.id
@@ -330,6 +357,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
           phone: override ?? selectedContato.phone,
           message: text,
           contatoId: selectedContato.id,
+          contextMessageId: citada?.message_id ?? undefined,
         }),
       })
       if (!res.ok) {
@@ -724,8 +752,36 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   const placeholders = ['📷 Imagem', '🎵 Áudio', '🎥 Vídeo', '🎯 Figurinha', '📄 Documento']
                   const mostrarTexto = !!m.conteudo && !placeholders.includes(m.conteudo) && m.tipo !== 'documento'
 
+                  /* Menu de ação (Responder / Reagir) — só em mensagens já enviadas de verdade */
+                  const acao = m.message_id ? (
+                    <div className="relative self-center shrink-0">
+                      <button onClick={() => setAcaoMsgId(id => id === m.id ? null : m.id)}
+                        className="opacity-40 md:opacity-0 md:group-hover:opacity-100 text-zinc-500 hover:text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-zinc-800 transition">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                      </button>
+                      {acaoMsgId === m.id && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setAcaoMsgId(null)} />
+                          <div className={`absolute z-50 top-7 ${enviada ? 'left-0' : 'right-0'} bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-1.5 w-max`}>
+                            <div className="flex gap-0.5 mb-1">
+                              {REACOES.map(e => (
+                                <button key={e} onClick={() => reagir(m, e)} className="text-lg p-1 rounded-lg hover:bg-zinc-800 transition">{e}</button>
+                              ))}
+                            </div>
+                            <button onClick={() => { setReplyTo(m); setAcaoMsgId(null); inputRef.current?.focus() }}
+                              className="w-full flex items-center gap-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-2 py-1.5 transition">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                              Responder
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : null
+
                   return (
-                    <div key={m.id} className={`flex ${enviada ? 'justify-end' : 'justify-start'}`}>
+                    <div key={m.id} className={`group flex items-center gap-1 ${enviada ? 'justify-end' : 'justify-start'}`}>
+                      {enviada && acao}
                       <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
                         enviada ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                       }`}>
@@ -793,6 +849,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                           </div>
                         </div>
                       </div>
+                      {!enviada && acao}
                     </div>
                   )
                 })}
@@ -803,6 +860,17 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
               {sendError && (
                 <div className="mx-3 mb-1 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
                   {sendError}
+                </div>
+              )}
+              {replyTo && (
+                <div className="mx-3 mb-1 flex items-center gap-2 px-3 py-2 bg-zinc-800/60 border-l-2 border-violet-500 rounded-lg">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold text-violet-300">
+                      Respondendo {replyTo.direcao === 'enviada' ? 'você mesmo' : (selectedContato?.nome ?? 'cliente')}
+                    </p>
+                    <p className="text-xs text-zinc-400 truncate">{resumoMsg(replyTo)}</p>
+                  </div>
+                  <button onClick={() => setReplyTo(null)} title="Cancelar" className="text-zinc-500 hover:text-white shrink-0 text-lg leading-none">✕</button>
                 </div>
               )}
               <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2 relative">

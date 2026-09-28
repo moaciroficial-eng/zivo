@@ -8,12 +8,13 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  let phone: string, message: string, contatoId: string | undefined
+  let phone: string, message: string, contatoId: string | undefined, contextMessageId: string | undefined
   try {
     const body = await request.json()
     phone     = body.phone
     message   = body.message
     contatoId = body.contatoId
+    contextMessageId = body.contextMessageId
   } catch {
     return new NextResponse('Invalid JSON', { status: 400 })
   }
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   let messageId: string | undefined
   try {
-    const result = await sendWhatsAppMessage({ phone, message, userId: user.id })
+    const result = await sendWhatsAppMessage({ phone, message, userId: user.id, contextMessageId })
     messageId = result.messageId
   } catch (err) {
     console.error('Erro ao enviar mensagem WhatsApp:', err)
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
         conteudo:   message,
         status:     'enviada',
         timestamp,
+        ...(contextMessageId ? { raw: { context: { id: contextMessageId } } } : {}),
       })
       await admin.from('whatsapp_contatos').update({
         ultima_mensagem:    message,

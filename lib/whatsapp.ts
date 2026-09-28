@@ -43,7 +43,7 @@ function resolverMeta(meta?: MetaCreds) {
   return { phoneNumberId, accessToken }
 }
 
-type SendOptions = { phone: string; message: string; creds?: WhatsAppCreds; userId?: string }
+type SendOptions = { phone: string; message: string; creds?: WhatsAppCreds; userId?: string; contextMessageId?: string }
 
 /* ══════════════════════════════════════════════════════════════
    NORMALIZAÇÃO ÚNICA DE TELEFONE BR — usar SEMPRE que criar/buscar
@@ -122,12 +122,30 @@ async function credsPara(userId?: string): Promise<WhatsAppCreds | undefined> {
   return creds
 }
 
-export async function sendWhatsAppMessage({ phone, message, creds, userId }: SendOptions): Promise<{ messageId?: string }> {
+export async function sendWhatsAppMessage({ phone, message, creds, userId, contextMessageId }: SendOptions): Promise<{ messageId?: string }> {
   const efetivas = creds ?? await credsPara(userId)
   const provider = efetivas?.provider || PROVIDER_GLOBAL
   const number = normalizarTelefoneBR(phone)
-  if (provider === 'meta') return sendViaMeta(number, message, efetivas?.meta)
+  if (provider === 'meta') return sendViaMeta(number, message, efetivas?.meta, contextMessageId)
   return sendViaZapi(number, message, efetivas)
+}
+
+/* Reage a uma mensagem com emoji (só Meta). emoji vazio remove a reação. */
+export async function reactWhatsApp({ phone, messageId, emoji, creds, userId }: { phone: string; messageId: string; emoji: string; creds?: WhatsAppCreds; userId?: string }): Promise<{ ok: boolean }> {
+  const efetivas = creds ?? await credsPara(userId)
+  const { phoneNumberId, accessToken } = resolverMeta(efetivas?.meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const number = normalizarTelefoneBR(phone)
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: number,
+      type: 'reaction', reaction: { message_id: messageId, emoji },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta reação erro ${res.status}: ${await res.text()}`)
+  return { ok: true }
 }
 
 /* ── Envio via Z-API (gateway não-oficial / legado) ─────────── */
@@ -162,7 +180,7 @@ async function sendViaZapi(number: string, message: string, creds?: ZapiCreds): 
    Texto livre só funciona DENTRO da janela de 24h desde a última
    mensagem do cliente. Fora disso, a Meta rejeita — é preciso um
    template aprovado (ver sendWhatsAppTemplate). */
-async function sendViaMeta(number: string, message: string, meta?: MetaCreds): Promise<{ messageId?: string }> {
+async function sendViaMeta(number: string, message: string, meta?: MetaCreds, contextMessageId?: string): Promise<{ messageId?: string }> {
   const { phoneNumberId, accessToken } = resolverMeta(meta)
   if (!phoneNumberId || !accessToken) {
     throw new Error('Meta WhatsApp não configurada. Verifique META_PHONE_NUMBER_ID e META_ACCESS_TOKEN.')
@@ -178,6 +196,7 @@ async function sendViaMeta(number: string, message: string, meta?: MetaCreds): P
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to: number,
+      ...(contextMessageId ? { context: { message_id: contextMessageId } } : {}),
       type: 'text',
       text: { preview_url: false, body: message },
     }),
