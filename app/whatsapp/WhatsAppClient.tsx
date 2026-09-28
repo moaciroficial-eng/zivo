@@ -923,8 +923,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                   placeholder="Digite uma mensagem..."
-                  disabled={sending}
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 transition-colors [color-scheme:dark] disabled:opacity-60"
+                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 transition-colors [color-scheme:dark]"
                 />
                 <button
                   onClick={handleSend}
