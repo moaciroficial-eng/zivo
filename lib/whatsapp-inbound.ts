@@ -18,9 +18,13 @@ function extractConteudo(body: Record<string, unknown>): { conteudo: string | nu
   if (body.video)    return { conteudo: (body.video as Record<string,unknown>).caption as string ?? '🎥 Vídeo', tipo: 'video' }
   if (body.audio)    return { conteudo: '🎵 Áudio', tipo: 'audio' }
   if (body.document) return { conteudo: (body.document as Record<string,unknown>).fileName as string ?? '📄 Documento', tipo: 'documento' }
-  if (body.sticker)  return { conteudo: '🎯 Sticker', tipo: 'sticker' }
+  if (body.sticker)  return { conteudo: '🎯 Figurinha', tipo: 'sticker' }
   if (body.location) return { conteudo: `📍 ${(body.location as Record<string,unknown>).name ?? 'Localização'}`, tipo: 'localizacao' }
   if (body.contact)  return { conteudo: '👤 Contato', tipo: 'contato' }
+  if (body.reaction) {
+    const emoji = String((body.reaction as Record<string,unknown>).emoji ?? '')
+    return { conteudo: emoji ? `reagiu ${emoji}` : 'removeu a reação', tipo: 'reacao' }
+  }
   return { conteudo: null, tipo: 'desconhecido' }
 }
 

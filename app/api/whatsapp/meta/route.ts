@@ -101,7 +101,10 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
       }
       break
     case 'video':
-      base.video = { caption: (m.video as Record<string, unknown>)?.caption ?? null }
+      base.video = {
+        caption: (m.video as Record<string, unknown>)?.caption ?? null,
+        id: (m.video as Record<string, unknown>)?.id ?? null,
+      }
       break
     case 'audio':
     case 'voice': {
@@ -110,10 +113,14 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
       break
     }
     case 'document':
-      base.document = { fileName: (m.document as Record<string, unknown>)?.filename ?? null }
+      base.document = {
+        fileName: (m.document as Record<string, unknown>)?.filename ?? null,
+        id: (m.document as Record<string, unknown>)?.id ?? null,
+        mime: (m.document as Record<string, unknown>)?.mime_type ?? null,
+      }
       break
     case 'sticker':
-      base.sticker = {}
+      base.sticker = { id: (m.sticker as Record<string, unknown>)?.id ?? null }
       break
     case 'location':
       base.location = { name: (m.location as Record<string, unknown>)?.name ?? null }
@@ -121,10 +128,21 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
     case 'contacts':
       base.contact = {}
       break
+    case 'reaction': {
+      const r = m.reaction as Record<string, unknown> | undefined
+      base.reaction = { emoji: r?.emoji ?? '', messageId: r?.message_id ?? null }
+      break
+    }
     default:
       /* tipo não suportado — deixa o pipeline ignorar (sem conteúdo) */
       break
   }
+
+  /* Resposta/citação: a Meta manda context.id = wamid da mensagem citada.
+     Guardamos pra UI mostrar "respondendo a ...". */
+  const ctx = m.context as Record<string, unknown> | undefined
+  if (ctx?.id) base.context = { id: ctx.id, from: ctx.from ?? null }
+
   return base
 }
 
@@ -203,6 +221,27 @@ export async function POST(request: NextRequest) {
           if (aud?.id && token) {
             const publicUrl = await baixarMidiaMeta(String(aud.id), token, supabase, loja.userId)
             if (publicUrl) aud.audioUrl = publicUrl
+          }
+
+          /* Documento: baixa pra o inbox abrir/baixar (raw.document.url) */
+          const doc = payload.document as Record<string, unknown> | undefined
+          if (doc?.id && token) {
+            const publicUrl = await baixarMidiaMeta(String(doc.id), token, supabase, loja.userId)
+            if (publicUrl) doc.url = publicUrl
+          }
+
+          /* Vídeo: baixa pra o inbox reproduzir (raw.video.videoUrl) */
+          const vid = payload.video as Record<string, unknown> | undefined
+          if (vid?.id && token) {
+            const publicUrl = await baixarMidiaMeta(String(vid.id), token, supabase, loja.userId)
+            if (publicUrl) vid.videoUrl = publicUrl
+          }
+
+          /* Figurinha: baixa pra o inbox mostrar a imagem (raw.sticker.stickerUrl) */
+          const stk = payload.sticker as Record<string, unknown> | undefined
+          if (stk?.id && token) {
+            const publicUrl = await baixarMidiaMeta(String(stk.id), token, supabase, loja.userId)
+            if (publicUrl) stk.stickerUrl = publicUrl
           }
 
           await processarEventoInbound(supabase, loja.userId, payload)

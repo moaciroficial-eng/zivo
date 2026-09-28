@@ -22,6 +22,8 @@ type Mensagem = {
   conteudo: string | null
   status: string
   timestamp: string
+  message_id?: string | null
+  raw?: Record<string, unknown> | null
 }
 
 type Props = {
@@ -69,6 +71,16 @@ function fmtTime(ts: string | null): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+/* Resumo curto de uma mensagem — usado na prévia de "respondendo a ..." */
+function resumoMsg(m: Mensagem): string {
+  if (m.tipo === 'imagem') return '📷 Foto'
+  if (m.tipo === 'audio') return '🎵 Áudio'
+  if (m.tipo === 'video') return '🎥 Vídeo'
+  if (m.tipo === 'documento') return `📄 ${m.conteudo ?? 'Documento'}`
+  if (m.tipo === 'sticker') return '🎯 Figurinha'
+  return m.conteudo ?? ''
+}
+
 /* Avatar sem foto: cor consistente por contato (a Meta não dá foto de perfil).
    Classes fixas pra o Tailwind não podar. */
 const AVATAR_CORES = [
@@ -86,6 +98,15 @@ function corAvatar(seed: string): string {
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
   return AVATAR_CORES[h % AVATAR_CORES.length]
 }
+
+/* Emojis mais usados no atendimento — paleta enxuta pro seletor rápido */
+const EMOJIS = [
+  '😀','😁','😂','🤣','😊','😍','🥰','😘','😉','😎',
+  '🤔','😅','🙃','😴','😢','😭','😡','🥺','🙏','👍',
+  '👎','👏','🙌','💪','👌','🤝','❤️','🧡','💛','💚',
+  '💙','💜','🔥','✨','🎉','🎁','💰','✅','❌','⚠️',
+  '👋','😃','😄','🤩','😋','😜','🤗','💯','👀','🛍️',
+]
 
 export default function WhatsAppClient({ user, initialContatos }: Props) {
   const supabase = createClient()
@@ -106,6 +127,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [fotoLoading, setFotoLoading] = useState(false)
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
+  const [showEmoji, setShowEmoji] = useState(false)
   const [view, setView] = useState<'list' | 'chat'>('list')
   /* Conexão/QR removidos — Meta oficial não usa QR nem "instância". */
   const [novaConversa, setNovaConversa] = useState(false)
@@ -116,6 +138,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
+
+  /* Mapa message_id → mensagem, pra achar a mensagem citada numa resposta */
+  const msgPorId = new Map<string, Mensagem>()
+  for (const mm of mensagens) if (mm.message_id) msgPorId.set(mm.message_id, mm)
 
   /* Deep-link: /whatsapp?contato=<id> (vindo de "Clientes para responder" no dashboard) abre a conversa direto */
   useEffect(() => {
@@ -172,7 +198,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setLoadingMsgs(true)
     supabase
       .from('whatsapp_mensagens')
-      .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, raw')
+      .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, message_id, raw')
       .eq('contato_id', selectedId)
       .order('timestamp', { ascending: true })
       .limit(200)
@@ -671,19 +697,61 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 )}
                 {mensagens.map(m => {
                   const enviada = m.direcao === 'enviada'
-                  const raw = (m as unknown as Record<string, unknown>).raw as Record<string, unknown> | null | undefined
+                  const raw = (m.raw ?? (m as unknown as Record<string, unknown>).raw) as Record<string, unknown> | null | undefined
                   const imageUrl = (raw?.image as Record<string, unknown> | undefined)?.imageUrl as string | undefined
                   const audioUrl = (raw?.audio as Record<string, unknown> | undefined)?.audioUrl as string | undefined
+                  const videoUrl = (raw?.video as Record<string, unknown> | undefined)?.videoUrl as string | undefined
+                  const stickerUrl = (raw?.sticker as Record<string, unknown> | undefined)?.stickerUrl as string | undefined
+                  const docObj = raw?.document as Record<string, unknown> | undefined
+                  const docUrl = docObj?.url as string | undefined
+                  const docName = (docObj?.fileName as string | undefined) || (m.conteudo ?? 'Documento')
+
+                  /* Reação (emoji): mostra como notinha central, não como balão */
+                  if (m.tipo === 'reacao') {
+                    return (
+                      <div key={m.id} className="flex justify-center py-0.5">
+                        <span className="text-xs text-zinc-400 bg-zinc-800/60 rounded-full px-3 py-1">
+                          {enviada ? 'Você' : (selectedContato?.nome ?? 'Cliente')} {m.conteudo}
+                        </span>
+                      </div>
+                    )
+                  }
+
+                  /* Mensagem citada (o cliente respondeu a uma mensagem específica) */
+                  const ctxId = (raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
+                  const citada = ctxId ? msgPorId.get(ctxId) : undefined
+
+                  const placeholders = ['📷 Imagem', '🎵 Áudio', '🎥 Vídeo', '🎯 Figurinha', '📄 Documento']
+                  const mostrarTexto = !!m.conteudo && !placeholders.includes(m.conteudo) && m.tipo !== 'documento'
+
                   return (
                     <div key={m.id} className={`flex ${enviada ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
                         enviada ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                       }`}>
+                        {/* Prévia da mensagem citada */}
+                        {citada && (
+                          <div className={`mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 ${enviada ? 'border-violet-200/70 bg-black/15' : 'border-violet-400 bg-black/25'}`}>
+                            <span className="block text-[11px] font-semibold text-violet-300">
+                              {citada.direcao === 'enviada' ? 'Você' : (selectedContato?.nome ?? 'Cliente')}
+                            </span>
+                            <span className="block text-[11px] opacity-80 line-clamp-2 break-words">{resumoMsg(citada)}</span>
+                          </div>
+                        )}
+
                         {/* Imagem */}
                         {m.tipo === 'imagem' && imageUrl && (
                           <a href={imageUrl} target="_blank" rel="noopener noreferrer">
                             <img src={imageUrl} alt="imagem" className="max-w-full max-h-64 object-cover" />
                           </a>
+                        )}
+                        {/* Figurinha */}
+                        {m.tipo === 'sticker' && stickerUrl && (
+                          <img src={stickerUrl} alt="figurinha" className="w-32 h-32 object-contain p-2" />
+                        )}
+                        {/* Vídeo */}
+                        {m.tipo === 'video' && videoUrl && (
+                          <video controls src={videoUrl} className="max-w-full max-h-64" />
                         )}
                         {/* Áudio */}
                         {m.tipo === 'audio' && audioUrl && (
@@ -691,13 +759,30 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                             <audio controls src={audioUrl} className="w-full h-8" />
                           </div>
                         )}
-                        {/* Texto / legenda / fallback */}
+                        {/* Documento */}
+                        {m.tipo === 'documento' && (
+                          docUrl ? (
+                            <a href={docUrl} target="_blank" rel="noopener noreferrer" download={docName}
+                              className={`flex items-center gap-2 px-3 py-2.5 ${enviada ? 'hover:bg-violet-500' : 'hover:bg-zinc-700'} transition`}>
+                              <span className="text-xl shrink-0">📄</span>
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium">{docName}</span>
+                                <span className="block text-[10px] opacity-70">Toque pra abrir</span>
+                              </span>
+                            </a>
+                          ) : (
+                            <div className="flex items-center gap-2 px-3 py-2.5 opacity-70">
+                              <span className="text-xl">📄</span>
+                              <span className="truncate">{docName} <span className="text-[10px]">(indisponível)</span></span>
+                            </div>
+                          )
+                        )}
+
+                        {/* Texto / legenda */}
                         <div className="px-3 py-2">
-                          {m.conteudo && m.conteudo !== '📷 Imagem' && m.conteudo !== '🎵 Áudio' ? (
+                          {mostrarTexto && (
                             <p className="whitespace-pre-wrap break-words leading-snug">{m.conteudo}</p>
-                          ) : m.tipo !== 'imagem' && m.tipo !== 'audio' ? (
-                            <p className="whitespace-pre-wrap break-words leading-snug text-zinc-400 italic">{m.conteudo ?? `[${m.tipo}]`}</p>
-                          ) : null}
+                          )}
                           <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${enviada ? 'text-violet-300' : 'text-zinc-500'}`}>
                             {fmtTime(m.timestamp)}
                             {enviada && (
@@ -720,7 +805,24 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   {sendError}
                 </div>
               )}
-              <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2">
+              <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2 relative">
+                {/* Paleta de emoji */}
+                {showEmoji && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowEmoji(false)} />
+                    <div className="absolute bottom-full left-2 mb-2 z-50 w-64 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl p-2 grid grid-cols-8 gap-0.5">
+                      {EMOJIS.map(e => (
+                        <button
+                          key={e}
+                          onClick={() => { setInput(t => t + e); inputRef.current?.focus() }}
+                          className="text-xl leading-none p-1 rounded-lg hover:bg-zinc-800 transition"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <input
                   ref={imgInputRef}
                   type="file"
@@ -728,6 +830,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleSendImage(f); e.target.value = '' }}
                 />
+                <button
+                  onClick={() => setShowEmoji(v => !v)}
+                  title="Emoji"
+                  className={`hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0 ${showEmoji ? 'text-violet-400' : 'text-zinc-400'}`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                </button>
                 <button
                   onClick={abrirPickerFotos}
                   disabled={enviandoFoto || sending}
