@@ -122,7 +122,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [enviandoFoto, setEnviandoFoto] = useState(false)
+  const [enviandoVideo, setEnviandoVideo] = useState(false)
   const imgInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
   // Seletor de produtos do estoque (com foto) pra enviar no chat
   const [showFotoPicker, setShowFotoPicker] = useState(false)
   const [fotoBusca, setFotoBusca] = useState('')
@@ -437,6 +439,52 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       setMensagens(prev => prev.filter(m => m.id !== msgOtimista.id))
       setTimeout(() => setSendError(null), 6000)
       return false
+    }
+  }
+
+  async function handleSendVideo(file: File) {
+    if (!selectedContato || enviandoVideo) return
+    if (file.size > 16 * 1024 * 1024) {
+      setSendError('Vídeo muito grande — a Meta aceita até 16MB.')
+      setTimeout(() => setSendError(null), 6000)
+      return
+    }
+    setEnviandoVideo(true)
+    setSendError(null)
+    const isLid = selectedContato.jid?.endsWith('@lid')
+    const override = isLid ? lidPhone[selectedContato.id]?.replace(/\D/g, '') : undefined
+    let msgId = ''
+    try {
+      const { data: u } = await supabase.auth.getUser()
+      const uid = u.user?.id ?? 'anon'
+      const ext = (file.name.split('.').pop() || 'mp4').toLowerCase()
+      const path = `whatsapp/${uid}/${Date.now()}.${ext}`
+      const { data: up, error: upErr } = await supabase.storage.from('biblioteca').upload(path, file, { contentType: file.type || 'video/mp4' })
+      if (upErr) throw new Error(upErr.message)
+      const { data: pub } = supabase.storage.from('biblioteca').getPublicUrl(up.path)
+      msgId = `tmp-v-${Date.now()}`
+      const msgOtimista = {
+        id: msgId, contato_id: selectedContato.id, direcao: 'enviada', tipo: 'video',
+        conteudo: '🎥 Vídeo', status: 'enviada', timestamp: new Date().toISOString(),
+        raw: { video: { videoUrl: pub.publicUrl } },
+      } as unknown as Mensagem
+      setMensagens(prev => [...prev, msgOtimista])
+      const res = await fetch('/api/whatsapp/send-video', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: override ?? selectedContato.phone, videoUrl: pub.publicUrl, contatoId: selectedContato.id }),
+      })
+      if (!res.ok) {
+        const t = await res.text()
+        setSendError(t || 'Falha ao enviar o vídeo')
+        setMensagens(prev => prev.filter(m => m.id !== msgId))
+        setTimeout(() => setSendError(null), 8000)
+      }
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Falha ao enviar o vídeo')
+      if (msgId) setMensagens(prev => prev.filter(m => m.id !== msgId))
+      setTimeout(() => setSendError(null), 6000)
+    } finally {
+      setEnviandoVideo(false)
     }
   }
 
@@ -904,6 +952,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleSendImage(f); e.target.value = '' }}
                 />
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleSendVideo(f); e.target.value = '' }}
+                />
                 <button
                   onClick={() => setShowEmoji(v => !v)}
                   title="Emoji"
@@ -921,6 +976,18 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round"/></svg>
                   ) : (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={enviandoVideo || sending}
+                  title="Enviar vídeo (até 16MB)"
+                  className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {enviandoVideo ? (
+                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round"/></svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
                   )}
                 </button>
                 <input

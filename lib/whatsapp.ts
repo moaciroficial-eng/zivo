@@ -258,6 +258,48 @@ async function sendViaZapiImage(number: string, imageUrl: string, caption: strin
 }
 
 /* ══════════════════════════════════════════════════════════════
+   VÍDEO — mesmo esquema da imagem: URL pública + legenda. Só na janela
+   de 24h; Meta limita vídeo a 16MB. ══════════════════════════════ */
+export type VideoOptions = { phone: string; videoUrl: string; caption?: string; creds?: WhatsAppCreds; userId?: string }
+
+export async function sendWhatsAppVideo({ phone, videoUrl, caption, creds, userId }: VideoOptions): Promise<{ messageId?: string }> {
+  const efetivas = creds ?? await credsPara(userId)
+  const provider = efetivas?.provider || PROVIDER_GLOBAL
+  const number = normalizarTelefoneBR(phone)
+  if (provider === 'meta') return sendViaMetaVideo(number, videoUrl, caption, efetivas?.meta)
+  return sendViaZapiVideo(number, videoUrl, caption, efetivas)
+}
+
+async function sendViaMetaVideo(number: string, videoUrl: string, caption: string | undefined, meta?: MetaCreds): Promise<{ messageId?: string }> {
+  const { phoneNumberId, accessToken } = resolverMeta(meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: number,
+      type: 'video', video: { link: videoUrl, ...(caption ? { caption } : {}) },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta vídeo erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
+async function sendViaZapiVideo(number: string, videoUrl: string, caption: string | undefined, creds?: ZapiCreds): Promise<{ messageId?: string }> {
+  const { instance, token, clientToken } = resolverCreds(creds)
+  if (!instance || !token || !clientToken) throw new Error('Z-API não configurada.')
+  const res = await fetch(`https://api.z-api.io/instances/${instance}/token/${token}/send-video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
+    body: JSON.stringify({ phone: number, video: videoUrl, caption: caption ?? '' }),
+  })
+  if (!res.ok) throw new Error(`Z-API vídeo erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messageId ?? data?.zaapId ?? data?.id ?? undefined }
+}
+
+/* ══════════════════════════════════════════════════════════════
    TEMPLATES (Meta) — abrir conversa FORA da janela de 24h
 
    A Meta só deixa iniciar conversa (aniversário, campanha, cadastro,
