@@ -522,6 +522,7 @@ export default function VendasClient({
   const [pagSlots, setPagSlots] = useState<PagSlot[]>([emptySlot()])
   const [isHibrido, setIsHibrido] = useState(false)
   const [isPresente, setIsPresente] = useState(false)
+  const [agradecer, setAgradecer] = useState(true)  // manda msg de agradecimento ao fechar
   const [tipoPresente, setTipoPresente] = useState('')
   const [obsPresente, setObsPresente] = useState('')
   const [presenteTamanho, setPresenteTamanho] = useState('')
@@ -900,7 +901,7 @@ export default function VendasClient({
     setClienteDropdown(false); setProductSearch(''); setProductDropdown(false); setShowScanner(false)
     setShowPayment(false); resetPayment()
     setDescontoVendaTipo('%'); setDescontoVendaValor('')
-    setIsPresente(false); setTipoPresente(''); setObsPresente(''); setPresenteTamanho('')
+    setIsPresente(false); setTipoPresente(''); setObsPresente(''); setPresenteTamanho(''); setAgradecer(true)
     setClienteDependentes([]); setSelectedDepId('')
   }
 
@@ -1147,8 +1148,9 @@ export default function VendasClient({
         body: JSON.stringify({ mes, data_venda: payload.data_venda, produtos_vendidos: payload.produtos }),
       }).catch(() => {})
     }
-    /* Mensagem de pós-venda via WhatsApp (não dispara para presentes) */
-    if (payload.cliente_id && !isPresente) {
+    /* Mensagem de pós-venda via WhatsApp (não dispara para presentes, nem quando
+       o dono desliga — útil pra vendas lançadas com atraso, que soariam estranhas). */
+    if (payload.cliente_id && !isPresente && agradecer) {
       fetch('/api/pos-venda', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2172,6 +2174,25 @@ export default function VendasClient({
                   </div>
                 )}
               </div>
+
+              {/* 4b. AGRADECIMENTO — liga/desliga a msg de "obrigado pela compra" */}
+              {!isPresente && (
+                <div className="border border-zinc-800 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-200">Enviar agradecimento no WhatsApp</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Desligue em vendas lançadas com atraso — evita o cliente estranhar uma mensagem dias depois.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAgradecer(v => !v)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${agradecer ? 'bg-[#00D4AA]' : 'bg-zinc-700'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${agradecer ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 5. PAGAMENTO — edit only */}
               {editing && (
