@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { Wordmark } from '@/app/components/Wordmark'
 import { Sora } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 
@@ -35,7 +36,7 @@ export default async function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Logo />
-            <span className={`${display.className} text-lg font-bold tracking-tight`}>terny</span>
+            <Wordmark className="text-lg" />
           </div>
           <div className="flex items-center gap-1">
             <a href="#ecossistema" className="hidden sm:inline text-sm text-zinc-400 hover:text-white px-3 py-2 rounded-lg transition">Como funciona</a>
@@ -234,7 +235,7 @@ export default async function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <div className="flex items-center gap-2"><Logo small /><span className={`${display.className} font-bold text-zinc-300`}>terny</span></div>
+          <div className="flex items-center gap-2"><Logo small /><Wordmark className="text-zinc-300" /></div>
           <div className="flex items-center gap-5">
             <Link href="/login" className="hover:text-zinc-300 transition">Entrar</Link>
             <Link href="/termos" className="hover:text-zinc-300 transition">Termos</Link>

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Wordmark } from '@/app/components/Wordmark'
 
 function ResetForm() {
   const searchParams = useSearchParams()
@@ -51,7 +52,7 @@ function ResetForm() {
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">terny</h1>
+          <h1 className="text-white"><Wordmark className="text-2xl" /></h1>
           <p className="text-sm text-zinc-400 mt-1">Redefinir senha</p>
         </div>
 

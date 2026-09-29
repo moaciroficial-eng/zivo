@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Wordmark } from '@/app/components/Wordmark'
 import Sidebar from './Sidebar'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -48,7 +49,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
               </svg>
             </div>
-            <span className="font-bold text-white">terny</span>
+            <Wordmark className="text-white text-lg" />
           </Link>
         </div>
 

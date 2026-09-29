@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Wordmark } from '@/app/components/Wordmark'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/actions/auth'
 import ModoControle from './ModoControle'
@@ -256,7 +257,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
             <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-[#00D4AA] zivo-dot-ring" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#00D4AA] zivo-dot-core" />
           </div>
-          <span className="font-bold text-white text-lg tracking-tight">terny</span>
+          <Wordmark className="text-white text-lg" />
         </Link>
         <button
           onClick={onClose}

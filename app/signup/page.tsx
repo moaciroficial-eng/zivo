@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import Link from 'next/link'
 import { signup } from '@/app/actions/auth'
+import { Wordmark } from '@/app/components/Wordmark'
 
 export default function SignupPage() {
   const [state, action, pending] = useActionState(signup, undefined)
@@ -18,7 +19,7 @@ export default function SignupPage() {
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">terny</h1>
+          <h1 className="text-white"><Wordmark className="text-2xl" /></h1>
           <p className="text-sm text-zinc-400 mt-1">Crie sua conta gratuitamente</p>
         </div>
 
