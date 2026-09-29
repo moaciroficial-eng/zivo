@@ -130,15 +130,30 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
     return
   }
 
-  /* Matching automático com cliente pelo telefone */
+  /* Matching automático com cliente pelo telefone.
+     O telefone é guardado em formatos mistos (importado normalizado; manual
+     como o dono digitou), então casamos por dígitos. Se mais de um cliente
+     bate no fim do número, desempatamos pelo número COMPLETO — e se continuar
+     ambíguo, NÃO casamos (melhor sem vínculo do que vincular no cliente errado). */
   let clienteId: string | null = null
-  const phoneLast = phone.slice(-8)
-  const { data: clienteMatch } = await supabase
+  const phoneDig = phone.replace(/\D/g, '')
+  const soDig = (t: string | null | undefined) => (t ?? '').replace(/\D/g, '')
+  const { data: candidatos } = await supabase
     .from('clientes')
-    .select('id, nome')
+    .select('id, nome, telefone')
     .eq('user_id', cleanUserId)
-    .filter('telefone', 'ilike', `%${phoneLast}`)
-    .maybeSingle()
+    .filter('telefone', 'ilike', `%${phoneDig.slice(-8)}`)
+    .limit(5)
+  let clienteMatch: { id: string; nome: string | null } | null = null
+  const lista = (candidatos ?? []) as { id: string; nome: string | null; telefone: string | null }[]
+  if (lista.length === 1) {
+    clienteMatch = lista[0]
+  } else if (lista.length > 1) {
+    clienteMatch =
+      lista.find(c => soDig(c.telefone).slice(-11) === phoneDig.slice(-11)) ??
+      lista.find(c => soDig(c.telefone).slice(-9) === phoneDig.slice(-9)) ??
+      null  // ambíguo → não vincula pra não errar de cliente
+  }
   if (clienteMatch) clienteId = clienteMatch.id
 
   const funilEtapa = clienteId ? 'fundo' : 'topo'
