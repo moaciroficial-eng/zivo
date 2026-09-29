@@ -1,5 +1,6 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { logErro } from '@/lib/log-erro'
 
 /* Webhook do Mercado Pago: quando um pagamento é aprovado, marca o pedido
    como pago, BAIXA o estoque no tamanho certo e registra a venda no Terny.
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ ok: true })
-  } catch {
+  } catch (err) {
+    await logErro('clube/webhook/mp', err)
     return NextResponse.json({ ok: true })
   }
 }

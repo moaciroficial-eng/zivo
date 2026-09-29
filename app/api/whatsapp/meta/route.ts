@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { processarEventoInbound } from '@/lib/whatsapp-inbound'
 import { getLojaByMetaPhoneId } from '@/lib/loja'
+import { logErro } from '@/lib/log-erro'
 
 const META_API_VERSION = process.env.META_API_VERSION || 'v21.0'
 
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('Webhook Meta erro:', err)
+    await logErro('whatsapp/meta', err)
     return NextResponse.json({ ok: true })
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { logErro } from '@/lib/log-erro'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     const result = await sendWhatsAppMessage({ phone, message, userId: user.id, contextMessageId })
     messageId = result.messageId
   } catch (err) {
-    console.error('Erro ao enviar mensagem WhatsApp:', err)
+    await logErro('whatsapp/send', err, { phone }, user.id)
     return new NextResponse(String(err), { status: 500 })
   }
 
