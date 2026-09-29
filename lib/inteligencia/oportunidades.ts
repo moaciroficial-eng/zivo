@@ -142,6 +142,21 @@ function avaliarMatch(prod: EstoqueRow, perfil: PerfilCliente, cli: ClienteRow, 
   }
 }
 
+/* Chave normalizada de produto pra detectar "é o mesmo item" (mesmo que tenha
+   sido re-cadastrado com outro id): tira acento, códigos entre () e tamanho. */
+function chaveProd(nome: string): string {
+  return String(nome || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b(pp|p|m|g|gg|xg|xgg|xggg|u|un|\d{1,3})\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ').trim()
+}
+/* O cliente já tem este produto? (por id de estoque OU nome normalizado) */
+function jaComprou(comprados: Set<string> | undefined, prod: EstoqueRow): boolean {
+  if (!comprados) return false
+  return comprados.has(`id:${prod.id}`) || (!!prod.nome && comprados.has(`n:${chaveProd(prod.nome)}`))
+}
+
 /* Carrega o contexto compartilhado (perfis + índices). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function carregarContexto(admin: any, userId: string, excluirDias: number) {
@@ -160,21 +175,36 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
   for (const c of (clientes ?? []) as ClienteRow[]) infoCliente.set(c.id, c)
   const contatadoRecente = new Set<string>()
   for (const a of (acoes ?? []) as { cliente_id: string | null }[]) if (a.cliente_id) contatadoRecente.add(a.cliente_id)
+
+  /* Índice do que cada cliente JÁ comprou — pra não reofertar o mesmo item
+     (ex: William já tem o chinelo, não adianta oferecer de novo). */
+  const compradosPorCliente = new Map<string, Set<string>>()
+  for (const v of (vendas ?? []) as { cliente_id: string | null; produtos: unknown }[]) {
+    if (!v.cliente_id) continue
+    let set = compradosPorCliente.get(v.cliente_id)
+    if (!set) { set = new Set(); compradosPorCliente.set(v.cliente_id, set) }
+    for (const p of (Array.isArray(v.produtos) ? v.produtos : []) as { estoque_id?: string; nome?: string }[]) {
+      if (p.estoque_id) set.add(`id:${p.estoque_id}`)
+      if (p.nome) set.add(`n:${chaveProd(p.nome)}`)
+    }
+  }
+
   const produtos = (estoque ?? []).filter((e: EstoqueRow) =>
     e.status !== 'vendido' && Array.isArray(e.tamanhos) && e.tamanhos.some(t => (Number(t.qtd) || 0) > 0)
   ) as EstoqueRow[]
-  return { perfis, infoCliente, contatadoRecente, produtos }
+  return { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function gerarOportunidades(admin: any, userId: string, opts: { limite?: number; excluirContatadosDias?: number } = {}): Promise<Oportunidade[]> {
   const limite = opts.limite ?? 30
-  const { perfis, infoCliente, contatadoRecente, produtos } = await carregarContexto(admin, userId, opts.excluirContatadosDias ?? 5)
+  const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente } = await carregarContexto(admin, userId, opts.excluirContatadosDias ?? 5)
 
   const melhorPorCliente = new Map<string, Oportunidade>()
   for (const prod of produtos) {
     for (const perfil of perfis) {
       if (contatadoRecente.has(perfil.clienteId)) continue
+      if (jaComprou(compradosPorCliente.get(perfil.clienteId), prod)) continue  // já tem esse item
       const cli = infoCliente.get(perfil.clienteId)
       if (!cli) continue
       const op = avaliarMatch(prod, perfil, cli)
@@ -190,12 +220,13 @@ export async function gerarOportunidades(admin: any, userId: string, opts: { lim
    scoreMin menor (18) — mostra também matches medianos, o dono decide. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function clientesParaProduto(admin: any, userId: string, produtoId: string): Promise<Oportunidade[]> {
-  const { perfis, infoCliente, contatadoRecente, produtos } = await carregarContexto(admin, userId, 3)
+  const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente } = await carregarContexto(admin, userId, 3)
   const prod = produtos.find(p => p.id === produtoId)
   if (!prod) return []
   const out: Oportunidade[] = []
   for (const perfil of perfis) {
     if (contatadoRecente.has(perfil.clienteId)) continue
+    if (jaComprou(compradosPorCliente.get(perfil.clienteId), prod)) continue  // já tem esse item
     const cli = infoCliente.get(perfil.clienteId)
     if (!cli) continue
     const op = avaliarMatch(prod, perfil, cli, 18)

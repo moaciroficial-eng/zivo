@@ -207,7 +207,10 @@ export function calcularPerfis(
     const categoriaCount = new Map<string, number>()
     const tamanhoCount = new Map<string, number>()
 
-    for (const v of vs) {
+    /* Gosto pessoal (marca/categoria/tamanho/novidade/promo) sai SÓ das compras
+       PRA SI — presente é gosto de outra pessoa e contaminava o perfil (ex:
+       Andreia comprou tudo de presente e virava "fã" da marca do presente). */
+    for (const v of compras) {
       for (const p of (Array.isArray(v.produtos) ? v.produtos : [])) {
         itensTotal++
         const doEstoque = p.estoque_id ? estoquePorId.get(p.estoque_id) : undefined
