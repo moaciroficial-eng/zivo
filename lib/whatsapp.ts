@@ -299,6 +299,42 @@ async function sendViaZapiVideo(number: string, videoUrl: string, caption: strin
   return { messageId: data?.messageId ?? data?.zaapId ?? data?.id ?? undefined }
 }
 
+/* ── DOCUMENTO (Meta) — PDF/arquivo por URL pública, dentro da janela ── */
+export type DocumentoOptions = { phone: string; documentUrl: string; filename?: string; caption?: string; creds?: WhatsAppCreds; userId?: string }
+export async function sendWhatsAppDocument({ phone, documentUrl, filename, caption, creds, userId }: DocumentoOptions): Promise<{ messageId?: string }> {
+  const efetivas = creds ?? await credsPara(userId)
+  const { phoneNumberId, accessToken } = resolverMeta(efetivas?.meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: normalizarTelefoneBR(phone),
+      type: 'document', document: { link: documentUrl, ...(filename ? { filename } : {}), ...(caption ? { caption } : {}) },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta documento erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
+/* ── Marcar como lida (✓✓ azul) + opcional "digitando…" (só Meta) ──
+   best-effort: nunca lança, é enfeite. */
+export async function marcarComoLida({ messageId, creds, userId, digitando }: { messageId: string; creds?: WhatsAppCreds; userId?: string; digitando?: boolean }): Promise<void> {
+  try {
+    const efetivas = creds ?? await credsPara(userId)
+    const { phoneNumberId, accessToken } = resolverMeta(efetivas?.meta)
+    if (!phoneNumberId || !accessToken || !messageId) return
+    const body: Record<string, unknown> = { messaging_product: 'whatsapp', status: 'read', message_id: messageId }
+    if (digitando) body.typing_indicator = { type: 'text' }
+    await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(body),
+    })
+  } catch { /* enfeite — silencioso */ }
+}
+
 /* ══════════════════════════════════════════════════════════════
    TEMPLATES (Meta) — abrir conversa FORA da janela de 24h
 

@@ -1,7 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendWhatsAppMessage, sendWhatsAppImage, humanoAtivoNaConversa, primeiroNome } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendWhatsAppImage, humanoAtivoNaConversa, primeiroNome, marcarComoLida } from '@/lib/whatsapp'
 import { carregarConhecimento } from '@/lib/conhecimento'
 import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
 import { logErro } from '@/lib/log-erro'
@@ -331,6 +331,14 @@ JSON APENAS:
   "marca": "marca ou categoria buscada",
   "produto": "produto exato buscado"
 }`
+
+  /* Mostra "digitando…" pro cliente enquanto a IA pensa (best-effort, não trava) */
+  admin.from('whatsapp_mensagens')
+    .select('message_id').eq('contato_id', contatoId).eq('direcao', 'recebida')
+    .not('message_id', 'is', null).order('timestamp', { ascending: false }).limit(1).maybeSingle()
+    .then(({ data }: { data: { message_id: string | null } | null }) => {
+      if (data?.message_id) marcarComoLida({ messageId: data.message_id, userId, digitando: true }).catch(() => {})
+    })
 
   const res = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
