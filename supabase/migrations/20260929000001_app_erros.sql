@@ -15,8 +15,7 @@ create index if not exists app_erros_user_idx on app_erros (user_id);
 
 alter table app_erros enable row level security;
 
--- Só o dono lê os próprios erros (e os de sistema, sem user). Escrita é via
--- service-role (o logErro roda no servidor), que ignora RLS.
+-- Oficina da CENTRAL: nenhuma loja lê os erros. Sem policy de SELECT + RLS on
+-- = clientes não acessam nada via API. Só o service-role (canal do fundador,
+-- /admin/erros) lê, e ele ignora RLS. Escrita também é só via service-role.
 drop policy if exists "erros do dono" on app_erros;
-create policy "erros do dono" on app_erros for select
-  using (auth.uid() = user_id or user_id is null);
