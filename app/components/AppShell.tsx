@@ -44,9 +44,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-md shadow-violet-500/20">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
+            <div className="w-7 h-7 rounded-lg bg-[#141317] flex items-center justify-center shadow-md shadow-black/30">
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                <path d="M16 9 L16 23" stroke="#C79A54" strokeWidth="2.7" strokeLinecap="round" />
+                <path d="M10.5 13 L21.5 13" stroke="#C79A54" strokeWidth="2.7" strokeLinecap="round" />
               </svg>
             </div>
             <Wordmark className="text-white text-lg" />

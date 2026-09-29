@@ -3,14 +3,19 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-brand:  #3B6FFF;
-  --color-accent: #00D4AA;
-  --color-bg:     #080B10;
+  /* Terny — Fio de Ouro. Marca = dourado; verde segue como sinal (dinheiro/sucesso). */
+  --color-brand:  #C79A54;
+  --color-brand-strong: #A67C3D;
+  --color-brand-soft:   #E0B36A;
+  --color-ink:    #16151A;   /* texto sobre dourado/marfim */
+  --color-ivory:  #F4EFE7;
+  --color-accent: #00D4AA;   /* verde = dinheiro/sucesso (mantido) */
+  --color-bg:     #0B0B0D;
 }
 
 body {
-  background: #080B10;
-  color: #fafafa;
+  background: #0B0B0D;
+  color: #F4EFE7;
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
@@ -27,15 +32,15 @@ body {
   }
 }
 
-/* Logo pulse animation */
+/* Logo pulse animation (dourado Terny) */
 @keyframes zivo-ping {
   0%   { transform: scale(1);   opacity: 0.8; }
   70%  { transform: scale(2.2); opacity: 0; }
   100% { transform: scale(2.2); opacity: 0; }
 }
 @keyframes zivo-glow {
-  0%, 100% { box-shadow: 0 0 6px 1px #00D4AA88; }
-  50%       { box-shadow: 0 0 12px 3px #00D4AACC; }
+  0%, 100% { box-shadow: 0 0 6px 1px #C79A5488; }
+  50%       { box-shadow: 0 0 12px 3px #C79A54CC; }
 }
 .zivo-dot-ring {
   animation: zivo-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;

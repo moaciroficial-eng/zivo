@@ -192,11 +192,11 @@ function NavItem({ href, label, icon, badge, onClick }: {
       title={label}
       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group ${
         active
-          ? 'bg-[#3B6FFF]/12 text-[#7FA8FF] shadow-[inset_0_0_0_1px_rgba(59,111,255,0.18)]'
+          ? 'bg-[#C79A54]/12 text-[#E0B36A] shadow-[inset_0_0_0_1px_rgba(199,154,84,0.22)]'
           : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
       }`}
     >
-      <span className={`shrink-0 transition-colors ${active ? 'text-[#3B6FFF]' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+      <span className={`shrink-0 transition-colors ${active ? 'text-[#C79A54]' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
         {icon}
       </span>
       {label}
@@ -254,8 +254,8 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
         <Link href="/dashboard" onClick={onClose} className="flex items-center gap-2.5 group">
           {/* Logo: ponto pulsante */}
           <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
-            <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-[#00D4AA] zivo-dot-ring" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#00D4AA] zivo-dot-core" />
+            <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-[#C79A54] zivo-dot-ring" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#C79A54] zivo-dot-core" />
           </div>
           <Wordmark className="text-white text-lg" />
         </Link>
@@ -298,7 +298,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
       {/* User footer */}
       <div className="border-t border-zinc-800/60 px-3 py-3 shrink-0">
         <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg">
-          <div className="w-7 h-7 rounded-full bg-[#3B6FFF]/20 border border-[#3B6FFF]/30 flex items-center justify-center text-xs font-bold text-[#7FA8FF] shrink-0">
+          <div className="w-7 h-7 rounded-full bg-[#C79A54]/20 border border-[#C79A54]/30 flex items-center justify-center text-xs font-bold text-[#E0B36A] shrink-0">
             {email ? email.charAt(0).toUpperCase() : '?'}
           </div>
           <p className="text-xs text-zinc-400 truncate flex-1 min-w-0">{email}</p>

@@ -268,18 +268,11 @@ function Conector() {
 function Logo({ small }: { small?: boolean }) {
   const s = small ? 24 : 32
   return (
-    <svg width={s} height={s} viewBox="0 0 32 32" fill="none" className="shadow-lg shadow-violet-500/25 rounded-[9px]">
-      <defs>
-        <linearGradient id="zivoGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#8B5CF6" />
-          <stop offset="1" stopColor="#4F46E5" />
-        </linearGradient>
-      </defs>
-      <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="url(#zivoGrad)" />
-      {/* linha de crescimento subindo */}
-      <path d="M7 21 L13.5 14.5 L17.5 18 L24 10.5" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-      {/* ponta da seta */}
-      <path d="M24 10.5 L18.6 10.5 M24 10.5 L24 15.9" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none" className="shadow-lg shadow-black/30 rounded-[9px]">
+      <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="#141317" />
+      {/* "t" dourado (Fio de Ouro) */}
+      <path d="M16 9 L16 23" stroke="#C79A54" strokeWidth="2.7" strokeLinecap="round" />
+      <path d="M10.5 13 L21.5 13" stroke="#C79A54" strokeWidth="2.7" strokeLinecap="round" />
     </svg>
   )
 }
