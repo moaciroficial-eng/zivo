@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { sendWhatsAppMessage, sendWhatsAppImage, humanoAtivoNaConversa, primeiroNome } from '@/lib/whatsapp'
 import { carregarConhecimento } from '@/lib/conhecimento'
 import { executarTurnoTarefa } from '@/lib/agentes/tarefa-executor'
+import { logErro } from '@/lib/log-erro'
 
 /* Modo tarefa pode esperar trava + debounce (~30s no pior caso) */
 export const maxDuration = 60
@@ -100,8 +101,8 @@ export async function POST(request: NextRequest) {
     return await handleAtendimento(request)
   } catch (err) {
     /* Sem isto o erro virava 500 mudo em produção e o cliente ficava sem
-       resposta sem deixar rastro. Agora o motivo aparece no retorno. */
-    console.error('[atendimento] erro fatal:', err)
+       resposta sem deixar rastro. Agora o motivo aparece no retorno E na oficina. */
+    await logErro('agentes/atendimento', err)
     return NextResponse.json({
       ok: false,
       erro: err instanceof Error ? err.message : String(err),
@@ -436,7 +437,7 @@ ${historico || 'Início da conversa'}`,
 
     let messageId: string | undefined
     try { messageId = (await sendWhatsAppMessage({ phone: contato.phone, message: respostaFinal, userId })).messageId }
-    catch (err) { return NextResponse.json({ ok: false, error: String(err) }) }
+    catch (err) { await logErro('agentes/atendimento:envio', err, { contatoId }, userId); return NextResponse.json({ ok: false, error: String(err) }) }
 
     const timestamp = new Date().toISOString()
     await admin.from('whatsapp_mensagens').insert({

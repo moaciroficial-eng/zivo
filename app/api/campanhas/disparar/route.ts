@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { resolverPublico } from '@/lib/inteligencia/campanhas'
+import { logErro } from '@/lib/log-erro'
 
 export const maxDuration = 60
 const MAX_ENVIOS = 300 /* proteção: não dispara milhares de uma vez */
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
   const nomeLoja = (cfgLoja as { nome_loja?: string } | null)?.nome_loja || 'a loja'
 
   let enviados = 0
+  const falhas: string[] = []
   for (const cli of alvo) {
     if (!cli.telefone) continue
     const primeiroNome = (cli.nome ?? '').split(' ')[0] || 'tudo bem'
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
       templateName: 'novidade_loja',
       templateVars: [primeiroNome, nomeLoja, texto],
     })
-    if (!r.ok) continue
+    if (!r.ok) { falhas.push(phone); continue }
 
     /* atribuição: registra o toque pra medir venda em até 7 dias */
     try {
@@ -79,6 +81,10 @@ export async function POST(request: NextRequest) {
     } catch { /* ignora */ }
 
     enviados++
+  }
+
+  if (falhas.length) {
+    await logErro('campanhas/disparar', new Error(`${falhas.length} de ${alvo.length} envios falharam`), { falhas: falhas.slice(0, 20), enviados }, user.id)
   }
 
   return NextResponse.json({
