@@ -137,7 +137,7 @@ function NumericField({ label, hint, value, onChange, autoFocus }: {
           value={formatBRL(value)}
           onChange={handleBRLChange(onChange)}
           placeholder="0"
-          className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+          className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
         />
       </div>
       <p className="text-xs text-zinc-600 mt-1">{hint}</p>
@@ -233,7 +233,7 @@ export default function SaudeFinanceiraModal({ current, onClose, onSave }: Props
         <button
           type="button"
           onClick={() => setShowDetailed(s => !s)}
-          className="flex items-center gap-2 text-sm text-zinc-500 hover:text-violet-400 transition cursor-pointer mb-3 w-full"
+          className="flex items-center gap-2 text-sm text-zinc-500 hover:text-[#C79A54] transition cursor-pointer mb-3 w-full"
         >
           <IconChevron open={showDetailed} />
           {showDetailed ? 'Ocultar dados detalhados' : 'Informar dados detalhados (opcional)'}
@@ -270,7 +270,7 @@ export default function SaudeFinanceiraModal({ current, onClose, onSave }: Props
           </button>
           <button type="button" onClick={handleSubmit}
             disabled={saving || !canSave}
-            className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer">
+            className="flex-1 py-2.5 rounded-xl bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer">
             {saving ? 'Salvando…' : 'Salvar e recalcular'}
           </button>
         </div>

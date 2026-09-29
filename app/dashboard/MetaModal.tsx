@@ -100,7 +100,7 @@ export default function MetaModal({ mes, currentMeta, onClose, onSave }: Props) 
                 value={formatBRL(valor)}
                 onChange={handleBRLChange(setValor)}
                 placeholder="0"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
               />
             </div>
             {error && <p className="text-red-400 text-xs mt-1.5">{error}</p>}
@@ -122,7 +122,7 @@ export default function MetaModal({ mes, currentMeta, onClose, onSave }: Props) 
             <button
               type="submit"
               disabled={saving || !valor}
-              className="flex-1 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer"
+              className="flex-1 py-2.5 rounded-lg bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer"
             >
               {saving ? 'Gerando plano…' : 'Confirmar'}
             </button>
