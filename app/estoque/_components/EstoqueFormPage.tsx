@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useConfirm } from '@/app/components/useConfirm'
 
 function applyParamsToForm(base: FormState, sp: Record<string, string | undefined>): FormState {
   const next = { ...base }
@@ -234,6 +235,7 @@ export default function EstoqueFormPage({
   const [fotoId, setFotoId] = useState<string | null>(null)
   const [fotoStoragePath, setFotoStoragePath] = useState<string | null>(null)
   const [photoLoading, setPhotoLoading] = useState(false)
+  const [confirmUI, pedirConfirm] = useConfirm()
   /* Produto novo ainda não tem id: a foto capturada fica aqui e sobe ao salvar */
   const [pendingFoto, setPendingFoto] = useState<File | null>(null)
   /* Detecção de duplicado: se o produto já existe no estoque, em vez de
@@ -379,24 +381,25 @@ export default function EstoqueFormPage({
       setFotoUrl(null)
       return
     }
-    if (!confirm('Remover a foto deste produto?')) return
-    setPhotoLoading(true)
-    try {
-      const { data: f } = await supabase
-        .from('biblioteca_fotos').select('estoque_ids, storage_path').eq('id', fotoId).maybeSingle()
-      const restantes = ((f?.estoque_ids as string[]) ?? []).filter(id => id !== produto.id)
-      if (restantes.length === 0) {
-        if (f?.storage_path) await supabase.storage.from('biblioteca').remove([f.storage_path])
-        await supabase.from('biblioteca_fotos').delete().eq('id', fotoId)
-      } else {
-        await supabase.from('biblioteca_fotos').update({ estoque_ids: restantes }).eq('id', fotoId)
+    pedirConfirm('Remover a foto deste produto?', async () => {
+      setPhotoLoading(true)
+      try {
+        const { data: f } = await supabase
+          .from('biblioteca_fotos').select('estoque_ids, storage_path').eq('id', fotoId).maybeSingle()
+        const restantes = ((f?.estoque_ids as string[]) ?? []).filter(id => id !== produto.id)
+        if (restantes.length === 0) {
+          if (f?.storage_path) await supabase.storage.from('biblioteca').remove([f.storage_path])
+          await supabase.from('biblioteca_fotos').delete().eq('id', fotoId)
+        } else {
+          await supabase.from('biblioteca_fotos').update({ estoque_ids: restantes }).eq('id', fotoId)
+        }
+        setFotoUrl(null); setFotoId(null); setFotoStoragePath(null); setPendingFoto(null)
+        showToast('Foto removida')
+      } catch (e: unknown) {
+        showToast(e instanceof Error ? e.message : 'Erro ao remover foto', 'error')
       }
-      setFotoUrl(null); setFotoId(null); setFotoStoragePath(null); setPendingFoto(null)
-      showToast('Foto removida')
-    } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Erro ao remover foto', 'error')
-    }
-    setPhotoLoading(false)
+      setPhotoLoading(false)
+    }, { titulo: 'Remover foto', confirmar: 'Remover', perigo: true })
   }
 
   function calcCusto(marca: string, venda: string): string {
@@ -632,6 +635,7 @@ export default function EstoqueFormPage({
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
+      {confirmUI}
       <main className="max-w-lg mx-auto px-6 py-8">
 
         {/* Back + title */}

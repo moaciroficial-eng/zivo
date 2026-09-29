@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useConfirm } from '@/app/components/useConfirm'
 
 type Contato = {
   id: string
@@ -141,6 +142,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [clientes, setClientes] = useState<{id:string;nome:string;telefone:string|null}[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [confirmUI, pedirConfirm] = useConfirm()
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
 
@@ -510,6 +512,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
   return (
     <div className="flex flex-col bg-[#09090b] text-white overflow-hidden h-[calc(100dvh-3.25rem)] lg:h-screen">
+      {confirmUI}
 
       {/* ── Body ── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -699,13 +702,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   )}
                 </div>
                 <button
-                  onClick={async () => {
-                    if (!confirm('Apagar esta conversa? Isso remove o histórico e o contato do WhatsApp. O cadastro do cliente não é afetado.')) return
-                    await fetch(`/api/whatsapp/apagar-conversa?contatoId=${selectedContato.id}`, { method: 'DELETE' })
-                    setContatos(cs => cs.filter(c => c.id !== selectedContato.id))
-                    setSelectedId(null)
-                    setMensagens([])
-                  }}
+                  onClick={() => pedirConfirm(
+                    'Apagar esta conversa? Isso remove o histórico e o contato do WhatsApp. O cadastro do cliente não é afetado.',
+                    async () => {
+                      await fetch(`/api/whatsapp/apagar-conversa?contatoId=${selectedContato.id}`, { method: 'DELETE' })
+                      setContatos(cs => cs.filter(c => c.id !== selectedContato.id))
+                      setSelectedId(null)
+                      setMensagens([])
+                    },
+                    { titulo: 'Apagar conversa', confirmar: 'Apagar', perigo: true },
+                  )}
                   title="Apagar conversa"
                   className="ml-1 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-900/30 text-zinc-500 hover:text-red-400 transition-colors shrink-0"
                 >

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useConfirm } from '@/app/components/useConfirm'
 
 type CampanhaRow = {
   id: string; nome: string; objetivo: string | null; produto_marca?: string | null
@@ -117,6 +118,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   const [detalhe, setDetalhe] = useState<DetalheCampanha | null>(null)
   const [carregandoDet, setCarregandoDet] = useState(false)
   const [acaoDet, setAcaoDet] = useState(false)
+  const [confirmUI, pedirConfirm] = useConfirm()
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, pensando])
 
@@ -137,14 +139,15 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
       setDetalhe(d => d ? { ...d, campanha: { ...d.campanha, status: 'salva' } } : d)
     } catch { /* ignora */ } finally { setAcaoDet(false) }
   }
-  async function apagarCampanha(id: string) {
-    if (!confirm('Apagar essa campanha do histórico? Não dá pra desfazer.')) return
-    setAcaoDet(true)
-    try {
-      await fetch(`/api/campanhas/${id}`, { method: 'DELETE' })
-      setCampanhas(prev => prev.filter(c => c.id !== id))
-      setDetalhe(null)
-    } catch { /* ignora */ } finally { setAcaoDet(false) }
+  function apagarCampanha(id: string) {
+    pedirConfirm('Apagar essa campanha do histórico? Não dá pra desfazer.', async () => {
+      setAcaoDet(true)
+      try {
+        await fetch(`/api/campanhas/${id}`, { method: 'DELETE' })
+        setCampanhas(prev => prev.filter(c => c.id !== id))
+        setDetalhe(null)
+      } catch { /* ignora */ } finally { setAcaoDet(false) }
+    }, { titulo: 'Apagar campanha', confirmar: 'Apagar', perigo: true })
   }
 
   /* ─── picker ─── */
@@ -304,6 +307,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
 
   return (
     <div className="flex flex-col h-[calc(100dvh-3.25rem)] lg:h-screen max-w-3xl mx-auto w-full px-4 py-4 gap-3">
+      {confirmUI}
       <div className="shrink-0">
         <h1 className="text-lg font-bold text-white">🎯 Consultora de Campanhas</h1>
         <p className="text-xs text-zinc-500 mt-0.5">Me conta o que você quer vender que eu monto a oferta e acho os clientes certos.</p>

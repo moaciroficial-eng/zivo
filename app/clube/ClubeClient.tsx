@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useConfirm } from '@/app/components/useConfirm'
 import type { Produto, Membro, VendaClube, ClienteRef } from './page'
 
 function fBRL(v: number | null | undefined) {
@@ -43,6 +44,7 @@ export default function ClubeClient({
   const [soParados, setSoParados] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [convidando, setConvidando] = useState(false)
+  const [confirmUI, pedirConfirm] = useConfirm()
   const [logo, setLogo] = useState<string | null>(logoUrl)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [comoTxt, setComoTxt] = useState(comoComprar)
@@ -170,19 +172,21 @@ export default function ClubeClient({
     navigator.clipboard.writeText(linkPublico).then(() => showToast('Link copiado!')).catch(() => showToast('Copie manualmente.', false))
   }
 
-  async function convidarTodos() {
-    if (!confirm(`Enviar o convite do Clube ${nomeLoja} pra TODOS os seus clientes no WhatsApp?`)) return
-    setConvidando(true)
-    try {
-      const res = await fetch('/api/clube/convidar', { method: 'POST' })
-      const d = await res.json().catch(() => ({}))
-      if (d?.ok) showToast(`Convite enviado para ${d.enviados ?? 0} cliente(s).`)
-      else showToast(d?.erro || 'Falha ao enviar convites.', false)
-    } catch { showToast('Falha ao enviar convites.', false) } finally { setConvidando(false) }
+  function convidarTodos() {
+    pedirConfirm(`Enviar o convite do Clube ${nomeLoja} pra TODOS os seus clientes no WhatsApp?`, async () => {
+      setConvidando(true)
+      try {
+        const res = await fetch('/api/clube/convidar', { method: 'POST' })
+        const d = await res.json().catch(() => ({}))
+        if (d?.ok) showToast(`Convite enviado para ${d.enviados ?? 0} cliente(s).`)
+        else showToast(d?.erro || 'Falha ao enviar convites.', false)
+      } catch { showToast('Falha ao enviar convites.', false) } finally { setConvidando(false) }
+    }, { titulo: 'Convidar todos', confirmar: 'Enviar convites' })
   }
 
   return (
     <div className="min-h-screen bg-[#080B10] text-white p-6 md:p-8">
+      {confirmUI}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl border ${toast.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>{toast.msg}</div>
       )}

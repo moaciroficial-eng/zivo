@@ -47,6 +47,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
   const [comprando, setComprando] = useState(false)
+  const [erroPag, setErroPag] = useState<string | null>(null)
   const [tamFiltro, setTamFiltro] = useState<string>('')
   const [filtroAberto, setFiltroAberto] = useState(false)
   const [alertaTam, setAlertaTam] = useState<string | null>(null)  // peça pedindo tamanho
@@ -95,12 +96,19 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
       })
       const d = await res.json().catch(() => ({}))
       if (d?.ok && d.url) { window.location.href = d.url }
-      else { alert(d?.erro || 'Não foi possível iniciar o pagamento.'); setComprando(false) }
-    } catch { alert('Falha ao iniciar o pagamento.'); setComprando(false) }
+      else { setErroPag(d?.erro || 'Não foi possível iniciar o pagamento.'); setComprando(false) }
+    } catch { setErroPag('Falha ao iniciar o pagamento. Tente de novo.'); setComprando(false) }
   }
 
   return (
     <div className="relative min-h-screen bg-[#07070a] text-white">
+      {/* Aviso de erro (pagamento) — no lugar do alert() do navegador */}
+      {erroPag && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 max-w-[92%] rounded-xl border border-red-500/40 bg-[#1a0d0f] px-4 py-3 shadow-2xl">
+          <span className="text-sm text-red-200">{erroPag}</span>
+          <button onClick={() => setErroPag(null)} className="text-red-300/70 hover:text-white text-lg leading-none shrink-0">✕</button>
+        </div>
+      )}
       {/* brilho de fundo */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute left-1/2 top-[-200px] h-[500px] w-[600px] -translate-x-1/2 rounded-full bg-violet-700/12 blur-[140px]" />
