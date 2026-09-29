@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { processarEventoInbound } from '@/lib/whatsapp-inbound'
 import { getLojaByMetaPhoneId } from '@/lib/loja'
 import { logErro } from '@/lib/log-erro'
@@ -162,29 +162,13 @@ function normalizarStatus(s: Record<string, unknown>): Record<string, unknown> |
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const rawBody = await request.text()
-
-    /* Rejeita webhooks forjados (assinatura inválida) */
-    if (!assinaturaMetaValida(rawBody, request.headers.get('x-hub-signature-256'))) {
-      return new NextResponse('Invalid signature', { status: 401 })
-    }
-
-    let body: unknown
-    try {
-      if (rawBody) body = JSON.parse(rawBody)
-    } catch { return NextResponse.json({ ok: true }) }
-
-    if (!body || typeof body !== 'object') return NextResponse.json({ ok: true })
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!supabaseUrl || !supabaseKey) return NextResponse.json({ ok: true })
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    const entries = ((body as Record<string, unknown>).entry as Record<string, unknown>[]) ?? []
-    for (const entry of entries) {
+/* Processa as entradas do webhook (resolve loja, baixa mídia, salva, dispara IA).
+   Roda em segundo plano via after() pra a Meta receber o 200 na hora — se o
+   webhook demora, a Meta REENVIA e a mensagem seria processada duas vezes. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function processarEntradas(supabase: any, body: Record<string, unknown>) {
+  const entries = (body.entry as Record<string, unknown>[]) ?? []
+  for (const entry of entries) {
       const changes = (entry.changes as Record<string, unknown>[]) ?? []
       for (const change of changes) {
         const value = change.value as Record<string, unknown> | undefined
@@ -258,10 +242,34 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+}
 
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    await logErro('whatsapp/meta', err)
-    return NextResponse.json({ ok: true })
+export async function POST(request: NextRequest) {
+  const rawBody = await request.text()
+
+  /* Rejeita webhooks forjados (assinatura inválida) */
+  if (!assinaturaMetaValida(rawBody, request.headers.get('x-hub-signature-256'))) {
+    return new NextResponse('Invalid signature', { status: 401 })
   }
+
+  let body: unknown
+  try { if (rawBody) body = JSON.parse(rawBody) } catch { return NextResponse.json({ ok: true }) }
+  if (!body || typeof body !== 'object') return NextResponse.json({ ok: true })
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !supabaseKey) return NextResponse.json({ ok: true })
+  const supabase = createClient(supabaseUrl, supabaseKey)
+
+  /* Responde 200 na hora e processa em segundo plano — se o webhook demora, a
+     Meta reenvia e a mensagem seria processada em duplicidade. */
+  after((async () => {
+    try {
+      await processarEntradas(supabase, body as Record<string, unknown>)
+    } catch (err) {
+      await logErro('whatsapp/meta', err)
+    }
+  })())
+
+  return NextResponse.json({ ok: true })
 }
