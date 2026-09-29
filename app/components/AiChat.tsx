@@ -107,7 +107,7 @@ export default function AiChat() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center shrink-0">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
               </svg>
@@ -142,9 +142,9 @@ export default function AiChat() {
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center gap-4 py-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 border border-violet-500/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#C79A54]/20 to-[#A67C3D]/20 border border-[#C79A54]/20 flex items-center justify-center">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="8" fill="none" stroke="#8b5cf6" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
+                  <circle cx="12" cy="12" r="8" fill="none" stroke="#C79A54" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
                 </svg>
               </div>
               <p className="text-zinc-400 text-sm text-center leading-relaxed px-2">
@@ -168,7 +168,7 @@ export default function AiChat() {
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                     msg.role === 'user'
-                      ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-br-sm'
+                      ? 'bg-gradient-to-br from-[#C79A54] to-[#A67C3D] text-[#16151A] rounded-br-sm'
                       : 'bg-zinc-800 text-zinc-200 rounded-bl-sm'
                   }`}
                 >
@@ -188,7 +188,7 @@ export default function AiChat() {
 
         {/* Input */}
         <div className="p-3 border-t border-zinc-800 shrink-0">
-          <div className="flex items-end gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition">
+          <div className="flex items-end gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 focus-within:border-[#C79A54] focus-within:ring-2 focus-within:ring-[#C79A54]/20 transition">
             <textarea
               ref={inputRef}
               value={input}
@@ -202,7 +202,7 @@ export default function AiChat() {
             <button
               onClick={() => send()}
               disabled={!input.trim() || loading}
-              className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition"
+              className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition"
               aria-label="Enviar"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -217,7 +217,7 @@ export default function AiChat() {
       {/* FAB — visibilidade do ícone via DOM ref também */}
       <button
         onClick={togglePanel}
-        className="fixed bottom-4 right-4 sm:right-6 w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 hover:opacity-90 transition z-50 cursor-pointer"
+        className="fixed bottom-4 right-4 sm:right-6 w-12 h-12 rounded-2xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center shadow-lg shadow-[#C79A54]/25 hover:opacity-90 transition z-50 cursor-pointer"
         aria-label="Abrir chat"
       >
         <svg id="chat-icon-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

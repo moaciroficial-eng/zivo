@@ -37,14 +37,14 @@ function PublicoSection({ publico }: { publico: PublicoByGenero }) {
   const faixas = p.faixaEtaria.filter(f => f.count > 0)
 
   const tamanhos = [
-    { label: 'Camiseta', items: p.camiseta, color: '#3B6FFF' },
+    { label: 'Camiseta', items: p.camiseta, color: '#C79A54' },
     { label: 'Calça',    items: p.calca,    color: '#a855f7' },
     { label: 'Tênis',    items: p.tenis,    color: '#00D4AA' },
   ]
 
   const FILTROS: { key: GeneroFiltro; label: string; color: string; activeClass: string }[] = [
     { key: 'all', label: 'Todos',    color: '', activeClass: 'bg-zinc-700 text-white' },
-    { key: 'M',   label: 'Masculino', color: '#3B6FFF', activeClass: 'bg-[#3B6FFF]/20 text-[#7FA8FF] border-[#3B6FFF]/40' },
+    { key: 'M',   label: 'Masculino', color: '#C79A54', activeClass: 'bg-[#C79A54]/20 text-[#E0B36A] border-[#C79A54]/40' },
     { key: 'F',   label: 'Feminino',  color: '#a855f7', activeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
   ]
 
@@ -106,13 +106,13 @@ function PublicoSection({ publico }: { publico: PublicoByGenero }) {
                       </div>
                       <div className="flex-1 h-px bg-zinc-800" />
                       <div className="text-right">
-                        <p className="text-3xl font-bold text-[#3B6FFF] leading-none">{pM}<span className="text-lg">%</span></p>
+                        <p className="text-3xl font-bold text-[#C79A54] leading-none">{pM}<span className="text-lg">%</span></p>
                         <p className="text-xs text-zinc-500 mt-1">{p.genero.M} · Masculino</p>
                       </div>
                     </div>
                     <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
                       {pF > 0 && <div style={{ width: `${pF}%`, backgroundColor: '#a855f7' }} className="rounded-full" />}
-                      {pM > 0 && <div style={{ width: `${pM}%`, backgroundColor: '#3B6FFF' }} className="rounded-full" />}
+                      {pM > 0 && <div style={{ width: `${pM}%`, backgroundColor: '#C79A54' }} className="rounded-full" />}
                       {pS > 0 && <div style={{ width: `${pS}%` }} className="bg-zinc-700 rounded-full" />}
                     </div>
                     {p.genero.sem > 0 && (
@@ -256,7 +256,7 @@ function TamanhosBar({ tamanhos }: { tamanhos: TamanhoItem[] }) {
           <span className="text-xs font-mono text-zinc-400 w-8 shrink-0">{t.tamanho}</span>
           <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#3B6FFF] rounded-full transition-all"
+              className="h-full bg-[#C79A54] rounded-full transition-all"
               style={{ width: `${Math.min(100, t.pct)}%` }}
             />
           </div>
@@ -326,7 +326,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
               key={m}
               onClick={() => { setModo(m); setResultado(null) }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-                modo === m ? 'bg-[#3B6FFF] text-white' : 'text-zinc-400 hover:text-zinc-200'
+                modo === m ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               {m === 'pedido' ? 'Pedido por marca' : 'Meta de faturamento'}
@@ -345,7 +345,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
                   <select
                     value={marca}
                     onChange={e => { setMarca(e.target.value); setMarcaCustom('') }}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-[#3B6FFF] mb-2"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-[#C79A54] mb-2"
                   >
                     {marcas.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
@@ -355,7 +355,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
                   placeholder={marcas.length > 0 ? 'Ou digitar outra marca...' : 'Nome da marca'}
                   value={marcaCustom}
                   onChange={e => setMarcaCustom(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#3B6FFF]"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#C79A54]"
                 />
               </div>
             </>
@@ -371,7 +371,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
                     placeholder="30.000"
                     value={metaValor}
                     onChange={e => setMetaValor(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#3B6FFF]"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#C79A54]"
                   />
                 </div>
               </div>
@@ -386,7 +386,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
                         onClick={() => toggleMarca(m)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
                           marcasSel.includes(m)
-                            ? 'bg-[#3B6FFF]/20 border-[#3B6FFF]/50 text-[#7FA8FF]'
+                            ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]'
                             : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                         }`}
                       >
@@ -412,7 +412,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
                   onClick={() => setPeriodo(p)}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium border transition cursor-pointer ${
                     periodo === p
-                      ? 'bg-[#3B6FFF]/20 border-[#3B6FFF]/50 text-[#7FA8FF]'
+                      ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]'
                       : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                   }`}
                 >
@@ -425,7 +425,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
           <button
             onClick={analisar}
             disabled={loading || (modo === 'meta' && (!metaValor || marcasSel.length === 0))}
-            className="w-full py-3 bg-[#3B6FFF] hover:bg-[#2d5fe6] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition text-sm cursor-pointer"
+            className="w-full py-3 bg-[#C79A54] hover:bg-[#2d5fe6] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-xl transition text-sm cursor-pointer"
           >
             {loading ? 'Analisando...' : 'Analisar com IA'}
           </button>
@@ -436,7 +436,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
         {/* Loading */}
         {loading && (
           <div className="flex items-center gap-3 text-sm text-zinc-400 px-1">
-            <div className="w-4 h-4 border-2 border-[#3B6FFF] border-t-transparent rounded-full animate-spin shrink-0" />
+            <div className="w-4 h-4 border-2 border-[#C79A54] border-t-transparent rounded-full animate-spin shrink-0" />
             Calculando ritmo de vendas e consultando IA...
           </div>
         )}
@@ -476,8 +476,8 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
                     <p className="text-xs text-zinc-500 mb-1">Cobertura atual</p>
                     <p className="text-lg font-bold text-white">{resPedido.cobertura_atual_meses.toFixed(1)}m</p>
                   </div>
-                  <div className="bg-[#3B6FFF]/10 border border-[#3B6FFF]/30 rounded-xl p-4 text-center">
-                    <p className="text-xs text-[#7FA8FF] mb-1">Investir (custo)</p>
+                  <div className="bg-[#C79A54]/10 border border-[#C79A54]/30 rounded-xl p-4 text-center">
+                    <p className="text-xs text-[#E0B36A] mb-1">Investir (custo)</p>
                     <p className="text-lg font-bold text-white">{fmt(resPedido.valor_comprar)}</p>
                     <p className="text-xs text-zinc-500">{resPedido.pecas_comprar} peças</p>
                     {resPedido.valor_comprar_venda > 0 && (
@@ -498,9 +498,9 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
             {/* Resultado modo META */}
             {resMeta && (
               <>
-                <div className="bg-[#3B6FFF]/10 border border-[#3B6FFF]/30 rounded-xl px-5 py-4 flex items-center justify-between">
+                <div className="bg-[#C79A54]/10 border border-[#C79A54]/30 rounded-xl px-5 py-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-[#7FA8FF] mb-1">Total a investir em compras</p>
+                    <p className="text-xs text-[#E0B36A] mb-1">Total a investir em compras</p>
                     <p className="text-2xl font-bold text-white">{fmt(resMeta.total_investir)}</p>
                   </div>
                   <span className="text-3xl">🛒</span>

@@ -89,12 +89,12 @@ export default function ModoControle() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-xs" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-white">Defina um PIN do dono</h3>
             <p className="text-xs text-zinc-500 mt-1 mb-4">Ele será pedido pra sair do modo funcionária. Guarde bem — sem ele não dá pra voltar ao modo completo.</p>
-            <input type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="PIN (4 a 8 dígitos)" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500 mb-2" />
-            <input type="password" inputMode="numeric" value={pin2} onChange={e => setPin2(e.target.value.replace(/\D/g, ''))} placeholder="Repita o PIN" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" />
+            <input type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="PIN (4 a 8 dígitos)" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#C79A54] mb-2" />
+            <input type="password" inputMode="numeric" value={pin2} onChange={e => setPin2(e.target.value.replace(/\D/g, ''))} placeholder="Repita o PIN" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#C79A54]" />
             {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
             <div className="flex gap-2 mt-4">
               <button onClick={() => setDialog(null)} disabled={busy} className="flex-1 text-sm text-zinc-400 hover:text-white border border-zinc-700 rounded-lg py-2 transition cursor-pointer disabled:opacity-50">Cancelar</button>
-              <button onClick={definirEEntrar} disabled={busy} className="flex-1 text-sm font-semibold bg-violet-600 hover:bg-violet-500 rounded-lg py-2 transition cursor-pointer disabled:opacity-50">{busy ? '...' : 'Definir e ativar'}</button>
+              <button onClick={definirEEntrar} disabled={busy} className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] rounded-lg py-2 transition cursor-pointer disabled:opacity-50">{busy ? '...' : 'Definir e ativar'}</button>
             </div>
           </div>
         </div>
@@ -106,11 +106,11 @@ export default function ModoControle() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-xs" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-white">Sair do modo funcionária</h3>
             <p className="text-xs text-zinc-500 mt-1 mb-4">Digite o PIN do dono para voltar ao modo completo.</p>
-            <input type="password" inputMode="numeric" autoFocus value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="PIN" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" onKeyDown={e => e.key === 'Enter' && sair()} />
+            <input type="password" inputMode="numeric" autoFocus value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="PIN" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#C79A54]" onKeyDown={e => e.key === 'Enter' && sair()} />
             {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
             <div className="flex gap-2 mt-4">
               <button onClick={() => setDialog(null)} disabled={busy} className="flex-1 text-sm text-zinc-400 hover:text-white border border-zinc-700 rounded-lg py-2 transition cursor-pointer disabled:opacity-50">Cancelar</button>
-              <button onClick={sair} disabled={busy} className="flex-1 text-sm font-semibold bg-violet-600 hover:bg-violet-500 rounded-lg py-2 transition cursor-pointer disabled:opacity-50">{busy ? '...' : 'Sair'}</button>
+              <button onClick={sair} disabled={busy} className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] rounded-lg py-2 transition cursor-pointer disabled:opacity-50">{busy ? '...' : 'Sair'}</button>
             </div>
           </div>
         </div>

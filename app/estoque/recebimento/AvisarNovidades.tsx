@@ -48,7 +48,7 @@ function BuscaAdicionar({ onAdd, jaIncluidos }: { onAdd: (c: NovidadeCliente) =>
         value={termo}
         onChange={e => setTermo(e.target.value)}
         placeholder="+ Adicionar cliente pelo nome…"
-        className="w-full bg-zinc-800/60 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-violet-500"
+        className="w-full bg-zinc-800/60 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#C79A54]"
       />
       {termo.trim().length >= 2 && (
         <div className="mt-1 bg-zinc-800 border border-zinc-700 rounded-lg max-h-40 overflow-y-auto divide-y divide-zinc-700/60">
@@ -151,7 +151,7 @@ export default function AvisarNovidades({ marcas, onClose }: { marcas: NovidadeM
                   onClick={() => setAberta(aberto ? null : m.marca)}
                   className="w-full px-4 py-3 flex items-center gap-3 hover:bg-zinc-800/40 transition cursor-pointer text-left"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-300 text-sm font-bold shrink-0">
+                  <div className="w-9 h-9 rounded-lg bg-[#C79A54]/10 border border-[#C79A54]/20 flex items-center justify-center text-[#E0B36A] text-sm font-bold shrink-0">
                     {m.marca.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -162,7 +162,7 @@ export default function AvisarNovidades({ marcas, onClose }: { marcas: NovidadeM
                   </div>
                   {res
                     ? <span className="text-xs text-emerald-400 font-semibold shrink-0">✓ {res.enviados} enviada{res.enviados !== 1 ? 's' : ''}</span>
-                    : <span className="text-xs text-violet-400 font-semibold shrink-0">{aberto ? 'Fechar' : 'Avisar'}</span>}
+                    : <span className="text-xs text-[#C79A54] font-semibold shrink-0">{aberto ? 'Fechar' : 'Avisar'}</span>}
                 </button>
 
                 {aberto && !res && (
@@ -171,7 +171,7 @@ export default function AvisarNovidades({ marcas, onClose }: { marcas: NovidadeM
                       value={msgs[m.marca]}
                       onChange={e => setMsgs(prev => ({ ...prev, [m.marca]: e.target.value }))}
                       rows={3}
-                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-violet-500 resize-none"
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#C79A54] resize-none"
                     />
                     <p className="text-[11px] text-zinc-600">
                       <span className="font-mono">{'{saudacao}'}</span> e <span className="font-mono">{'{nome}'}</span> são preenchidos automaticamente pra cada cliente.
@@ -205,7 +205,7 @@ export default function AvisarNovidades({ marcas, onClose }: { marcas: NovidadeM
                     <button
                       onClick={() => disparar(m)}
                       disabled={enviando[m.marca] || selecionados === 0}
-                      className="flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                      className="flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
                     >
                       {enviando[m.marca] ? <><IconSpinner size={15}/> Enviando…</> : <>Avisar {selecionados} cliente{selecionados !== 1 ? 's' : ''}</>}
                     </button>

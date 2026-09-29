@@ -69,7 +69,7 @@ const IconPackage = ({ size = 14 }: { size?: number }) => (
   </svg>
 )
 
-const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
+const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20'
 
 /* ── Main component ── */
 
@@ -260,7 +260,7 @@ export default function CondicionalClient({
           </div>
           <button
             onClick={() => setShowScanner(true)}
-            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-xl px-5 py-2.5 transition cursor-pointer shadow-lg shadow-violet-500/20"
+            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-xl px-5 py-2.5 transition cursor-pointer shadow-lg shadow-[#C79A54]/20"
           >
             <IconScan /> Escanear
           </button>
@@ -296,7 +296,7 @@ export default function CondicionalClient({
             <p className="text-zinc-500 text-sm max-w-xs">Escaneie o código de barras de uma peça para enviá-la para condicional.</p>
             <button
               onClick={() => setShowScanner(true)}
-              className="mt-2 flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl px-5 py-2.5 transition cursor-pointer"
+              className="mt-2 flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] rounded-xl px-5 py-2.5 transition cursor-pointer"
             >
               <IconScan /> Escanear peça
             </button>
@@ -311,7 +311,7 @@ export default function CondicionalClient({
                   {/* Cliente header */}
                   <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center text-sm font-bold text-violet-300 shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-[#C79A54]/15 border border-[#C79A54]/25 flex items-center justify-center text-sm font-bold text-[#E0B36A] shrink-0">
                         {cliente.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -424,7 +424,7 @@ export default function CondicionalClient({
               <button
                 onClick={handleEnviar}
                 disabled={!clienteNome.trim() || loading}
-                className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 rounded-xl py-3 transition cursor-pointer"
+                className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-50 rounded-xl py-3 transition cursor-pointer"
               >
                 {loading ? 'Enviando...' : 'Confirmar'}
               </button>

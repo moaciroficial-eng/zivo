@@ -5,7 +5,7 @@ export default function PrivacidadePage() {
     <main className="min-h-screen bg-[#09090b] text-zinc-300 px-4 py-12">
       <div className="max-w-2xl mx-auto">
 
-        <Link href="/" className="text-sm text-violet-400 hover:text-violet-300 transition mb-8 inline-block">
+        <Link href="/" className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition mb-8 inline-block">
           ← Voltar
         </Link>
 
@@ -84,7 +84,7 @@ export default function PrivacidadePage() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-zinc-800">
-          <Link href="/termos" className="text-sm text-violet-400 hover:text-violet-300 transition">
+          <Link href="/termos" className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">
             Ver Termos de Uso →
           </Link>
         </div>

@@ -88,7 +88,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
 }
 
 const CAT_COLOR: Record<Produto['categoria'], string> = {
-  camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  camiseta: 'bg-[#C79A54]/15 text-[#E0B36A] border-[#C79A54]/25',
   blusa:    'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
   camisa:   'bg-orange-500/15 text-orange-300 border-orange-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
@@ -97,7 +97,7 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   polo:     'bg-sky-500/15 text-sky-300 border-sky-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',
-  cueca:    'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  cueca:    'bg-[#A67C3D]/15 text-[#E0B36A] border-[#A67C3D]/25',
   meia:     'bg-teal-500/15 text-teal-300 border-teal-500/25',
   bone:     'bg-lime-500/15 text-lime-300 border-lime-500/25',
   acessorios: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
@@ -112,7 +112,7 @@ const CATS_BY_GENERO: Record<string, Produto['categoria'][]> = {
   '': ['camiseta', 'blusa', 'camisa', 'polo', 'regata', 'calca', 'bermuda', 'tenis', 'chinelo', 'cueca', 'meia', 'bone', 'acessorios', 'outros'],
 }
 
-const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
+const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 [color-scheme:dark]'
 
 /* ── Helpers ── */
 
@@ -653,7 +653,7 @@ export default function EstoqueFormPage({
         {toast && (
           <div className={`mb-5 flex items-center gap-2 text-sm rounded-lg px-4 py-2.5 border ${
             toast.type === 'success' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-            : toast.type === 'loading' ? 'text-violet-300 bg-violet-500/10 border-violet-500/20'
+            : toast.type === 'loading' ? 'text-[#E0B36A] bg-[#C79A54]/10 border-[#C79A54]/20'
             : 'text-red-400 bg-red-500/10 border-red-500/20'
           }`}>
             {toast.type === 'success' ? <IconCheck size={15}/> : toast.type === 'loading' ? <IconSpinner /> : <IconX size={15}/>}
@@ -674,9 +674,9 @@ export default function EstoqueFormPage({
             />
             <label
               htmlFor="scan-input"
-              className="w-full flex items-center gap-3 border border-dashed border-zinc-700 hover:border-violet-500/60 bg-zinc-800/30 hover:bg-violet-500/5 rounded-xl px-4 py-4 transition group cursor-pointer"
+              className="w-full flex items-center gap-3 border border-dashed border-zinc-700 hover:border-[#C79A54]/60 bg-zinc-800/30 hover:bg-[#C79A54]/5 rounded-xl px-4 py-4 transition group cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-lg bg-zinc-800 group-hover:bg-violet-500/10 border border-zinc-700 group-hover:border-violet-500/30 flex items-center justify-center shrink-0 transition">
+              <div className="w-10 h-10 rounded-lg bg-zinc-800 group-hover:bg-[#C79A54]/10 border border-zinc-700 group-hover:border-[#C79A54]/30 flex items-center justify-center shrink-0 transition">
                 <IconCamera />
               </div>
               <div className="text-left">
@@ -684,7 +684,7 @@ export default function EstoqueFormPage({
                 <p className="text-xs text-zinc-600 mt-0.5">Tire uma foto ou envie uma imagem para preencher o formulário</p>
               </div>
               <div className="ml-auto shrink-0">
-                <span className="text-xs text-violet-500 font-semibold px-2 py-1 bg-violet-500/10 border border-violet-500/20 rounded-md">IA</span>
+                <span className="text-xs text-[#C79A54] font-semibold px-2 py-1 bg-[#C79A54]/10 border border-[#C79A54]/20 rounded-md">IA</span>
               </div>
             </label>
           </div>
@@ -719,12 +719,12 @@ export default function EstoqueFormPage({
               ) : (
                 <div className="flex gap-3">
                   <button type="button" onClick={() => photoInputRef.current?.click()} disabled={photoLoading}
-                    className="flex-1 flex flex-col items-center justify-center gap-2 py-7 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
+                    className="flex-1 flex flex-col items-center justify-center gap-2 py-7 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-[#C79A54]/50 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
                     <IconCamera size={26} />
                     <span className="text-xs font-medium">Câmera</span>
                   </button>
                   <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={photoLoading}
-                    className="flex-1 flex flex-col items-center justify-center gap-2 py-7 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
+                    className="flex-1 flex flex-col items-center justify-center gap-2 py-7 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-[#C79A54]/50 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
                     <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
                     </svg>
@@ -896,13 +896,13 @@ export default function EstoqueFormPage({
                     {sizeOptions.map(size => {
                       const item = form.tamanhos.find(t => t.tamanho === size)
                       return item ? (
-                        <div key={size} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 border border-violet-500/60 bg-violet-500/10 rounded-lg">
-                          <span className="text-sm font-semibold text-violet-200">{size}</span>
+                        <div key={size} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 border border-[#C79A54]/60 bg-[#C79A54]/10 rounded-lg">
+                          <span className="text-sm font-semibold text-[#F0CC88]">{size}</span>
                           <input
                             type="number" min="0" value={item.qtd}
                             onChange={e => setTamanhoQtd(size, Number(e.target.value))}
                             onClick={e => e.stopPropagation()}
-                            className="w-12 text-center bg-zinc-800 border border-zinc-600 rounded text-sm py-0.5 outline-none focus:border-violet-400 text-white"
+                            className="w-12 text-center bg-zinc-800 border border-zinc-600 rounded text-sm py-0.5 outline-none focus:border-[#C79A54] text-white"
                           />
                           <button onClick={() => toggleTamanho(size)} className="p-0.5 text-zinc-500 hover:text-red-400 transition cursor-pointer"><IconX size={13}/></button>
                         </div>
@@ -915,7 +915,7 @@ export default function EstoqueFormPage({
                     <button
                       onClick={adicionarTamanhoCustom}
                       title="Adicionar um tamanho que essa marca usa (ex.: 2XG, EGG)"
-                      className="px-3 py-2 border border-dashed border-zinc-600 hover:border-violet-500 text-zinc-500 hover:text-violet-300 rounded-lg text-sm transition cursor-pointer"
+                      className="px-3 py-2 border border-dashed border-zinc-600 hover:border-[#C79A54] text-zinc-500 hover:text-[#E0B36A] rounded-lg text-sm transition cursor-pointer"
                     >
                       + tamanho
                     </button>
@@ -1034,7 +1034,7 @@ export default function EstoqueFormPage({
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-3 transition cursor-pointer"
+              className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-3 transition cursor-pointer"
             >
               {saving ? 'Salvando...' : produto ? 'Salvar Alterações' : (existente && !criarNovoMesmo) ? 'Adicionar tamanho ao existente' : 'Adicionar Produto'}
             </button>
@@ -1046,14 +1046,14 @@ export default function EstoqueFormPage({
       {scanning && <div className="fixed inset-0 z-[999] bg-[#09090b]/95 flex flex-col items-center justify-center gap-6">
         <div className="relative w-16 h-16">
           <div className="absolute inset-0 rounded-full border-4 border-zinc-800"/>
-          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-violet-500 animate-spin"/>
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#C79A54] animate-spin"/>
         </div>
         <div className="text-center">
           <p className="text-lg font-semibold text-white">Analisando etiqueta com IA...</p>
           <p className="text-sm text-zinc-500 mt-1">Pode levar alguns segundos</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-zinc-600">
-          <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
+          <div className="w-5 h-5 rounded-md bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
             </svg>

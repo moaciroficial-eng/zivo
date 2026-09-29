@@ -30,7 +30,7 @@ export default async function LandingPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   return (
-    <div className="min-h-screen bg-[#070A0F] text-white antialiased selection:bg-violet-500/30">
+    <div className="min-h-screen bg-[#070A0F] text-[#16151A] antialiased selection:bg-[#C79A54]/30">
       {/* Nav */}
       <nav className="sticky top-0 z-40 backdrop-blur-xl bg-[#070A0F]/70 border-b border-white/5">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -63,13 +63,13 @@ export default async function LandingPage() {
           </span>
           <h1 className={`${display.className} text-[2.7rem] sm:text-[4.2rem] font-extrabold tracking-[-0.03em] leading-[1.02]`}>
             Sua loja vendendo<br />
-            <span className="bg-gradient-to-r from-violet-300 via-violet-400 to-indigo-400 bg-clip-text text-transparent">todos os dias</span>, no automático
+            <span className="bg-gradient-to-r from-[#E0B36A] via-[#C79A54] to-[#A67C3D] bg-clip-text text-transparent">todos os dias</span>, no automático
           </h1>
           <p className="text-lg sm:text-xl text-zinc-400 mt-7 max-w-2xl mx-auto leading-relaxed">
             O Terny transforma os clientes que você <span className="text-zinc-200">já tem</span> em vendas — acha quem quer cada produto, monta a campanha e fala no WhatsApp por você. Sem precisar lembrar de nada.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-10">
-            <Link href={user ? '/dashboard' : '/signup'} className="group w-full sm:w-auto text-center font-semibold bg-white text-zinc-950 hover:bg-zinc-200 rounded-full px-8 py-4 transition shadow-2xl shadow-violet-900/30">
+            <Link href={user ? '/dashboard' : '/signup'} className="group w-full sm:w-auto text-center font-semibold bg-white text-zinc-950 hover:bg-zinc-200 rounded-full px-8 py-4 transition shadow-2xl shadow-[#3a2c14]/30">
               {user ? 'Ir pro painel' : 'Começar agora'} <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
             </Link>
             <a href="#ecossistema" className="w-full sm:w-auto text-center text-zinc-200 border border-white/10 hover:border-white/25 bg-white/[0.02] rounded-full px-8 py-4 transition">Ver como funciona</a>
@@ -81,7 +81,7 @@ export default async function LandingPage() {
       {/* ECOSSISTEMA — o mapa (peça central) */}
       <section id="ecossistema" className="max-w-5xl mx-auto px-6 py-20">
         <div className="text-center mb-14">
-          <p className="text-sm font-semibold text-violet-300 mb-2">O ecossistema Terny</p>
+          <p className="text-sm font-semibold text-[#E0B36A] mb-2">O ecossistema Terny</p>
           <h2 className={`${display.className} text-3xl sm:text-4xl font-bold tracking-tight`}>Uma máquina de vendas. Não uma featurezinha.</h2>
           <p className="text-zinc-400 mt-3 max-w-xl mx-auto">Tudo o que você já tem vira venda — e o Terny aprende com o resultado pra ficar melhor a cada dia.</p>
         </div>
@@ -101,7 +101,7 @@ export default async function LandingPage() {
           {/* 2. Cérebro — destaque */}
           <div className="relative w-full max-w-md">
             <div className="absolute -inset-4 bg-[radial-gradient(50%_60%_at_50%_50%,rgba(124,58,237,0.25),transparent)] blur-xl" />
-            <div className="relative rounded-2xl border border-violet-400/40 bg-gradient-to-b from-violet-600/20 to-indigo-600/5 p-5 text-center">
+            <div className="relative rounded-2xl border border-[#C79A54]/40 bg-gradient-to-b from-[#C79A54]/20 to-[#A67C3D]/5 p-5 text-center">
               <div className="text-3xl mb-1">🧠</div>
               <p className={`${display.className} font-bold text-white`}>O cérebro do Terny</p>
               <p className="text-sm text-zinc-300 mt-1">Cruza tudo e acha <span className="text-white font-medium">quem quer comprar cada produto</span> — por tamanho, marca e comportamento.</p>
@@ -137,7 +137,7 @@ export default async function LandingPage() {
 
           {/* Loop */}
           <div className="mt-5 flex items-center gap-2 text-sm text-zinc-400 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <span className="text-violet-300">↺</span> E aprende: lê o que converteu e melhora sozinho
+            <span className="text-[#E0B36A]">↺</span> E aprende: lê o que converteu e melhora sozinho
           </div>
         </div>
       </section>
@@ -151,7 +151,7 @@ export default async function LandingPage() {
             { t: 'Você no controle', d: 'O Terny sugere e prepara tudo; você aprova antes de enviar. Nada sai sem você deixar.' },
           ].map(x => (
             <div key={x.t} className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
-              <div className="w-1.5 h-6 rounded-full bg-gradient-to-b from-violet-400 to-indigo-500 mb-3" />
+              <div className="w-1.5 h-6 rounded-full bg-gradient-to-b from-[#C79A54] to-[#A67C3D] mb-3" />
               <h3 className="font-semibold text-white">{x.t}</h3>
               <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">{x.d}</p>
             </div>
@@ -163,7 +163,7 @@ export default async function LandingPage() {
       <section className="max-w-4xl mx-auto px-6 py-16">
         <div className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-8 sm:p-12">
           <div className="text-center mb-9">
-            <p className="text-sm font-semibold text-violet-300 mb-2">Sem complicação</p>
+            <p className="text-sm font-semibold text-[#E0B36A] mb-2">Sem complicação</p>
             <h2 className={`${display.className} text-3xl sm:text-4xl font-bold tracking-tight`}>Você não precisa entender de<br className="hidden sm:block" /> marketing nem de tecnologia.</h2>
             <p className="text-zinc-400 mt-3 max-w-xl mx-auto">O Terny carrega a parte difícil. Você cuida da sua loja, ele cuida de vender.</p>
           </div>
@@ -193,8 +193,8 @@ export default async function LandingPage() {
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
           {PLANOS.map(p => (
-            <div key={p.nome} className={`relative rounded-3xl border p-7 flex flex-col ${p.destaque ? 'border-violet-400/40 bg-gradient-to-b from-violet-600/12 to-transparent' : 'border-white/10 bg-white/[0.02]'}`}>
-              {p.destaque && <span className="absolute top-5 right-5 text-[11px] font-bold text-violet-100 bg-violet-500/25 rounded-full px-2.5 py-1">Mais popular</span>}
+            <div key={p.nome} className={`relative rounded-3xl border p-7 flex flex-col ${p.destaque ? 'border-[#C79A54]/40 bg-gradient-to-b from-[#C79A54]/12 to-transparent' : 'border-white/10 bg-white/[0.02]'}`}>
+              {p.destaque && <span className="absolute top-5 right-5 text-[11px] font-bold text-[#F0CC88] bg-[#C79A54]/25 rounded-full px-2.5 py-1">Mais popular</span>}
               <h3 className={`${display.className} text-xl font-bold`}>{p.nome}</h3>
               <p className="text-sm text-zinc-400 mt-1 mb-5">{p.desc}</p>
               <div className="flex items-end gap-1 mb-6">
@@ -261,7 +261,7 @@ function MapaEtapa({ n, titulo, children }: { n: string; titulo: string; cor: st
 }
 
 function Conector() {
-  return <div className="w-px h-8 bg-gradient-to-b from-violet-500/50 to-violet-500/10 my-1" />
+  return <div className="w-px h-8 bg-gradient-to-b from-[#C79A54]/50 to-[#C79A54]/10 my-1" />
 }
 
 /* Logo Terny — squircle com "seta de crescimento" (vende o resultado) */

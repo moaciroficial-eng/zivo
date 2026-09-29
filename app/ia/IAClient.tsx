@@ -22,10 +22,10 @@ const TIPO_SUGESTAO: Record<string, { emoji: string; cor: string }> = {
   brinde:       { emoji: '🎁', cor: 'border-yellow-500/40 bg-yellow-500/5' },
   presente:     { emoji: '🎁', cor: 'border-yellow-500/40 bg-yellow-500/5' },
   reativacao:   { emoji: '🔥', cor: 'border-red-500/40 bg-red-500/5' },
-  campanha:     { emoji: '🎯', cor: 'border-[#3B6FFF]/40 bg-[#3B6FFF]/5' },
+  campanha:     { emoji: '🎯', cor: 'border-[#C79A54]/40 bg-[#C79A54]/5' },
   meta:         { emoji: '💰', cor: 'border-[#00D4AA]/40 bg-[#00D4AA]/5' },
   promo:        { emoji: '🏷️', cor: 'border-orange-500/40 bg-orange-500/5' },
-  novidade:     { emoji: '✨', cor: 'border-[#3B6FFF]/40 bg-[#3B6FFF]/5' },
+  novidade:     { emoji: '✨', cor: 'border-[#C79A54]/40 bg-[#C79A54]/5' },
   evento:       { emoji: '📅', cor: 'border-purple-500/40 bg-purple-500/5' },
   cross_sell:   { emoji: '🔗', cor: 'border-purple-500/40 bg-purple-500/5' },
   tendencia:    { emoji: '📈', cor: 'border-[#00D4AA]/40 bg-[#00D4AA]/5' },
@@ -291,7 +291,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
 
   /* ── Render ────────────────────────────────────────────── */
   const tabCls = (t: typeof tab) =>
-    `px-4 py-2 text-sm font-medium rounded-lg transition cursor-pointer ${tab === t ? 'bg-[#3B6FFF]/15 text-[#7FA8FF] border border-[#3B6FFF]/25' : 'text-zinc-500 hover:text-zinc-300'}`
+    `px-4 py-2 text-sm font-medium rounded-lg transition cursor-pointer ${tab === t ? 'bg-[#C79A54]/15 text-[#E0B36A] border border-[#C79A54]/25' : 'text-zinc-500 hover:text-zinc-300'}`
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] md:h-screen max-w-3xl mx-auto w-full px-4 py-4 gap-4">
@@ -332,7 +332,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
                   m.role === 'user'
-                    ? 'bg-[#3B6FFF] text-white rounded-br-sm'
+                    ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm'
                     : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                 }`}>
                   {m.content || <span className="animate-pulse text-zinc-500">...</span>}
@@ -356,13 +356,13 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSocio() } }}
               placeholder="Pergunta sobre a loja..."
               rows={1}
-              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-[#3B6FFF] [color-scheme:dark]"
+              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-[#C79A54] [color-scheme:dark]"
               disabled={loading}
             />
             <button
               onClick={() => sendSocio()}
               disabled={!input.trim() || loading}
-              className="px-4 py-2.5 bg-[#3B6FFF] hover:bg-[#5585FF] disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer"
+              className="px-4 py-2.5 bg-[#C79A54] hover:bg-[#5585FF] disabled:opacity-40 text-[#16151A] rounded-xl text-sm font-medium transition cursor-pointer"
             >
               Enviar
             </button>
@@ -427,7 +427,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
                               value={msgEditada[s.id] ?? s.acao.sugestao_mensagem}
                               onChange={e => setMsgEditada(prev => ({ ...prev, [s.id]: e.target.value }))}
                               rows={3}
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#3B6FFF] [color-scheme:dark]"
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#C79A54] [color-scheme:dark]"
                             />
                             {msgEditada[s.id] != null && msgEditada[s.id] !== s.acao.sugestao_mensagem && (
                               <button
@@ -447,7 +447,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
                       <div className="flex gap-2 pt-1">
                         {s.acao?.tipo === 'enviar_mensagem' && s.acao.contato_id && s.acao.sugestao_mensagem ? (
                           <button onClick={() => aprovarEnviar(s)} disabled={enviandoId === s.id}
-                            className="flex-1 py-2 bg-[#3B6FFF] hover:bg-[#5585FF] disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer">
+                            className="flex-1 py-2 bg-[#C79A54] hover:bg-[#5585FF] disabled:opacity-50 text-[#16151A] rounded-lg text-xs font-bold transition cursor-pointer">
                             {enviandoId === s.id ? 'Enviando...' : '📤 Aprovar e enviar'}
                           </button>
                         ) : (

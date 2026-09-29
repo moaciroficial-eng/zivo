@@ -111,7 +111,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
       )}
       {/* brilho de fundo */}
       <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute left-1/2 top-[-200px] h-[500px] w-[600px] -translate-x-1/2 rounded-full bg-violet-700/12 blur-[140px]" />
+        <div className="absolute left-1/2 top-[-200px] h-[500px] w-[600px] -translate-x-1/2 rounded-full bg-[#A67C3D]/12 blur-[140px]" />
       </div>
 
       {/* Cabeçalho branded */}
@@ -119,10 +119,10 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
         <div className="max-w-3xl mx-auto flex items-center gap-3 px-5 py-3.5">
           {logo
             ? <div className="w-10 h-10 rounded-xl bg-black ring-1 ring-white/10 overflow-hidden flex items-center justify-center shrink-0"><img src={logo} alt={nomeLoja} className="w-full h-full object-contain" /></div>
-            : <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-lg shrink-0">👑</div>}
+            : <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center text-lg shrink-0">👑</div>}
           <div className="min-w-0">
             <h1 className="font-bold leading-tight truncate">{nomeLoja}</h1>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-300/80 leading-tight">👑 Clube VIP</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E0B36A]/80 leading-tight">👑 Clube VIP</p>
           </div>
         </div>
       </header>
@@ -133,7 +133,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
           <h2 className="text-xl font-bold tracking-tight">Ofertas exclusivas de VIP</h2>
           <p className="text-sm text-zinc-400 mt-1">
             {itens.length > 0
-              ? <>Preços que só quem é do clube vê. <span className="text-violet-300 font-medium">{itens.length} {itens.length === 1 ? 'peça disponível' : 'peças disponíveis'}.</span></>
+              ? <>Preços que só quem é do clube vê. <span className="text-[#E0B36A] font-medium">{itens.length} {itens.length === 1 ? 'peça disponível' : 'peças disponíveis'}.</span></>
               : 'As ofertas do clube aparecem aqui.'}
           </p>
         </div>
@@ -143,9 +143,9 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
           <div className="mb-5 flex justify-end">
             <div className="relative">
               <button onClick={() => setFiltroAberto(o => !o)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition ${tamFiltro || filtroAberto ? 'border-violet-500/50 bg-violet-600/15 text-violet-100' : 'border-white/[0.12] bg-white/[0.04] text-zinc-300 hover:border-white/25'}`}>
+                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition ${tamFiltro || filtroAberto ? 'border-[#C79A54]/50 bg-[#C79A54]/15 text-[#F0CC88]' : 'border-white/[0.12] bg-white/[0.04] text-zinc-300 hover:border-white/25'}`}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-                {tamFiltro ? <>Tamanho <span className="rounded-full bg-violet-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{tamFiltro}</span></> : 'Filtrar tamanho'}
+                {tamFiltro ? <>Tamanho <span className="rounded-full bg-[#C79A54] px-1.5 py-0.5 text-[11px] font-bold text-[#16151A]">{tamFiltro}</span></> : 'Filtrar tamanho'}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`opacity-60 transition-transform ${filtroAberto ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6" /></svg>
               </button>
               {filtroAberto && (
@@ -153,14 +153,14 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                   <div className="fixed inset-0 z-20" onClick={() => setFiltroAberto(false)} />
                   <div className="absolute right-0 mt-2 z-30 w-60 rounded-2xl border border-white/10 bg-[#0d0d13] p-3 shadow-2xl shadow-black/60">
                     <button onClick={() => { setTamFiltro(''); setFiltroAberto(false) }}
-                      className={`w-full rounded-lg py-1.5 text-xs font-semibold border transition ${!tamFiltro ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-400 hover:text-white hover:border-white/30'}`}>Todos</button>
+                      className={`w-full rounded-lg py-1.5 text-xs font-semibold border transition ${!tamFiltro ? 'bg-[#C79A54] border-[#C79A54] text-[#16151A]' : 'border-white/12 text-zinc-400 hover:text-[#16151A] hover:border-white/30'}`}>Todos</button>
                     {tamsLetra.length > 0 && (
                       <div className="mt-3">
                         <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Tamanho</p>
                         <div className="grid grid-cols-4 gap-1.5">
                           {tamsLetra.map(t => (
                             <button key={t} onClick={() => { setTamFiltro(f => f === t ? '' : t); setFiltroAberto(false) }}
-                              className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-300 hover:text-white hover:border-white/30'}`}>{t}</button>
+                              className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-[#C79A54] border-[#C79A54] text-[#16151A]' : 'border-white/12 text-zinc-300 hover:text-[#16151A] hover:border-white/30'}`}>{t}</button>
                           ))}
                         </div>
                       </div>
@@ -171,7 +171,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                         <div className="grid grid-cols-4 gap-1.5">
                           {tamsNumero.map(t => (
                             <button key={t} onClick={() => { setTamFiltro(f => f === t ? '' : t); setFiltroAberto(false) }}
-                              className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-violet-600 border-violet-500 text-white' : 'border-white/12 text-zinc-300 hover:text-white hover:border-white/30'}`}>{t}</button>
+                              className={`rounded-lg py-1.5 text-xs font-semibold border transition ${tamFiltro === t ? 'bg-[#C79A54] border-[#C79A54] text-[#16151A]' : 'border-white/12 text-zinc-300 hover:text-[#16151A] hover:border-white/30'}`}>{t}</button>
                           ))}
                         </div>
                       </div>
@@ -193,7 +193,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
           <div className="text-center py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
             <p className="text-3xl mb-2">🔍</p>
             <p className="text-zinc-300 font-medium">Nada no tamanho {tamFiltro}.</p>
-            <button onClick={() => setTamFiltro('')} className="text-violet-300 text-sm mt-1 hover:underline">Ver todos os tamanhos</button>
+            <button onClick={() => setTamFiltro('')} className="text-[#E0B36A] text-sm mt-1 hover:underline">Ver todos os tamanhos</button>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
@@ -201,7 +201,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
               const desc = it.preco_venda && it.preco_oportunidade && it.preco_venda > it.preco_oportunidade
                 ? Math.round((1 - it.preco_oportunidade / it.preco_venda) * 100) : 0
               return (
-                <div key={it.id} className="group bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden flex flex-col transition hover:border-violet-500/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-950/30">
+                <div key={it.id} className="group bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden flex flex-col transition hover:border-[#C79A54]/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#2a2010]/30">
                   <div className="aspect-square bg-zinc-900 relative overflow-hidden">
                     {it.foto ? <img src={it.foto} alt={it.nome} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="w-full h-full flex items-center justify-center text-zinc-700 text-3xl">🛍️</div>}
                     {desc > 0 && <span className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-rose-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-lg">-{desc}%</span>}
@@ -227,7 +227,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                               <div className="flex flex-wrap gap-1">
                                 {[...it.tamanhos].sort((a, b) => ordTam(a) - ordTam(b)).map(t => (
                                   <button key={t} onClick={() => { setTamSel(s => ({ ...s, [it.id]: t })); setAlertaTam(a => a === it.id ? null : a) }}
-                                    className={`min-w-[28px] px-2 py-0.5 rounded-md text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-violet-600 border-violet-500 text-white' : pedindo ? 'border-amber-400/50 text-amber-100 hover:border-amber-300' : 'border-white/15 text-zinc-400 hover:text-white hover:border-white/30'}`}>{t}</button>
+                                    className={`min-w-[28px] px-2 py-0.5 rounded-md text-[11px] font-semibold border transition ${tamSel[it.id] === t ? 'bg-[#C79A54] border-[#C79A54] text-[#16151A]' : pedindo ? 'border-amber-400/50 text-amber-100 hover:border-amber-300' : 'border-white/15 text-zinc-400 hover:text-[#16151A] hover:border-white/30'}`}>{t}</button>
                                 ))}
                               </div>
                             </div>
@@ -243,7 +243,7 @@ export default function ClubeVitrine({ nomeLoja, logo, comoComprar, ownerPhone, 
                       <>
                         <p className="text-[11px] text-zinc-600 mt-1">Tam: {[...it.tamanhos].sort((a, b) => ordTam(a) - ordTam(b)).join(' / ')}</p>
                         <a href={zap(it)} target="_blank" rel="noopener noreferrer"
-                          className="mt-2 flex items-center justify-center gap-1.5 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg py-2 transition active:scale-[0.98]">
+                          className="mt-2 flex items-center justify-center gap-1.5 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg py-2 transition active:scale-[0.98]">
                           Quero essa
                         </a>
                       </>

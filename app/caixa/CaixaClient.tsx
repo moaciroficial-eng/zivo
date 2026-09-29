@@ -66,11 +66,11 @@ A IA cruza o que <b className="text-zinc-300">mais vende</b> (histórico) com o 
               <span className="text-zinc-500 text-lg">R$</span>
               <input type="number" min={0} step={500} value={meta}
                 onChange={e => setMeta(Math.max(0, Number(e.target.value)))}
-                className="w-40 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-lg font-bold outline-none focus:border-violet-500" />
+                className="w-40 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-lg font-bold outline-none focus:border-[#C79A54]" />
             </div>
           </div>
           <button onClick={gerar} disabled={carregando}
-            className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold rounded-lg transition cursor-pointer">
+            className="px-5 py-2.5 bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-50 text-[#16151A] font-semibold rounded-lg transition cursor-pointer">
             {carregando ? 'Analisando estoque…' : 'Gerar plano'}
           </button>
         </div>
@@ -89,11 +89,11 @@ A IA cruza o que <b className="text-zinc-300">mais vende</b> (histórico) com o 
                 <p className="text-sm text-zinc-400">{pecasMantidas} peça{pecasMantidas !== 1 ? 's' : ''} · {mantidos.length} linha{mantidos.length !== 1 ? 's' : ''}</p>
               </div>
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 transition-all" style={{ width: `${pctMeta}%` }} />
+                <div className="h-full bg-gradient-to-r from-[#C79A54] to-emerald-500 transition-all" style={{ width: `${pctMeta}%` }} />
               </div>
               {plano.resumo.tamanhos_protegidos.length > 0 && (
                 <p className="text-[11px] text-zinc-500 mt-3">🛡️ Já tirei da queima (você vende bem, giro alto): {plano.resumo.tamanhos_protegidos.map(t => (
-                  <span key={t} className="inline-block text-[10px] font-bold bg-violet-500/20 text-violet-200 px-1.5 py-0.5 rounded-full ml-1">{t}</span>
+                  <span key={t} className="inline-block text-[10px] font-bold bg-[#C79A54]/20 text-[#F0CC88] px-1.5 py-0.5 rounded-full ml-1">{t}</span>
                 ))}</p>
               )}
             </div>
@@ -114,7 +114,7 @@ A IA cruza o que <b className="text-zinc-300">mais vende</b> (histórico) com o 
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${l.escasso ? 'bg-violet-500/15 text-violet-300 border border-violet-500/30' : 'bg-zinc-800 text-zinc-300'}`}>{l.tamanho}{l.escasso ? ' 🛡️' : ''}</span>
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${l.escasso ? 'bg-[#C79A54]/15 text-[#E0B36A] border border-[#C79A54]/30' : 'bg-zinc-800 text-zinc-300'}`}>{l.tamanho}{l.escasso ? ' 🛡️' : ''}</span>
                           <p className={`font-semibold text-sm truncate ${fora ? 'line-through' : ''}`}>{l.nome}</p>
                           <span className="text-xs text-zinc-500">{l.qtd}un</span>
                         </div>

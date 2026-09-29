@@ -41,7 +41,7 @@ export default function OnboardingPage() {
     }
   }
 
-  const INPUT = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 w-full'
+  const INPUT = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 w-full'
 
   return (
     <main className="min-h-screen bg-[#09090b] flex items-center justify-center px-4">
@@ -49,7 +49,7 @@ export default function OnboardingPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center shadow-lg shadow-[#C79A54]/30 mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
@@ -63,8 +63,8 @@ export default function OnboardingPage() {
           {STEPS.map((s, i) => (
             <div key={s} className="flex-1 flex items-center gap-2">
               <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold shrink-0 ${
-                i < step ? 'bg-violet-600 text-white' :
-                i === step ? 'bg-violet-600 text-white ring-2 ring-violet-500/40' :
+                i < step ? 'bg-[#C79A54] text-[#16151A]' :
+                i === step ? 'bg-[#C79A54] text-[#16151A] ring-2 ring-[#C79A54]/40' :
                 'bg-zinc-800 text-zinc-500'
               }`}>
                 {i < step ? '✓' : i + 1}
@@ -89,7 +89,7 @@ export default function OnboardingPage() {
               </div>
               <button
                 onClick={() => setStep(1)} disabled={!nomeLoja.trim()}
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer"
+                className="w-full bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer"
               >
                 Continuar →
               </button>
@@ -114,7 +114,7 @@ export default function OnboardingPage() {
                 <button onClick={() => setStep(0)} className="flex-1 py-2.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition cursor-pointer">
                   ← Voltar
                 </button>
-                <button onClick={() => setStep(2)} className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 text-white font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer">
+                <button onClick={() => setStep(2)} className="flex-1 bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:opacity-90 text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer">
                   Continuar →
                 </button>
               </div>
@@ -140,7 +140,7 @@ export default function OnboardingPage() {
                 <button onClick={() => setStep(1)} className="flex-1 py-2.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition cursor-pointer">
                   ← Voltar
                 </button>
-                <button onClick={salvar} disabled={loading} className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer">
+                <button onClick={salvar} disabled={loading} className="flex-1 bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer">
                   {loading ? 'Salvando...' : 'Entrar no Terny →'}
                 </button>
               </div>

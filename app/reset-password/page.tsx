@@ -47,7 +47,7 @@ function ResetForm() {
       <div className="w-full max-w-sm">
 
         <div className="flex flex-col items-center mb-10">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center shadow-lg shadow-[#C79A54]/30 mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
@@ -70,7 +70,7 @@ function ResetForm() {
           ) : error && !ready ? (
             <div className="text-center space-y-4">
               <p className="text-sm text-red-400">{error}</p>
-              <a href="/" className="text-sm text-violet-400 hover:text-violet-300 transition">← Voltar para o login</a>
+              <a href="/" className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">← Voltar para o login</a>
             </div>
           ) : ready ? (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -79,7 +79,7 @@ function ResetForm() {
                 <input
                   type="password" required value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
-                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -87,7 +87,7 @@ function ResetForm() {
                 <input
                   type="password" required value={confirm} onChange={e => setConfirm(e.target.value)}
                   placeholder="Repita a senha"
-                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
                 />
               </div>
 
@@ -97,7 +97,7 @@ function ResetForm() {
 
               <button
                 type="submit" disabled={loading}
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer"
+                className="w-full bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer"
               >
                 {loading ? 'Salvando...' : 'Salvar nova senha'}
               </button>

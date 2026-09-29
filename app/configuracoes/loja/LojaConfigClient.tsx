@@ -32,7 +32,7 @@ function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none ${checked ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none ${checked ? 'bg-[#C79A54]' : 'bg-zinc-700'}`}
       >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
       </button>
@@ -146,7 +146,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
     }
   }
 
-  const inputClass = 'w-full bg-zinc-900 border border-zinc-700/60 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#3B6FFF]/60 focus:ring-1 focus:ring-[#3B6FFF]/30 transition'
+  const inputClass = 'w-full bg-zinc-900 border border-zinc-700/60 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#C79A54]/60 focus:ring-1 focus:ring-[#C79A54]/30 transition'
   const labelClass = 'block text-xs font-medium text-zinc-400 mb-1.5'
 
   return (
@@ -162,7 +162,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
         {/* Dados da loja */}
         <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#3B6FFF]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#C79A54]" />
             Dados da Loja
           </h2>
 
@@ -222,7 +222,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
         {/* Atendimento */}
         <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-1 divide-y divide-zinc-800/60">
           <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 pb-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#3B6FFF]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#C79A54]" />
             Atendimento Automático
           </h2>
           <Toggle
@@ -347,7 +347,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
                   type="button"
                   onClick={provisionarTemplates}
                   disabled={provisionando}
-                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 hover:border-[#3B6FFF]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 hover:border-[#C79A54]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50"
                 >
                   {provisionando ? 'Provisionando...' : 'Provisionar templates'}
                 </button>
@@ -360,7 +360,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
         <button
           onClick={salvar}
           disabled={saving}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-[#3B6FFF] to-[#00D4AA] text-white font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-[#C79A54] to-[#00D4AA] text-[#16151A] font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
         >
           {saving ? 'Salvando...' : 'Salvar configurações'}
         </button>

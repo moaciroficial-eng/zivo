@@ -57,7 +57,7 @@ export default async function AdminErrosPage() {
     <div className="min-h-screen bg-[#080B10] p-6 md:p-8">
       <div className="max-w-3xl mx-auto space-y-5">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-violet-200 mb-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#C79A54]/30 bg-[#C79A54]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#F0CC88] mb-2">
             Canal do fundador
           </div>
           <h1 className="text-xl font-bold text-white">Erros — todas as lojas</h1>
@@ -85,7 +85,7 @@ export default async function AdminErrosPage() {
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[11px] font-semibold text-emerald-300 shrink-0">{e.user_id ? (nomePorUser[e.user_id] ?? e.user_id.slice(0, 8)) : 'Sistema'}</span>
-                    <span className="text-xs font-mono font-semibold text-violet-300 truncate">{e.rota ?? '—'}</span>
+                    <span className="text-xs font-mono font-semibold text-[#E0B36A] truncate">{e.rota ?? '—'}</span>
                   </div>
                   <span className="text-[11px] text-zinc-500 shrink-0">{fmt(e.criado_em)}</span>
                 </div>

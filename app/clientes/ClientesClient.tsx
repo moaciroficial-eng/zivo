@@ -110,7 +110,7 @@ function sizeConfig(genero: string, lojaConfig: { vende_tenis: boolean | null; v
   }
 }
 
-const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
+const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 [color-scheme:dark]'
 
 /* Seletor de tamanho com múltipla escolha (até 2). Guarda como "38/40".
    Cliente que veste dois números seleciona os dois. */
@@ -134,7 +134,7 @@ function SizeChips({ options, value, onChange, max = 2, small = false }: {
         return (
           <button key={s} type="button" onClick={() => toggle(s)}
             className={`${small ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-sm'} rounded-lg border transition cursor-pointer ${
-              on ? 'bg-violet-600 border-violet-500 text-white font-semibold' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'
+              on ? 'bg-[#C79A54] border-[#C79A54] text-[#16151A] font-semibold' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'
             }`}>
             {s}
           </button>
@@ -576,7 +576,7 @@ export default function ClientesClient({
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
             <button
               onClick={() => setColarOpen(true)}
-              className="flex items-center gap-2 text-sm text-zinc-200 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/30 rounded-lg px-4 py-2 transition cursor-pointer"
+              className="flex items-center gap-2 text-sm text-zinc-200 bg-[#C79A54]/15 hover:bg-[#C79A54]/25 border border-[#C79A54]/30 rounded-lg px-4 py-2 transition cursor-pointer"
             >
               📋 Colar lista
             </button>
@@ -589,7 +589,7 @@ export default function ClientesClient({
             <button
               onClick={openNew}
               onTouchEnd={(e) => { e.preventDefault(); openNew(); }}
-              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-violet-500/20"
+              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-[#C79A54]/20"
             >
               <IconPlus /> Novo Cliente
             </button>
@@ -630,7 +630,7 @@ export default function ClientesClient({
               placeholder="Buscar clientes..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition"
+              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 transition"
             />
           </div>
         </div>
@@ -648,7 +648,7 @@ export default function ClientesClient({
               <>
                 <p className="font-medium text-zinc-300">Nenhum resultado para &quot;{search}&quot;</p>
                 <p className="text-zinc-500 text-sm">Tente buscar por nome, email ou telefone.</p>
-                <button onClick={() => setSearch('')} className="mt-1 text-sm text-violet-400 hover:text-violet-300 transition">
+                <button onClick={() => setSearch('')} className="mt-1 text-sm text-[#C79A54] hover:text-[#E0B36A] transition">
                   Limpar busca
                 </button>
               </>
@@ -658,7 +658,7 @@ export default function ClientesClient({
                 <p className="text-zinc-500 text-sm">Adicione o primeiro cliente ou importe via CSV.</p>
                 <button
                   onClick={openNew}
-                  className="mt-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-5 py-2 transition cursor-pointer"
+                  className="mt-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-5 py-2 transition cursor-pointer"
                 >
                   Novo Cliente
                 </button>
@@ -684,7 +684,7 @@ export default function ClientesClient({
                   {filtered.map(c => (
                     <tr key={c.id} className="hover:bg-white/[0.025] transition group">
                       <td className="px-4 py-3 font-medium whitespace-nowrap">
-                        <button onClick={() => openPerfil(c)} className="hover:text-violet-400 transition cursor-pointer text-left">
+                        <button onClick={() => openPerfil(c)} className="hover:text-[#C79A54] transition cursor-pointer text-left">
                           {c.nome}
                           {c.genero && (
                             <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${c.genero === 'M' ? 'bg-blue-500/15 text-blue-400' : 'bg-pink-500/15 text-pink-400'}`}>
@@ -698,7 +698,7 @@ export default function ClientesClient({
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 flex-wrap">
                           {c.tamanho_camiseta && (
-                            <span className="px-1.5 py-0.5 bg-violet-500/15 border border-violet-500/25 text-violet-300 rounded text-xs font-medium whitespace-nowrap">
+                            <span className="px-1.5 py-0.5 bg-[#C79A54]/15 border border-[#C79A54]/25 text-[#E0B36A] rounded text-xs font-medium whitespace-nowrap">
                               Cam {c.tamanho_camiseta}
                             </span>
                           )}
@@ -798,13 +798,13 @@ export default function ClientesClient({
               <div className="flex border-b border-zinc-800 shrink-0">
                 <button
                   onClick={() => setDrawerTab('dados')}
-                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'dados' ? 'text-white border-b-2 border-[#3B6FFF]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'dados' ? 'text-white border-b-2 border-[#C79A54]' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   Cadastro
                 </button>
                 <button
                   onClick={() => { setDrawerTab('historico'); if (editing) loadHistorico(editing) }}
-                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'historico' ? 'text-white border-b-2 border-[#3B6FFF]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-1 py-2.5 text-sm font-medium transition cursor-pointer ${drawerTab === 'historico' ? 'text-white border-b-2 border-[#C79A54]' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   Histórico
                 </button>
@@ -1050,7 +1050,7 @@ export default function ClientesClient({
                                                 </span>
                                               )}
                                               {p.estoque_id && (
-                                                <span className="text-xs text-violet-400">Ver no estoque ↗</span>
+                                                <span className="text-xs text-[#C79A54]">Ver no estoque ↗</span>
                                               )}
                                             </div>
                                             <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -1108,7 +1108,7 @@ export default function ClientesClient({
                     <button
                       onClick={() => editing && calcularInsight(editing)}
                       disabled={calculandoInsight}
-                      className="mt-2 px-4 py-2 bg-[#3B6FFF] hover:bg-[#5585FF] disabled:opacity-50 text-white text-sm font-medium rounded-xl transition cursor-pointer"
+                      className="mt-2 px-4 py-2 bg-[#C79A54] hover:bg-[#5585FF] disabled:opacity-50 text-[#16151A] text-sm font-medium rounded-xl transition cursor-pointer"
                     >
                       {calculandoInsight ? 'Calculando...' : '⚡ Calcular agora'}
                     </button>
@@ -1128,7 +1128,7 @@ export default function ClientesClient({
 
                   const classMap: Record<string, { label: string; cor: string }> = {
                     vip:       { label: 'VIP', cor: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30' },
-                    frequente: { label: 'Frequente', cor: 'text-[#3B6FFF] bg-[#3B6FFF]/10 border-[#3B6FFF]/30' },
+                    frequente: { label: 'Frequente', cor: 'text-[#C79A54] bg-[#C79A54]/10 border-[#C79A54]/30' },
                     ocasional: { label: 'Ocasional', cor: 'text-zinc-300 bg-zinc-700/40 border-zinc-600/30' },
                     inativo:   { label: 'Inativo', cor: 'text-red-400 bg-red-400/10 border-red-400/30' },
                   }
@@ -1384,7 +1384,7 @@ export default function ClientesClient({
                     <button
                       type="button"
                       onClick={() => { setAddingDep(true); setDepForm({ nome: '', relacao: '', genero: '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' }) }}
-                      className="text-xs text-violet-400 hover:text-violet-300 transition cursor-pointer"
+                      className="text-xs text-[#C79A54] hover:text-[#E0B36A] transition cursor-pointer"
                     >
                       + Adicionar
                     </button>
@@ -1422,7 +1422,7 @@ export default function ClientesClient({
                                     data_nascimento: dep.data_nascimento ?? '',
                                   })
                                 }}
-                                className="p-1.5 text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition cursor-pointer"
+                                className="p-1.5 text-zinc-500 hover:text-[#C79A54] hover:bg-[#C79A54]/10 rounded-lg transition cursor-pointer"
                               >
                                 <IconEdit />
                               </button>
@@ -1571,7 +1571,7 @@ export default function ClientesClient({
                           }
                           setDepForm({ nome: '', relacao: '' as Dependente['relacao'] | '', genero: '' as 'M' | 'F' | '', tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '', data_nascimento: '' })
                         }}
-                        className="flex-1 text-sm font-semibold bg-violet-600 hover:bg-violet-500 rounded-lg py-2 transition cursor-pointer"
+                        className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] rounded-lg py-2 transition cursor-pointer"
                       >
                         {editingDepId ? 'Salvar' : 'Adicionar'}
                       </button>
@@ -1604,7 +1604,7 @@ export default function ClientesClient({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
               >
                 {saving ? 'Salvando...' : editing ? 'Salvar Alterações' : 'Adicionar Cliente'}
               </button>
@@ -1680,7 +1680,7 @@ function ColarListaModal({ onClose, onDone }: { onClose: () => void; onDone: (in
             <>
               <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={10}
                 placeholder={"Cola aqui do Excel, do caderno, dos contatos...\nEx:\nJoão Silva  77 99999-8888  M  camiseta G  calça 40\nMaria Souza  (77) 98888-7777  aniversário 12/05"}
-                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#C79A54] [color-scheme:dark]" />
               <p className="text-[11px] text-zinc-600 mt-1.5">A IA identifica nome, telefone, gênero (pelo nome), tamanhos e aniversário. Você revisa antes de salvar.</p>
             </>
           ) : (
@@ -1690,7 +1690,7 @@ function ColarListaModal({ onClose, onDone }: { onClose: () => void; onDone: (in
                 <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-2 flex flex-col gap-1.5">
                   <div className="flex items-center gap-1.5">
                     <input value={c.nome} onChange={e => upd(i, 'nome', e.target.value)} placeholder="nome"
-                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-violet-500" />
+                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-[#C79A54]" />
                     <select value={c.genero ?? ''} onChange={e => upd(i, 'genero', e.target.value)}
                       className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1 text-xs text-zinc-200 [color-scheme:dark]">
                       <option value="">?</option><option value="M">M</option><option value="F">F</option>
@@ -1700,15 +1700,15 @@ function ColarListaModal({ onClose, onDone }: { onClose: () => void; onDone: (in
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <input value={c.telefone ?? ''} onChange={e => upd(i, 'telefone', e.target.value)} placeholder="telefone"
-                      className="w-32 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-32 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input value={c.tamanho_camiseta ?? ''} onChange={e => upd(i, 'tamanho_camiseta', e.target.value)} placeholder="camisa"
-                      className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input value={c.tamanho_calca ?? ''} onChange={e => upd(i, 'tamanho_calca', e.target.value)} placeholder="calça"
-                      className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input value={c.tamanho_tenis ?? ''} onChange={e => upd(i, 'tamanho_tenis', e.target.value)} placeholder="pé"
-                      className="w-14 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-14 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input value={c.data_nascimento ?? ''} onChange={e => upd(i, 'data_nascimento', e.target.value)} placeholder="nasc AAAA-MM-DD"
-                      className="w-36 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-36 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                   </div>
                 </div>
               ))}
@@ -1720,7 +1720,7 @@ function ColarListaModal({ onClose, onDone }: { onClose: () => void; onDone: (in
         <div className="p-4 border-t border-zinc-800 shrink-0 flex gap-2">
           {!preview ? (
             <button onClick={ler} disabled={!texto.trim() || lendo}
-              className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+              className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
               {lendo ? 'Lendo a lista...' : '✨ Ler lista'}
             </button>
           ) : (
@@ -1728,7 +1728,7 @@ function ColarListaModal({ onClose, onDone }: { onClose: () => void; onDone: (in
               <button onClick={() => { setPreview(null); setErro(null) }} disabled={importando}
                 className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">← Voltar</button>
               <button onClick={importar} disabled={importando || !preview.length}
-                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
                 {importando ? 'Importando...' : `Importar ${preview.length} cliente(s)`}
               </button>
             </>

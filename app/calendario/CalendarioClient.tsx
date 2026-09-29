@@ -41,12 +41,12 @@ const MONTHS = [
 const WEEKDAYS_SHORT = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
 
 const DOT: Record<DayEvent['type'], string> = {
-  evento:      'bg-violet-500',
+  evento:      'bg-[#C79A54]',
   aniversario: 'bg-rose-500',
   pagamento:   'bg-amber-500',
 }
 const BADGE: Record<DayEvent['type'], string> = {
-  evento:      'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  evento:      'bg-[#C79A54]/15 text-[#E0B36A] border-[#C79A54]/25',
   aniversario: 'bg-rose-500/15 text-rose-300 border-rose-500/25',
   pagamento:   'bg-amber-500/15 text-amber-300 border-amber-500/25',
 }
@@ -56,7 +56,7 @@ const TYPE_LABEL: Record<DayEvent['type'], string> = {
   pagamento:   'Pagamento',
 }
 
-const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
+const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 [color-scheme:dark]'
 
 /* ── Calendar helpers ───────────────────────────────────────── */
 
@@ -286,7 +286,7 @@ export default function CalendarioClient({
           <button
             onClick={() => openNew()}
             onTouchEnd={(e) => { e.preventDefault(); openNew(); }}
-            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-violet-500/20"
+            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-[#C79A54]/20"
           >
             <IconPlus /> Novo Evento
           </button>
@@ -321,13 +321,13 @@ export default function CalendarioClient({
                     onClick={() => setSelectedDate(prev => prev === cell.date ? null : cell.date)}
                     className={`relative min-h-[88px] p-2 flex flex-col items-start gap-1 text-left transition cursor-pointer
                       ${rowBorder}
-                      ${isSelected ? 'bg-violet-500/10' : 'hover:bg-white/[0.03]'}
+                      ${isSelected ? 'bg-[#C79A54]/10' : 'hover:bg-white/[0.03]'}
                       ${!cell.inMonth ? 'opacity-35' : ''}
                     `}
                   >
                     {/* Day number */}
                     <span className={`w-7 h-7 flex items-center justify-center text-sm font-medium rounded-full transition
-                      ${isToday    ? 'bg-violet-500 text-white font-bold' : ''}
+                      ${isToday    ? 'bg-[#C79A54] text-[#16151A] font-bold' : ''}
                       ${isSelected && !isToday ? 'bg-zinc-700 text-white' : ''}
                       ${!isToday && !isSelected ? 'text-zinc-300' : ''}
                     `}>
@@ -372,7 +372,7 @@ export default function CalendarioClient({
                     </div>
                     <button
                       onClick={() => openNew(selectedDate)}
-                      className="shrink-0 p-1.5 text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition cursor-pointer"
+                      className="shrink-0 p-1.5 text-zinc-400 hover:text-[#C79A54] hover:bg-[#C79A54]/10 rounded-lg transition cursor-pointer"
                       title="Adicionar evento neste dia"
                     >
                       <IconPlus />
@@ -387,7 +387,7 @@ export default function CalendarioClient({
                       <p className="text-zinc-500 text-sm">Nenhum evento</p>
                       <button
                         onClick={() => openNew(selectedDate)}
-                        className="text-xs text-violet-400 hover:text-violet-300 transition"
+                        className="text-xs text-[#C79A54] hover:text-[#E0B36A] transition"
                       >
                         Adicionar evento
                       </button>
@@ -401,7 +401,7 @@ export default function CalendarioClient({
                             <p className="text-sm font-medium leading-tight">{e.label}</p>
                             {e.descricao && <p className="text-xs text-zinc-400 mt-0.5 leading-snug">{e.descricao}</p>}
                             <p className={`text-xs mt-1 font-medium ${
-                              e.type === 'evento' ? 'text-violet-400' : e.type === 'aniversario' ? 'text-rose-400' : 'text-amber-400'
+                              e.type === 'evento' ? 'text-[#C79A54]' : e.type === 'aniversario' ? 'text-rose-400' : 'text-amber-400'
                             }`}>{TYPE_LABEL[e.type]}</p>
                           </div>
                           {/* Only manual eventos have edit/delete */}
@@ -489,7 +489,7 @@ export default function CalendarioClient({
                     <>
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-400">Eventos</span>
-                        <span className="font-semibold text-violet-400">{thisMonthEventos.length}</span>
+                        <span className="font-semibold text-[#C79A54]">{thisMonthEventos.length}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-400">Aniversários</span>
@@ -563,7 +563,7 @@ export default function CalendarioClient({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
               >
                 {saving ? 'Salvando...' : editing ? 'Salvar Alterações' : 'Criar Evento'}
               </button>

@@ -93,7 +93,7 @@ export default function MobileNav() {
             key={tab.href}
             href={tab.href}
             className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors ${
-              active ? 'text-[#7FA8FF]' : 'text-zinc-500 hover:text-zinc-300'
+              active ? 'text-[#E0B36A]' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
             <span className={`relative transition-transform ${active ? 'scale-110' : ''}`}>
@@ -104,10 +104,10 @@ export default function MobileNav() {
                 </span>
               )}
             </span>
-            <span className={`text-[10px] font-medium leading-none ${active ? 'text-[#7FA8FF]' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] font-medium leading-none ${active ? 'text-[#E0B36A]' : 'text-zinc-600'}`}>
               {tab.label}
             </span>
-            {active && <span className="absolute bottom-0 w-8 h-0.5 bg-[#3B6FFF] rounded-full" />}
+            {active && <span className="absolute bottom-0 w-8 h-0.5 bg-[#C79A54] rounded-full" />}
           </Link>
         )
       })}

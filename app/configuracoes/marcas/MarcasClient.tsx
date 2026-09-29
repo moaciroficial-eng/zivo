@@ -10,7 +10,7 @@ type Marca = {
   markup: number
 }
 
-const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
+const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 [color-scheme:dark]'
 
 const IconTrash  = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
 const IconEdit   = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -244,7 +244,7 @@ export default function MarcasClient({
               <button
                 onClick={addMarca}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 rounded-lg transition cursor-pointer"
               >
                 <IconPlus />
                 Adicionar
@@ -269,7 +269,7 @@ export default function MarcasClient({
                 <button
                   onClick={normalizarTudo}
                   disabled={normalizando}
-                  className="text-xs font-semibold px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                  className="text-xs font-semibold px-3 py-1.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 rounded-lg transition cursor-pointer"
                 >
                   {normalizando ? 'Normalizando...' : `Normalizar tudo (${foraDosPadrao.length})`}
                 </button>
@@ -288,7 +288,7 @@ export default function MarcasClient({
                 <button
                   onClick={() => normalizarUma(atual, canonical)}
                   disabled={normalizando}
-                  className="text-xs text-violet-400 hover:text-violet-300 disabled:opacity-50 px-3 py-1.5 border border-violet-500/30 hover:border-violet-500/60 rounded-lg transition cursor-pointer shrink-0"
+                  className="text-xs text-[#C79A54] hover:text-[#E0B36A] disabled:opacity-50 px-3 py-1.5 border border-[#C79A54]/30 hover:border-[#C79A54]/60 rounded-lg transition cursor-pointer shrink-0"
                 >
                   Normalizar
                 </button>
@@ -304,14 +304,14 @@ export default function MarcasClient({
                       <span className="text-sm text-zinc-300 font-medium truncate flex-1 min-w-[8rem]">{m}</span>
                       <span className="text-zinc-600 text-xs">unir com</span>
                       <select value={mergeDest[m] ?? ''} onChange={e => setMergeDest(d => ({ ...d, [m]: e.target.value }))}
-                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-violet-500 [color-scheme:dark]">
+                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#C79A54] [color-scheme:dark]">
                         <option value="">escolher marca…</option>
                         {marcas.filter(mk => mk.nome.toLowerCase() !== m.toLowerCase()).map(mk => (
                           <option key={mk.id} value={mk.nome}>{mk.nome}</option>
                         ))}
                       </select>
                       <button onClick={() => unirMarca(m, mergeDest[m] ?? '')} disabled={normalizando || !mergeDest[m]}
-                        className="text-xs font-semibold px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 rounded-lg transition cursor-pointer shrink-0">
+                        className="text-xs font-semibold px-3 py-1.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 rounded-lg transition cursor-pointer shrink-0">
                         {normalizando ? '...' : 'Unir'}
                       </button>
                     </div>

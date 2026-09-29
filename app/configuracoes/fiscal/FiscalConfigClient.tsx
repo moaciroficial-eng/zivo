@@ -31,7 +31,7 @@ function Toast({ msg, ok }: { msg: string; ok: boolean }) {
   )
 }
 
-const inputClass = 'w-full bg-zinc-900 border border-zinc-700/60 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#3B6FFF]/60 focus:ring-1 focus:ring-[#3B6FFF]/30 transition'
+const inputClass = 'w-full bg-zinc-900 border border-zinc-700/60 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#C79A54]/60 focus:ring-1 focus:ring-[#C79A54]/30 transition'
 const labelClass = 'block text-xs font-medium text-zinc-400 mb-1.5'
 const soDigitos = (v: string) => v.replace(/\D/g, '')
 
@@ -168,7 +168,7 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
 
         {/* Dados da empresa */}
         <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#3B6FFF]" />Dados da empresa</h2>
+          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#C79A54]" />Dados da empresa</h2>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>CNPJ</label>
@@ -223,13 +223,13 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
 
         {/* Endereço fiscal */}
         <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#3B6FFF]" />Endereço fiscal</h2>
+          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#C79A54]" />Endereço fiscal</h2>
           <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
             <div>
               <label className={labelClass}>CEP</label>
               <input className={inputClass} value={cep} onChange={e => setCep(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarCep()} placeholder="00000-000" />
             </div>
-            <button type="button" onClick={buscarCep} disabled={buscandoCep} className="py-2.5 px-4 rounded-xl border border-zinc-700 hover:border-[#3B6FFF]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50">
+            <button type="button" onClick={buscarCep} disabled={buscandoCep} className="py-2.5 px-4 rounded-xl border border-zinc-700 hover:border-[#C79A54]/50 text-sm font-medium text-zinc-200 transition disabled:opacity-50">
               {buscandoCep ? 'Buscando...' : 'Buscar CEP'}
             </button>
           </div>
@@ -292,7 +292,7 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
           <p className="text-xs text-zinc-600">🔒 O certificado vai pra um espaço privado — ninguém além de você e o Terny acessa. Nunca compartilhe o .pfx nem a senha por WhatsApp/email.</p>
         </div>
 
-        <button onClick={salvar} disabled={saving} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#3B6FFF] to-[#00D4AA] text-white font-semibold text-sm hover:opacity-90 transition disabled:opacity-50">
+        <button onClick={salvar} disabled={saving} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#C79A54] to-[#00D4AA] text-[#16151A] font-semibold text-sm hover:opacity-90 transition disabled:opacity-50">
           {saving ? 'Salvando...' : 'Salvar configuração fiscal'}
         </button>
       </div>

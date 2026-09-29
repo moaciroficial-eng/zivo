@@ -424,8 +424,8 @@ export default function ImportNFeModal({
         <div className="flex items-start justify-between p-6 border-b border-zinc-800 shrink-0">
           <div className="flex flex-col gap-3 flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-400">
+              <div className="w-9 h-9 rounded-xl bg-[#A67C3D]/15 border border-[#A67C3D]/25 flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#A67C3D]">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
@@ -485,9 +485,9 @@ export default function ImportNFeModal({
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={parsing}
-                className="w-full max-w-md border-2 border-dashed border-zinc-700 hover:border-indigo-500/60 bg-zinc-800/30 hover:bg-indigo-500/5 rounded-2xl p-12 flex flex-col items-center gap-4 transition group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full max-w-md border-2 border-dashed border-zinc-700 hover:border-[#A67C3D]/60 bg-zinc-800/30 hover:bg-[#A67C3D]/5 rounded-2xl p-12 flex flex-col items-center gap-4 transition group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <div className="w-16 h-16 rounded-2xl bg-zinc-800 group-hover:bg-indigo-500/10 border border-zinc-700 group-hover:border-indigo-500/30 flex items-center justify-center text-zinc-400 group-hover:text-indigo-300 transition">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-800 group-hover:bg-[#A67C3D]/10 border border-zinc-700 group-hover:border-[#A67C3D]/30 flex items-center justify-center text-zinc-400 group-hover:text-[#E0B36A] transition">
                   {parsing ? <IconSpinner /> : <IconUpload />}
                 </div>
                 <div className="text-center">
@@ -496,7 +496,7 @@ export default function ImportNFeModal({
                   </p>
                   <p className="text-sm text-zinc-600 mt-1">XML · Foto da NF-e (JPG/PNG) · PDF</p>
                 </div>
-                <span className="text-xs text-indigo-400 font-semibold px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">NF-e</span>
+                <span className="text-xs text-[#A67C3D] font-semibold px-3 py-1.5 bg-[#A67C3D]/10 border border-[#A67C3D]/20 rounded-lg">NF-e</span>
               </button>
               <div className="text-center text-xs text-zinc-600 space-y-1 max-w-sm">
                 <p>Extrai automaticamente: nome, código, NCM, CFOP, ICMS, PIS, COFINS, CEST, quantidade e preço de custo</p>
@@ -511,7 +511,7 @@ export default function ImportNFeModal({
                 <input
                   type="checkbox" checked={allSelected}
                   onChange={e => setItems(prev => prev.map(i => ({ ...i, selected: e.target.checked })))}
-                  className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                  className="w-4 h-4 rounded accent-[#C79A54] cursor-pointer"
                 />
                 <span className="text-sm text-zinc-400">
                   {selectedCount === items.length ? 'Todos selecionados' : `${selectedCount} de ${items.length} selecionado${selectedCount !== 1 ? 's' : ''}`}
@@ -537,7 +537,7 @@ export default function ImportNFeModal({
                         <td className="px-4 py-2.5">
                           <input type="checkbox" checked={item.selected}
                             onChange={e => updateItem(item.key, 'selected', e.target.checked)}
-                            className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                            className="w-4 h-4 rounded accent-[#C79A54] cursor-pointer"
                           />
                         </td>
                         <td className="px-4 py-2.5 max-w-[240px]">
@@ -547,7 +547,7 @@ export default function ImportNFeModal({
                         <td className="px-4 py-2.5">
                           <select value={item.categoria}
                             onChange={e => updateItem(item.key, 'categoria', e.target.value as Produto['categoria'])}
-                            className="bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-violet-500 cursor-pointer [color-scheme:dark]"
+                            className="bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#C79A54] cursor-pointer [color-scheme:dark]"
                           >
                             {(Object.keys(CAT_LABEL) as Produto['categoria'][]).map(cat => (
                               <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>
@@ -593,7 +593,7 @@ export default function ImportNFeModal({
             <button
               onClick={handleImport}
               disabled={importing || selectedCount === 0}
-              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg px-6 py-2.5 transition cursor-pointer"
+              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg px-6 py-2.5 transition cursor-pointer"
             >
               {importing
                 ? <><IconSpinner /> Importando...</>

@@ -16,7 +16,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <Link href="/" className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 mb-4">
+          <Link href="/" className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center shadow-lg shadow-[#C79A54]/30 mb-4">
             <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M7 21 L13.5 14.5 L17.5 18 L24 10.5" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M24 10.5 L18.6 10.5 M24 10.5 L24 15.9" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -38,21 +38,21 @@ export default function LoginPage() {
                 <input
                   id="email" name="email" type="email" autoComplete="email" required
                   placeholder="seu@email.com"
-                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <label htmlFor="password" className="text-sm font-medium text-zinc-300">Senha</label>
-                  <button type="button" onClick={() => setMode('reset')} className="text-xs text-violet-400 hover:text-violet-300 transition cursor-pointer">
+                  <button type="button" onClick={() => setMode('reset')} className="text-xs text-[#C79A54] hover:text-[#E0B36A] transition cursor-pointer">
                     Esqueceu a senha?
                   </button>
                 </div>
                 <input
                   id="password" name="password" type="password" autoComplete="current-password" required
                   placeholder="••••••••"
-                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
                 />
               </div>
 
@@ -64,7 +64,7 @@ export default function LoginPage() {
 
               <button
                 type="submit" disabled={pending}
-                className="mt-1 w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition shadow-lg shadow-violet-500/20 cursor-pointer"
+                className="mt-1 w-full bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition shadow-lg shadow-[#C79A54]/20 cursor-pointer"
               >
                 {pending ? 'Entrando...' : 'Entrar'}
               </button>
@@ -78,7 +78,7 @@ export default function LoginPage() {
                 <input
                   id="reset-email" name="email" type="email" required
                   placeholder="seu@email.com"
-                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
                 />
               </div>
 
@@ -95,7 +95,7 @@ export default function LoginPage() {
 
               <button
                 type="submit" disabled={resetPending}
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer"
+                className="w-full bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer"
               >
                 {resetPending ? 'Enviando...' : 'Enviar link'}
               </button>
@@ -110,7 +110,7 @@ export default function LoginPage() {
         {/* Rodapé */}
         <p className="text-center text-sm text-zinc-500 mt-6">
           Não tem uma conta?{' '}
-          <Link href="/signup" className="text-violet-400 hover:text-violet-300 transition font-medium">
+          <Link href="/signup" className="text-[#C79A54] hover:text-[#E0B36A] transition font-medium">
             Cadastre-se
           </Link>
         </p>

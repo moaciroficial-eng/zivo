@@ -321,7 +321,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
             <p className="text-zinc-300 font-medium">O que a gente vende hoje?</p>
             <div className="flex flex-col gap-2 mt-4 max-w-sm mx-auto">
               <button onClick={abrirPicker}
-                className="text-left text-sm bg-violet-600 hover:bg-violet-500 text-white px-3 py-2.5 rounded-lg transition cursor-pointer font-medium">
+                className="text-left text-sm bg-[#C79A54] hover:bg-[#C79A54] text-[#16151A] px-3 py-2.5 rounded-lg transition cursor-pointer font-medium">
                 📦 Escolher produtos do estoque
               </button>
               <p className="text-[11px] text-zinc-600 py-1">ou me conta o objetivo:</p>
@@ -355,7 +355,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         {msgs.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.papel === 'dono' ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
-              m.papel === 'dono' ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
+              m.papel === 'dono' ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
             }`}>
               {m.foto && <img src={m.foto} alt="produto" className="rounded-lg mb-2 max-h-40 w-auto" />}
               {m.conteudo}
@@ -365,7 +365,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               <div className="flex flex-wrap gap-2 mt-2">
                 {m.opcoes!.map(op => (
                   <button key={op} onClick={() => enviar(op)}
-                    className="text-sm bg-violet-600/20 hover:bg-violet-600 border border-violet-500/40 text-violet-200 hover:text-white px-3.5 py-2 rounded-full transition cursor-pointer font-medium">
+                    className="text-sm bg-[#C79A54]/20 hover:bg-[#C79A54] border border-[#C79A54]/40 text-[#F0CC88] hover:text-[#16151A] px-3.5 py-2 rounded-full transition cursor-pointer font-medium">
                     {op}
                   </button>
                 ))}
@@ -377,7 +377,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
 
         {/* Proposta pronta */}
         {proposta && (
-          <div className="rounded-2xl border border-violet-500/40 bg-violet-500/5 p-4 flex flex-col gap-3">
+          <div className="rounded-2xl border border-[#C79A54]/40 bg-[#C79A54]/5 p-4 flex flex-col gap-3">
             <div>
               <p className="text-base font-bold text-white">{proposta.titulo}</p>
               <p className="text-xs text-zinc-400 mt-0.5">
@@ -421,20 +421,20 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                 {proposta.copy_texto_preco && (
                   <div className="flex bg-zinc-900 border border-zinc-700 rounded-lg p-0.5">
                     <button onClick={() => { setComPreco(false); setCopyEditada(comSaudacao(proposta.copy_texto ?? '')) }}
-                      className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${!comPreco ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>Sem preço</button>
+                      className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${!comPreco ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400'}`}>Sem preço</button>
                     <button onClick={() => { setComPreco(true); setCopyEditada(comSaudacao(proposta.copy_texto_preco ?? '')) }}
-                      className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${comPreco ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>Com preço</button>
+                      className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${comPreco ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400'}`}>Com preço</button>
                   </div>
                 )}
               </div>
               <textarea value={copyEditada} onChange={e => setCopyEditada(e.target.value)} rows={4}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#C79A54] [color-scheme:dark]" />
               <p className="mt-1.5 text-[11px] text-zinc-600">Sem preço = só instiga (&quot;consigo uma oferta especial&quot;) e o cliente pergunta. Quer outro tom? Pede na conversa.</p>
             </div>
 
             <div className="flex gap-2 pt-1">
               <button onClick={aprovarEnviar} disabled={disparando || publico.length === 0}
-                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
                 {disparando ? 'Enviando...' : `📤 Aprovar e enviar (${publico.length})`}
               </button>
               <button onClick={() => { setProposta(null); enviar('Não curti essa copy, me gera outra versão com um approach diferente.') }} disabled={disparando || pensando}
@@ -590,7 +590,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
 
       {/* Foto anexada (fora da proposta) */}
       {fotoUrl && !proposta && (
-        <div className="shrink-0 flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2">
+        <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#C79A54]/30 bg-[#C79A54]/5 px-3 py-2">
           <img src={fotoUrl} alt="" className="h-9 w-9 rounded object-cover" />
           <span className="text-xs text-zinc-300">📷 Foto anexada à campanha</span>
           <button onClick={() => setFotoUrl(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1 ml-auto cursor-pointer">remover</button>
@@ -610,7 +610,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         if (modo === 'produto') return (
           <div className="shrink-0 border-t border-zinc-800 pt-3 flex flex-col gap-2">
             <button onClick={abrirPicker}
-              className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+              className="w-full py-3 bg-[#C79A54] hover:bg-[#C79A54] text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
               📦 Escolher produtos do estoque
             </button>
             <button onClick={() => setForcarTexto(true)} className="text-[11px] text-zinc-500 hover:text-zinc-300 self-center cursor-pointer">prefiro escrever</button>
@@ -622,7 +622,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
           <div className="shrink-0 border-t border-zinc-800 pt-3 flex flex-col gap-2">
             <div className="flex gap-2">
               <button onClick={() => fileRef.current?.click()} disabled={enviandoFoto}
-                className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                className="flex-1 py-3 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
                 {enviandoFoto ? '⏳ Subindo...' : '📷 Subir foto do produto'}
               </button>
               <button onClick={() => enviar('Seguir sem foto, pode gerar a copy.')} disabled={enviandoFoto}
@@ -652,16 +652,16 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               <div className="flex gap-2 items-stretch">
                 <div className="flex bg-zinc-900 border border-zinc-700 rounded-xl p-0.5">
                   <button onClick={() => setDescTipo('%')}
-                    className={`text-xs px-3 rounded-lg transition cursor-pointer ${descTipo === '%' ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>%</button>
+                    className={`text-xs px-3 rounded-lg transition cursor-pointer ${descTipo === '%' ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400'}`}>%</button>
                   <button onClick={() => setDescTipo('R$')}
-                    className={`text-xs px-3 rounded-lg transition cursor-pointer ${descTipo === 'R$' ? 'bg-violet-600 text-white' : 'text-zinc-400'}`}>R$</button>
+                    className={`text-xs px-3 rounded-lg transition cursor-pointer ${descTipo === 'R$' ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400'}`}>R$</button>
                 </div>
                 <input value={descValor} onChange={e => setDescValor(e.target.value.replace(/[^\d.,]/g, ''))}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aplicarDesc() } }}
                   inputMode="decimal" placeholder={descTipo === '%' ? 'ex: 20' : 'ex: 50'}
-                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500" />
+                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-[#C79A54]" />
                 <button onClick={aplicarDesc} disabled={!descValor.trim()}
-                  className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-bold transition cursor-pointer">Dar desconto</button>
+                  className="px-4 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">Dar desconto</button>
               </div>
             </div>
           )
@@ -681,9 +681,9 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
             <textarea autoFocus value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
               placeholder="Responde a consultora..." rows={1}
-              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-[#C79A54] [color-scheme:dark]" />
             <button onClick={() => enviar()} disabled={!input.trim()}
-              className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer">Enviar</button>
+              className="px-4 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 text-[#16151A] rounded-xl text-sm font-medium transition cursor-pointer">Enviar</button>
           </div>
         )
       })()}
@@ -700,7 +700,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               </div>
               <input autoFocus value={busca} onChange={e => setBusca(e.target.value)}
                 placeholder="Buscar por nome, marca ou cor..."
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500" />
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-[#C79A54]" />
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0 p-2">
@@ -711,7 +711,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               {resultados.map(p => {
                 const sel = selecionados.find(s => s.produto.id === p.id)
                 return (
-                  <div key={p.id} className={`rounded-lg px-3 py-2.5 mb-1 transition ${estaSelecionado(p.id) ? 'bg-violet-500/10 border border-violet-500/30' : 'hover:bg-zinc-800 border border-transparent'}`}>
+                  <div key={p.id} className={`rounded-lg px-3 py-2.5 mb-1 transition ${estaSelecionado(p.id) ? 'bg-[#C79A54]/10 border border-[#C79A54]/30' : 'hover:bg-zinc-800 border border-transparent'}`}>
                     <button onClick={() => toggleProduto(p)} className="w-full text-left flex items-center justify-between gap-2 cursor-pointer">
                       <div className="min-w-0">
                         <p className="text-sm text-zinc-100 font-medium truncate">{estaSelecionado(p.id) ? '✓ ' : ''}{p.nome}</p>
@@ -728,7 +728,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                         <span className="text-[10px] text-zinc-500 mr-1 self-center">vender:</span>
                         {p.tamanhos.map(t => (
                           <button key={t} onClick={() => toggleTamanho(p.id, t)}
-                            className={`text-[11px] px-2 py-0.5 rounded-full transition cursor-pointer ${sel.tamanhos.includes(t) ? 'bg-violet-600 text-white' : 'bg-zinc-700 text-zinc-400'}`}>{t}</button>
+                            className={`text-[11px] px-2 py-0.5 rounded-full transition cursor-pointer ${sel.tamanhos.includes(t) ? 'bg-[#C79A54] text-[#16151A]' : 'bg-zinc-700 text-zinc-400'}`}>{t}</button>
                         ))}
                       </div>
                     )}
@@ -740,7 +740,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
             {selecionados.length > 0 && (
               <div className="p-3 border-t border-zinc-800 shrink-0">
                 <button onClick={confirmarSelecao}
-                  className="w-full py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                  className="w-full py-2.5 bg-[#C79A54] hover:bg-[#C79A54] text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
                   Confirmar {selecionados.length} produto(s) →
                 </button>
               </div>
@@ -762,7 +762,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                   <span className="text-[10px] text-zinc-600">{new Date(c.created_at).toLocaleDateString('pt-BR')}{c.produto_marca ? ` · ${c.produto_marca}` : ''}</span>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                  c.status === 'salva' ? 'bg-violet-500/15 text-violet-300' : c.status === 'ativa' ? 'bg-[#00D4AA]/15 text-[#00D4AA]' : 'bg-zinc-700 text-zinc-400'
+                  c.status === 'salva' ? 'bg-[#C79A54]/15 text-[#E0B36A]' : c.status === 'ativa' ? 'bg-[#00D4AA]/15 text-[#00D4AA]' : 'bg-zinc-700 text-zinc-400'
                 }`}>{c.status}</span>
               </button>
             ))}
@@ -831,7 +831,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
 
                 <div className="p-4 border-t border-zinc-800 shrink-0 flex gap-2">
                   <button onClick={() => salvarCampanha(detalhe.campanha.id)} disabled={acaoDet || detalhe.campanha.status === 'salva'}
-                    className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                    className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
                     {detalhe.campanha.status === 'salva' ? '⭐ Salva' : '⭐ Salvar campanha'}
                   </button>
                   <button onClick={() => apagarCampanha(detalhe.campanha.id)} disabled={acaoDet}

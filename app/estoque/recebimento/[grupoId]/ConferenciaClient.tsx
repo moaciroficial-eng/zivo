@@ -432,7 +432,7 @@ export default function ConferenciaClient({
             <button
               onClick={() => closeConferencia()}
               disabled={closing || deleting}
-              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-lg px-5 py-2.5 transition cursor-pointer"
+              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 rounded-lg px-5 py-2.5 transition cursor-pointer"
             >
               {closing ? <><IconSpinner size={14}/> Fechando...</> : 'Fechar Conferência'}
             </button>
@@ -461,7 +461,7 @@ export default function ConferenciaClient({
           </div>
           <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-500' : 'bg-violet-500'}`}
+              className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-500' : 'bg-[#C79A54]'}`}
               style={{ width: `${Math.min(100, (totalScanned / Math.max(totalEsperado, 1)) * 100)}%` }}
             />
           </div>
@@ -482,7 +482,7 @@ export default function ConferenciaClient({
                 const done      = scanned >= esperado
                 const over      = scanned > esperado
                 return (
-                  <div key={p.id} className={`px-5 py-3.5 flex items-center gap-3 transition ${resolvedProduto?.id === p.id ? 'bg-violet-500/5 border-l-2 border-violet-500' : ''}`}>
+                  <div key={p.id} className={`px-5 py-3.5 flex items-center gap-3 transition ${resolvedProduto?.id === p.id ? 'bg-[#C79A54]/5 border-l-2 border-[#C79A54]' : ''}`}>
                     <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 text-xs font-bold transition ${
                       done ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                            : 'bg-zinc-800 border-zinc-700 text-zinc-500'
@@ -531,8 +531,8 @@ export default function ConferenciaClient({
                       </div>
                       <label className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border cursor-pointer transition ${
                         f?.uploading ? 'opacity-50 pointer-events-none border-zinc-700 text-zinc-500'
-                        : f?.url ? 'border-zinc-700 text-zinc-300 hover:border-violet-500/50 hover:text-white'
-                        : 'border-violet-500/40 text-violet-300 bg-violet-500/10 hover:bg-violet-500/15'
+                        : f?.url ? 'border-zinc-700 text-zinc-300 hover:border-[#C79A54]/50 hover:text-white'
+                        : 'border-[#C79A54]/40 text-[#E0B36A] bg-[#C79A54]/10 hover:bg-[#C79A54]/15'
                       }`}>
                         {f?.uploading ? 'Enviando…' : f?.url ? 'Trocar' : 'Adicionar foto'}
                         <input
@@ -566,9 +566,9 @@ export default function ConferenciaClient({
               <button
                 onClick={() => { setScanResult(null); setScanError(''); scanRef.current?.click() }}
                 disabled={scanning}
-                className="w-full flex items-center gap-3 border border-dashed border-zinc-700 hover:border-violet-500/60 bg-zinc-800/30 hover:bg-violet-500/5 rounded-xl px-5 py-5 transition group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center gap-3 border border-dashed border-zinc-700 hover:border-[#C79A54]/60 bg-zinc-800/30 hover:bg-[#C79A54]/5 rounded-xl px-5 py-5 transition group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <div className="w-12 h-12 rounded-xl bg-zinc-800 group-hover:bg-violet-500/10 border border-zinc-700 group-hover:border-violet-500/30 flex items-center justify-center shrink-0 transition text-zinc-400 group-hover:text-violet-300">
+                <div className="w-12 h-12 rounded-xl bg-zinc-800 group-hover:bg-[#C79A54]/10 border border-zinc-700 group-hover:border-[#C79A54]/30 flex items-center justify-center shrink-0 transition text-zinc-400 group-hover:text-[#E0B36A]">
                   {scanning ? <IconSpinner size={20}/> : <IconCamera />}
                 </div>
                 <div className="text-left">
@@ -578,7 +578,7 @@ export default function ConferenciaClient({
                   <p className="text-xs text-zinc-600 mt-0.5">Tire uma foto da etiqueta do produto recebido</p>
                 </div>
                 <div className="ml-auto shrink-0">
-                  <span className="text-xs text-violet-500 font-semibold px-2 py-1 bg-violet-500/10 border border-violet-500/20 rounded-md">IA</span>
+                  <span className="text-xs text-[#C79A54] font-semibold px-2 py-1 bg-[#C79A54]/10 border border-[#C79A54]/20 rounded-md">IA</span>
                 </div>
               </button>
             </div>
@@ -629,7 +629,7 @@ export default function ConferenciaClient({
                     <select
                       value={selectedProdId || scanResult.match_produto_id || ''}
                       onChange={e => setSelectedProdId(e.target.value)}
-                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-violet-500 cursor-pointer [color-scheme:dark]"
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-[#C79A54] cursor-pointer [color-scheme:dark]"
                     >
                       <option value="">— Selecionar produto da nota —</option>
                       {produtos.map(p => (
@@ -711,7 +711,7 @@ export default function ConferenciaClient({
                     <button
                       onClick={confirmScan}
                       disabled={!resolvedProduto}
-                      className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
                     >
                       <IconCheck size={15}/>
                       Confirmar scan

@@ -14,7 +14,7 @@ export default function SignupPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center shadow-lg shadow-[#C79A54]/30 mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
@@ -31,7 +31,7 @@ export default function SignupPage() {
               <input
                 id="nome_loja" name="nome_loja" type="text" required
                 placeholder="Ex: Moda Center"
-                className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
               />
             </div>
 
@@ -40,7 +40,7 @@ export default function SignupPage() {
               <input
                 id="email" name="email" type="email" autoComplete="email" required
                 placeholder="seu@email.com"
-                className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
               />
             </div>
 
@@ -49,7 +49,7 @@ export default function SignupPage() {
               <input
                 id="password" name="password" type="password" autoComplete="new-password" required
                 placeholder="Mínimo 6 caracteres"
-                className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20"
               />
             </div>
 
@@ -61,7 +61,7 @@ export default function SignupPage() {
 
             <button
               type="submit" disabled={pending}
-              className="mt-1 w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition shadow-lg shadow-violet-500/20 cursor-pointer"
+              className="mt-1 w-full bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 disabled:cursor-not-allowed text-[#16151A] font-semibold rounded-lg py-2.5 text-sm transition shadow-lg shadow-[#C79A54]/20 cursor-pointer"
             >
               {pending ? 'Criando conta...' : 'Criar conta'}
             </button>
@@ -77,7 +77,7 @@ export default function SignupPage() {
 
         <p className="text-center text-sm text-zinc-500 mt-6">
           Já tem uma conta?{' '}
-          <Link href="/" className="text-violet-400 hover:text-violet-300 transition font-medium">
+          <Link href="/" className="text-[#C79A54] hover:text-[#E0B36A] transition font-medium">
             Entrar
           </Link>
         </p>

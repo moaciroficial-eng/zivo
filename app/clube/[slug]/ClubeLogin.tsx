@@ -35,21 +35,21 @@ export default function ClubeLogin({ slug, nomeLoja, logo, cadastroAberto }: { s
     <div className="relative min-h-screen bg-[#07070a] text-white flex items-center justify-center p-6 overflow-hidden">
       {/* brilho de fundo */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-10%] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-violet-600/20 blur-[120px]" />
-        <div className="absolute left-1/2 bottom-[-15%] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-indigo-600/10 blur-[120px]" />
+        <div className="absolute left-1/2 top-[-10%] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[#C79A54]/20 blur-[120px]" />
+        <div className="absolute left-1/2 bottom-[-15%] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-[#A67C3D]/10 blur-[120px]" />
       </div>
 
       <div className="relative w-full max-w-sm">
         {/* Cabeçalho: logo + selo */}
         <div className="text-center mb-6">
           {logo ? (
-            <div className="mx-auto mb-4 h-24 w-24 rounded-2xl bg-black ring-1 ring-white/10 shadow-2xl shadow-violet-900/30 overflow-hidden flex items-center justify-center">
+            <div className="mx-auto mb-4 h-24 w-24 rounded-2xl bg-black ring-1 ring-white/10 shadow-2xl shadow-[#3a2c14]/30 overflow-hidden flex items-center justify-center">
               <img src={logo} alt={nomeLoja} className="h-full w-full object-contain" />
             </div>
           ) : (
-            <div className="mx-auto mb-4 h-20 w-20 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-4xl shadow-2xl shadow-violet-900/40">👑</div>
+            <div className="mx-auto mb-4 h-20 w-20 rounded-2xl bg-gradient-to-br from-[#C79A54] to-[#A67C3D] flex items-center justify-center text-4xl shadow-2xl shadow-[#3a2c14]/40">👑</div>
           )}
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-200">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#C79A54]/30 bg-[#C79A54]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#F0CC88]">
             <span>👑</span> Clube VIP
           </div>
           <h1 className="mt-3 text-2xl font-bold tracking-tight">{nomeLoja}</h1>
@@ -65,27 +65,27 @@ export default function ClubeLogin({ slug, nomeLoja, logo, cadastroAberto }: { s
           {/* Alternador de modo (só se o cadastro estiver aberto) */}
           {cadastroAberto && (
             <div className="flex bg-black/40 border border-white/10 rounded-xl p-1 mb-4">
-              <button onClick={() => { setModo('entrar'); setErro('') }} className={`flex-1 text-sm font-semibold rounded-lg py-2 transition ${!cadastrando ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'}`}>Já sou VIP</button>
-              <button onClick={() => { setModo('cadastrar'); setErro('') }} className={`flex-1 text-sm font-semibold rounded-lg py-2 transition ${cadastrando ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'}`}>Criar acesso</button>
+              <button onClick={() => { setModo('entrar'); setErro('') }} className={`flex-1 text-sm font-semibold rounded-lg py-2 transition ${!cadastrando ? 'bg-gradient-to-r from-[#C79A54] to-[#A67C3D] text-[#16151A] shadow' : 'text-zinc-400 hover:text-zinc-200'}`}>Já sou VIP</button>
+              <button onClick={() => { setModo('cadastrar'); setErro('') }} className={`flex-1 text-sm font-semibold rounded-lg py-2 transition ${cadastrando ? 'bg-gradient-to-r from-[#C79A54] to-[#A67C3D] text-[#16151A] shadow' : 'text-zinc-400 hover:text-zinc-200'}`}>Criar acesso</button>
             </div>
           )}
 
           <div className="space-y-3 text-left">
             {cadastrando && (
               <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome"
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40 transition" />
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#C79A54] focus:ring-1 focus:ring-[#C79A54]/40 transition" />
             )}
             <input value={email} onChange={e => setEmail(e.target.value)} type="email" inputMode="email" placeholder="seu@email.com"
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40 transition" />
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#C79A54] focus:ring-1 focus:ring-[#C79A54]/40 transition" />
             <div>
               <input value={telefone} onChange={e => setTelefone(e.target.value)} type="tel" inputMode="tel" placeholder="Seu WhatsApp com DDD"
                 onKeyDown={e => e.key === 'Enter' && enviar()}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40 transition" />
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#C79A54] focus:ring-1 focus:ring-[#C79A54]/40 transition" />
               <p className="text-[11px] text-zinc-500 mt-1.5 ml-1">🔒 Seu WhatsApp é sua senha de acesso.</p>
             </div>
             {erro && <p className="text-sm text-red-400">{erro}</p>}
             <button onClick={enviar} disabled={busy}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-semibold text-sm transition disabled:opacity-50 shadow-lg shadow-violet-900/30">
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] font-semibold text-sm transition disabled:opacity-50 shadow-lg shadow-[#3a2c14]/30">
               {busy ? 'Aguarde...' : cadastrando ? 'Quero ser VIP 👑' : 'Entrar'}
             </button>
           </div>

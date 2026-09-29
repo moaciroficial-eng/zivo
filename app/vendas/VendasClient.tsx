@@ -136,7 +136,7 @@ const EMPTY: FormState = {
   valor: '', dataVenda: TODAY, forma_pagamento: '', produtos: [],
 }
 
-const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 [color-scheme:dark]'
+const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 [color-scheme:dark]'
 
 /* ── Helpers ────────────────────────────────────────────────── */
 
@@ -364,7 +364,7 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
             value={busca}
             onChange={e => setBusca(e.target.value)}
             placeholder="Buscar produto (nome, marca, tam)..."
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 [color-scheme:dark]"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
           />
           {busca.trim() && resultados.length > 0 && (
             <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-56 overflow-y-auto">
@@ -372,13 +372,13 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
                 <button
                   key={item.id + (item._tamanho ?? '')}
                   onClick={() => { setLista(l => [...l, item]); setBusca('') }}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-violet-500/20 transition flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2"
                 >
                   <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0">
                     {fotoMap[item.id] && <img src={fotoMap[item.id]} alt="" className="w-full h-full object-cover" />}
                   </div>
                   <span className="flex-1 min-w-0 truncate">{item.nome}{item.marca ? ` (${item.marca})` : ''}</span>
-                  {item._tamanho && <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold shrink-0">{item._tamanho}</span>}
+                  {item._tamanho && <span className="px-1.5 py-0.5 bg-[#C79A54]/25 text-[#E0B36A] rounded text-xs font-semibold shrink-0">{item._tamanho}</span>}
                   <span className="text-emerald-400 text-xs shrink-0">{formatBRL(item.preco_venda ?? 0)}</span>
                 </button>
               ))}
@@ -419,13 +419,13 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
               onChange={e => { setClienteBusca(e.target.value); setClienteNome(''); setClienteId(null); setClienteDrop(true) }}
               onFocus={() => setClienteDrop(true)}
               placeholder="Buscar cliente..."
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 [color-scheme:dark]"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
             />
             {clienteDrop && clientesFiltrados.length > 0 && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-40 overflow-y-auto">
                 {clientesFiltrados.map(c => (
                   <button key={c.id} onClick={() => { setClienteId(c.id); setClienteNome(c.nome); setClienteBusca(''); setClienteDrop(false) }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-violet-500/20 transition truncate">{c.nome}</button>
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-[#C79A54]/20 transition truncate">{c.nome}</button>
                 ))}
               </div>
             )}
@@ -433,7 +433,7 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
 
           <div className="flex flex-col sm:flex-row gap-5">
             <Coluna titulo="↩️ Volta pro estoque" cor="text-emerald-400" lista={voltam} setLista={setVoltam} busca={buscaVolta} setBusca={setBuscaVolta} resultados={resVolta} comEstoque={false} />
-            <Coluna titulo="🛍️ Sai do estoque (novo)" cor="text-violet-300" lista={saem} setLista={setSaem} busca={buscaSai} setBusca={setBuscaSai} resultados={resSai} comEstoque={true} />
+            <Coluna titulo="🛍️ Sai do estoque (novo)" cor="text-[#E0B36A]" lista={saem} setLista={setSaem} busca={buscaSai} setBusca={setBuscaSai} resultados={resSai} comEstoque={true} />
           </div>
 
           {/* Diferença */}
@@ -450,7 +450,7 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
               <div className="flex gap-2 mt-3">
                 {['pix', 'dinheiro', 'debito', 'credito'].map(m => (
                   <button key={m} onClick={() => setForma(m)}
-                    className={`flex-1 text-xs font-medium rounded-lg py-2 border transition capitalize ${forma === m ? 'bg-violet-600 border-violet-500 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'}`}>
+                    className={`flex-1 text-xs font-medium rounded-lg py-2 border transition capitalize ${forma === m ? 'bg-[#C79A54] border-[#C79A54] text-[#16151A]' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-[#16151A]'}`}>
                     {m === 'pix' ? 'Pix' : m}
                   </button>
                 ))}
@@ -466,7 +466,7 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
             <button
               onClick={() => onConfirmar({ voltam, saem, clienteId, clienteNome, formaPagamento: forma, diferenca })}
               disabled={!podeConfirmar}
-              className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+              className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
             >
               {saving ? 'Registrando...' : 'Confirmar troca'}
             </button>
@@ -1401,7 +1401,7 @@ export default function VendasClient({
             <button
               onClick={openNew}
               onTouchEnd={(e) => { e.preventDefault(); openNew() }}
-              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-violet-500/20"
+              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-4 py-2 transition cursor-pointer shadow-lg shadow-[#C79A54]/20"
             >
               <IconPlus /> Nova Venda
             </button>
@@ -1441,7 +1441,7 @@ export default function VendasClient({
             <button
               onClick={handleAbrirCaixa}
               disabled={caixaLoading}
-              className="shrink-0 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl px-4 py-2 transition cursor-pointer"
+              className="shrink-0 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 rounded-xl px-4 py-2 transition cursor-pointer"
             >
               {caixaLoading ? 'Abrindo...' : 'Abrir'}
             </button>
@@ -1460,7 +1460,7 @@ export default function VendasClient({
               onClick={() => { setFiltro(key); setCustomStart(''); setCustomEnd('') }}
               className={`text-sm px-3.5 py-1.5 rounded-lg font-medium transition cursor-pointer ${
                 filtro === key
-                  ? 'bg-violet-600 text-white'
+                  ? 'bg-[#C79A54] text-[#16151A]'
                   : 'text-zinc-400 bg-zinc-800 hover:text-white border border-zinc-700 hover:border-zinc-500'
               }`}
             >
@@ -1474,7 +1474,7 @@ export default function VendasClient({
               value={customStart}
               max={TODAY}
               onChange={e => { setCustomStart(e.target.value); setFiltro('custom') }}
-              className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition [color-scheme:dark]"
+              className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-[#C79A54] transition [color-scheme:dark]"
             />
             <span className="text-zinc-500 text-sm">–</span>
             <input
@@ -1482,7 +1482,7 @@ export default function VendasClient({
               value={customEnd}
               max={TODAY}
               onChange={e => { setCustomEnd(e.target.value); setFiltro('custom') }}
-              className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-violet-500 transition [color-scheme:dark]"
+              className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-[#C79A54] transition [color-scheme:dark]"
             />
             {filtro === 'custom' && (customStart || customEnd) && (
               <button
@@ -1527,7 +1527,7 @@ export default function VendasClient({
               placeholder="Buscar por cliente..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-violet-500 transition"
+              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] transition"
             />
           </div>
         </div>
@@ -1543,13 +1543,13 @@ export default function VendasClient({
             {search ? (
               <>
                 <p className="font-medium text-zinc-300">Nenhuma venda para &quot;{search}&quot;</p>
-                <button onClick={() => setSearch('')} className="text-sm text-violet-400 hover:text-violet-300 transition">Limpar busca</button>
+                <button onClick={() => setSearch('')} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">Limpar busca</button>
               </>
             ) : vendasPeriodo.length === 0 && vendas.length > 0 ? (
               <>
                 <p className="font-medium text-zinc-300">Sem vendas neste período</p>
                 <p className="text-zinc-500 text-sm">{periodLabel()}</p>
-                <button onClick={() => { setFiltro('mes'); setCustomStart(''); setCustomEnd('') }} className="text-sm text-violet-400 hover:text-violet-300 transition cursor-pointer">
+                <button onClick={() => { setFiltro('mes'); setCustomStart(''); setCustomEnd('') }} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition cursor-pointer">
                   Ver mês atual
                 </button>
               </>
@@ -1557,7 +1557,7 @@ export default function VendasClient({
               <>
                 <p className="font-medium text-zinc-300">Nenhuma venda ainda</p>
                 <p className="text-zinc-500 text-sm">Registre a primeira venda do seu negócio.</p>
-                <button onClick={openNew} className="mt-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 rounded-lg px-5 py-2 transition cursor-pointer">
+                <button onClick={openNew} className="mt-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] rounded-lg px-5 py-2 transition cursor-pointer">
                   Nova Venda
                 </button>
               </>
@@ -1585,7 +1585,7 @@ export default function VendasClient({
                       <tr key={v.id} className="hover:bg-white/[0.025] transition group">
                         <td className="px-4 py-3 font-medium whitespace-nowrap">
                           <span className="flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+                            <span className="w-7 h-7 rounded-full bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-xs font-bold shrink-0">
                               {v.cliente_nome.charAt(0).toUpperCase()}
                             </span>
                             {v.cliente_nome}
@@ -1853,12 +1853,12 @@ export default function VendasClient({
                       onFocus={() => setProductDropdown(true)}
                       onBlur={() => setTimeout(() => setProductDropdown(false), 200)}
                       placeholder="Buscar e adicionar produto..."
-                      className="flex-1 bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                      className="flex-1 bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54] transition"
                     />
                     <button
                       type="button"
                       onClick={() => setShowScanner(true)}
-                      className="p-2 bg-zinc-900 border border-zinc-700 text-violet-400 hover:bg-zinc-800 rounded-lg transition cursor-pointer shrink-0"
+                      className="p-2 bg-zinc-900 border border-zinc-700 text-[#C79A54] hover:bg-zinc-800 rounded-lg transition cursor-pointer shrink-0"
                       title="Escanear etiqueta"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1877,7 +1877,7 @@ export default function VendasClient({
                             key={item.id + (item._tamanho ?? '')}
                             type="button"
                             onMouseDown={() => addFromSearch(item)}
-                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center gap-2.5"
+                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2.5"
                           >
                             <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center">
                               {fotoMap[item.id]
@@ -1892,7 +1892,7 @@ export default function VendasClient({
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {item._tamanho && (
-                                <span className="px-1.5 py-0.5 bg-violet-500/25 text-violet-300 rounded text-xs font-semibold">{item._tamanho}</span>
+                                <span className="px-1.5 py-0.5 bg-[#C79A54]/25 text-[#E0B36A] rounded text-xs font-semibold">{item._tamanho}</span>
                               )}
                               {item.preco_venda != null && <span className="text-emerald-400 text-xs">{formatBRL(item.preco_venda)}</span>}
                             </div>
@@ -1922,13 +1922,13 @@ export default function VendasClient({
                       <div className="flex flex-col flex-1">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Qtd</span>
                         <input type="number" min="1" value={p.qtd} onChange={e => setProdutoField(i, 'qtd', e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#C79A54] transition" />
                       </div>
                       <div className="flex flex-col flex-[2]">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Preço (R$)</span>
                         <input type="number" min="0" step="0.01" value={p.precoUnitario} onChange={e => setProdutoField(i, 'precoUnitario', e.target.value)}
                           placeholder="0,00"
-                          className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#C79A54] transition" />
                       </div>
                       <div className="flex flex-col flex-1">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Desc %</span>
@@ -1936,7 +1936,7 @@ export default function VendasClient({
                             const v = Math.min(descontoMaxPct, Math.max(0, parseFloat(e.target.value) || 0))
                             setProdutoField(i, 'desconto', e.target.value === '' ? '' : String(v))
                           }}
-                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-violet-500 transition" />
+                          className="w-full bg-zinc-900 border border-zinc-700 text-white text-center rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#C79A54] transition" />
                       </div>
                       <div className="flex flex-col items-end shrink-0">
                         <span className="text-[10px] text-zinc-500 mb-0.5">Total</span>
@@ -1962,12 +1962,12 @@ export default function VendasClient({
                         <button
                           type="button"
                           onClick={() => setDescontoVendaTipo('%')}
-                          className={`px-3 py-2 text-sm font-medium transition cursor-pointer ${descontoVendaTipo === '%' ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                          className={`px-3 py-2 text-sm font-medium transition cursor-pointer ${descontoVendaTipo === '%' ? 'bg-[#C79A54] text-[#16151A]' : 'bg-zinc-800 text-zinc-400 hover:text-[#16151A]'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setDescontoVendaTipo('R$')}
-                          className={`px-3 py-2 text-sm font-medium transition cursor-pointer ${descontoVendaTipo === 'R$' ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                          className={`px-3 py-2 text-sm font-medium transition cursor-pointer ${descontoVendaTipo === 'R$' ? 'bg-[#C79A54] text-[#16151A]' : 'bg-zinc-800 text-zinc-400 hover:text-[#16151A]'}`}
                         >R$</button>
                       </div>
                       <input
@@ -1984,7 +1984,7 @@ export default function VendasClient({
                           }
                         }}
                         placeholder={descontoVendaTipo === '%' ? '0' : '0,00'}
-                        className="flex-1 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                        className="flex-1 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54] transition"
                       />
                     </div>
                   </div>
@@ -2005,7 +2005,7 @@ export default function VendasClient({
                     onBlur={() => setTimeout(() => setClienteDropdown(false), 150)}
                     placeholder="Buscar cliente (opcional)..."
                     autoComplete="off"
-                    className={`${INPUT} pl-9 ${form.clienteId ? 'border-violet-500/50' : ''}`}
+                    className={`${INPUT} pl-9 ${form.clienteId ? 'border-[#C79A54]/50' : ''}`}
                   />
                   {form.clienteId && (
                     <button type="button" onClick={() => { setForm(f => ({ ...f, clienteSearch: '', clienteId: '', clienteNome: '' })); setObsCliente('') }} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition">
@@ -2015,8 +2015,8 @@ export default function VendasClient({
                   {clienteDropdown && form.clienteSearch.length >= 1 && (
                     <div className="absolute z-10 top-full mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
                       {clientesFiltrados.length > 0 ? clientesFiltrados.map(c => (
-                        <button key={c.id} type="button" onMouseDown={() => selectCliente(c)} className="w-full text-left px-4 py-2.5 text-sm text-zinc-200 hover:bg-violet-500/20 hover:text-white transition flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">{c.nome.charAt(0).toUpperCase()}</span>
+                        <button key={c.id} type="button" onMouseDown={() => selectCliente(c)} className="w-full text-left px-4 py-2.5 text-sm text-zinc-200 hover:bg-[#C79A54]/20 hover:text-[#16151A] transition flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-xs font-bold shrink-0">{c.nome.charAt(0).toUpperCase()}</span>
                           {c.nome}
                         </button>
                       )) : (
@@ -2026,7 +2026,7 @@ export default function VendasClient({
                   )}
                 </div>
                 {form.clienteId && (
-                  <p className="text-xs text-violet-400 flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
+                  <p className="text-xs text-[#C79A54] flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
                 )}
 
                 {/* Observação em 1 linha — o Terny aprende o cliente. Salva
@@ -2055,7 +2055,7 @@ export default function VendasClient({
                             setObsCliente(nova)
                             salvarObsCliente(nova)
                           }}
-                          className="mt-1.5 self-start text-xs px-2.5 py-1 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 transition cursor-pointer"
+                          className="mt-1.5 self-start text-xs px-2.5 py-1 rounded-full border border-[#C79A54]/40 bg-[#C79A54]/10 text-[#F0CC88] hover:bg-[#C79A54]/20 transition cursor-pointer"
                         >
                           💡 comprou {marca} antes — marcar &quot;gosta de {marca}&quot;?
                         </button>
@@ -2075,7 +2075,7 @@ export default function VendasClient({
                       onClick={() => setSelectedDepId('')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
                         selectedDepId === ''
-                          ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                          ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]'
                           : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                       }`}
                     >
@@ -2088,7 +2088,7 @@ export default function VendasClient({
                         onClick={() => setSelectedDepId(dep.id)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition cursor-pointer ${
                           selectedDepId === dep.id
-                            ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                            ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]'
                             : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                         }`}
                       >
@@ -2129,7 +2129,7 @@ export default function VendasClient({
                   <button
                     type="button"
                     onClick={() => setIsPresente(v => !v)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPresente ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPresente ? 'bg-[#C79A54]' : 'bg-zinc-700'}`}
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isPresente ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
@@ -2221,11 +2221,11 @@ export default function VendasClient({
                 Cancelar
               </button>
               {editing ? (
-                <button onClick={handleSave} disabled={saving} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3 transition cursor-pointer">
+                <button onClick={handleSave} disabled={saving} className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 rounded-xl py-3 transition cursor-pointer">
                   {saving ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               ) : (
-                <button onClick={handleVender} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-xl py-3 transition cursor-pointer flex items-center justify-center gap-2">
+                <button onClick={handleVender} className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-xl py-3 transition cursor-pointer flex items-center justify-center gap-2">
                   Vender
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                 </button>
@@ -2313,7 +2313,7 @@ export default function VendasClient({
                               onClick={() => updateSlot(0, { metodo: m.value, parcelas: null, recebido: '' })}
                               className={`flex flex-col items-center gap-2.5 py-6 rounded-2xl border-2 transition cursor-pointer ${
                                 s.metodo === m.value
-                                  ? 'border-violet-500 bg-violet-500/15 text-violet-300'
+                                  ? 'border-[#C79A54] bg-[#C79A54]/15 text-[#E0B36A]'
                                   : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
                               }`}
                             >
@@ -2397,7 +2397,7 @@ export default function VendasClient({
                             <div className="grid grid-cols-4 gap-2">
                               {PARCELAS.map(n => (
                                 <button key={n} type="button" onClick={() => updateSlot(0, { parcelas: n })}
-                                  className={`py-3.5 rounded-xl border text-sm font-bold transition cursor-pointer ${s.parcelas === n ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'}`}
+                                  className={`py-3.5 rounded-xl border text-sm font-bold transition cursor-pointer ${s.parcelas === n ? 'border-[#C79A54] bg-[#C79A54] text-[#16151A]' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'}`}
                                 >{n}x</button>
                               ))}
                             </div>
@@ -2459,7 +2459,7 @@ export default function VendasClient({
 
                         {s.metodo && s.metodo !== 'crediario' && (
                           <button type="button" onClick={enableHibrido}
-                            className="text-sm text-zinc-600 hover:text-violet-400 transition text-left"
+                            className="text-sm text-zinc-600 hover:text-[#C79A54] transition text-left"
                           >
                             + Dividir em 2 formas de pagamento
                           </button>
@@ -2483,7 +2483,7 @@ export default function VendasClient({
                                 <button key={m.value} type="button"
                                   onClick={() => updateSlot(idx, { metodo: m.value, parcelas: null, recebido: '' })}
                                   className={`text-xs py-2.5 rounded-xl border font-medium transition cursor-pointer ${
-                                    s.metodo === m.value ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500'
+                                    s.metodo === m.value ? 'border-[#C79A54] bg-[#C79A54] text-[#16151A]' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500'
                                   }`}
                                 >{m.label}</button>
                               ))}
@@ -2497,7 +2497,7 @@ export default function VendasClient({
                                   value={s.valor}
                                   onChange={e => updateSlot(idx, { valor: e.target.value })}
                                   placeholder="0,00"
-                                  className="flex-1 bg-zinc-900 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 transition"
+                                  className="flex-1 bg-zinc-900 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54] transition"
                                 />
                               </div>
                             )}
@@ -2521,7 +2521,7 @@ export default function VendasClient({
                                 <div className="grid grid-cols-4 gap-1.5">
                                   {PARCELAS.map(n => (
                                     <button key={n} type="button" onClick={() => updateSlot(idx, { parcelas: n })}
-                                      className={`text-xs py-2.5 rounded-xl border font-bold transition cursor-pointer ${s.parcelas === n ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'}`}
+                                      className={`text-xs py-2.5 rounded-xl border font-bold transition cursor-pointer ${s.parcelas === n ? 'border-[#C79A54] bg-[#C79A54] text-[#16151A]' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500'}`}
                                     >{n}x</button>
                                   ))}
                                 </div>
@@ -2550,7 +2550,7 @@ export default function VendasClient({
                     <button
                       onClick={handlePaymentConfirm}
                       disabled={saving}
-                      className="w-full text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-60 rounded-xl py-3.5 transition cursor-pointer"
+                      className="w-full text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-60 rounded-xl py-3.5 transition cursor-pointer"
                     >
                       {saving ? 'Salvando...' : editing ? 'Confirmar' : `Registrar Venda`}
                     </button>

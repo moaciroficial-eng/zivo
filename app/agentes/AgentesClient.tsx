@@ -61,7 +61,7 @@ type Insight = {
 }
 
 const COR: Record<string, string> = {
-  violet: 'bg-violet-500/10 border-violet-500/20 text-violet-300',
+  violet: 'bg-[#C79A54]/10 border-[#C79A54]/20 text-[#E0B36A]',
   blue:   'bg-blue-500/10 border-blue-500/20 text-blue-300',
   orange: 'bg-orange-500/10 border-orange-500/20 text-orange-300',
   red:    'bg-red-500/10 border-red-500/20 text-red-300',
@@ -201,7 +201,7 @@ export default function AgentesClient({
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-              tab === t ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+              tab === t ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             {t === 'gerente' ? '🧑‍💼 Gerente' : t === 'agentes' ? 'Agentes' : t === 'alertas' ? `Alertas${alertas.length > 0 ? ` (${alertas.length})` : ''}` : t === 'perfis' ? 'Perfis' : '🧠 Aprendizado'}
@@ -237,7 +237,7 @@ export default function AgentesClient({
               <div key={i} className={`flex ${m.papel === 'supervisor' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
                   m.papel === 'supervisor'
-                    ? 'bg-violet-600 text-white rounded-br-sm'
+                    ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm'
                     : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                 }`}>
                   <p className="whitespace-pre-wrap leading-relaxed">{m.conteudo}</p>
@@ -302,13 +302,13 @@ export default function AgentesClient({
               onChange={e => setGerenteInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarParaGerente() }}}
               placeholder="Ex: quero atualizar o cadastro dos clientes..."
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-violet-500 transition [color-scheme:dark]"
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] transition [color-scheme:dark]"
               disabled={gerentePensando}
             />
             <button
               onClick={enviarParaGerente}
               disabled={!gerenteInput.trim() || gerentePensando}
-              className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition cursor-pointer"
+              className="px-4 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 text-[#16151A] rounded-xl text-sm font-medium transition cursor-pointer"
             >
               Enviar
             </button>
@@ -364,7 +364,7 @@ export default function AgentesClient({
             const urgencia = (r.urgencia as string) ?? 'baixa'
             const isSugestao = tipo === 'sugestao_resposta'
             const corUrg = isSugestao
-              ? 'border-violet-500/40 bg-violet-500/5'
+              ? 'border-[#C79A54]/40 bg-[#C79A54]/5'
               : urgencia === 'alta' ? 'border-red-500/40 bg-red-500/5'
               : urgencia === 'media' ? 'border-orange-500/40 bg-orange-500/5'
               : 'border-zinc-700 bg-zinc-900'
@@ -377,7 +377,7 @@ export default function AgentesClient({
                 <div className="flex-1 min-w-0">
                   {isSugestao ? (
                     <>
-                      <p className="text-[11px] text-violet-400 font-semibold mb-1">
+                      <p className="text-[11px] text-[#C79A54] font-semibold mb-1">
                         SUGESTÃO DE RESPOSTA — {r.contato as string}
                         {(r.total as number) > 0 ? ` · ${r.total} itens analisados` : ' · sem estoque da marca'}
                       </p>
@@ -388,7 +388,7 @@ export default function AgentesClient({
                         <button
                           onClick={() => enviarSugestao(log)}
                           disabled={enviando === log.id}
-                          className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
+                          className="px-3 py-1.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] text-xs font-semibold rounded-lg transition cursor-pointer"
                         >
                           {enviando === log.id ? 'Enviando...' : '▶ Enviar pelo WhatsApp'}
                         </button>
@@ -427,7 +427,7 @@ export default function AgentesClient({
             const temp = ins.temperatura ? TEMP_LABEL[ins.temperatura] : null
             return (
               <div key={ins.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-violet-600/20 text-violet-300 flex items-center justify-center text-sm font-bold shrink-0 uppercase overflow-hidden">
+                <div className="w-10 h-10 rounded-full bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-sm font-bold shrink-0 uppercase overflow-hidden">
                   {contato?.foto_url
                     ? <img src={contato.foto_url} alt="" className="w-full h-full object-cover" />
                     : (contato?.nome ?? '?')[0]
@@ -444,7 +444,7 @@ export default function AgentesClient({
                   {ins.resumo && <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{ins.resumo}</p>}
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {(ins.marcas_interesse ?? []).map(m => (
-                      <span key={m} className="text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-1.5 py-0.5 rounded">{m}</span>
+                      <span key={m} className="text-[10px] bg-[#C79A54]/10 text-[#E0B36A] border border-[#C79A54]/20 px-1.5 py-0.5 rounded">{m}</span>
                     ))}
                     {(ins.tamanhos ?? []).map(t => (
                       <span key={t} className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{t}</span>
@@ -506,7 +506,7 @@ export default function AgentesClient({
               <div key={i} className={`flex ${m.papel === 'dono' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
                   m.papel === 'dono'
-                    ? 'bg-violet-600 text-white rounded-br-sm'
+                    ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm'
                     : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                 }`}>
                   {m.conteudo}
@@ -559,12 +559,12 @@ export default function AgentesClient({
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarAprendizado() } }}
                 placeholder="Conta o que você sabe, uma estratégia que funcionou, um padrão que percebeu..."
                 rows={2}
-                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500"
+                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-[#C79A54]"
               />
               <button
                 onClick={enviarAprendizado}
                 disabled={!aprendInput.trim() || aprendPensando}
-                className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-medium transition cursor-pointer"
+                className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 text-[#16151A] px-4 rounded-xl text-sm font-medium transition cursor-pointer"
               >
                 Enviar
               </button>

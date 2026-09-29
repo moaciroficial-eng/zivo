@@ -26,7 +26,7 @@ export function useConfirm(): [ReactNode, (message: string, onOk: () => void, op
           <button onClick={() => setPedido(null)} className="px-4 py-2 rounded-lg text-sm text-zinc-300 hover:bg-zinc-800 transition cursor-pointer">Cancelar</button>
           <button
             onClick={() => { const f = pedido.onOk; setPedido(null); f() }}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold text-white transition cursor-pointer ${pedido.perigo ? 'bg-red-600 hover:bg-red-500' : 'bg-violet-600 hover:bg-violet-500'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold text-[#16151A] transition cursor-pointer ${pedido.perigo ? 'bg-red-600 hover:bg-red-500' : 'bg-[#C79A54] hover:bg-[#C79A54]'}`}
           >
             {pedido.confirmar ?? 'Confirmar'}
           </button>

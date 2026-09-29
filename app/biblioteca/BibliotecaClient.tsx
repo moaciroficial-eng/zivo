@@ -297,7 +297,7 @@ export default function BibliotecaClient({
           </div>
           <button
             onClick={openDrawer}
-            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-4 py-2.5 transition cursor-pointer shadow-lg shadow-violet-500/20"
+            className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-4 py-2.5 transition cursor-pointer shadow-lg shadow-[#C79A54]/20"
           >
             <IconPlus /> Adicionar foto
           </button>
@@ -337,7 +337,7 @@ export default function BibliotecaClient({
                 placeholder="Buscar por modelo ou marca..."
                 value={searchGrid}
                 onChange={e => setSearchGrid(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-violet-500 transition"
+                className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] transition"
               />
             </div>
           </div>
@@ -360,7 +360,7 @@ export default function BibliotecaClient({
             {fotos.length === 0 && (
               <button
                 onClick={openDrawer}
-                className="mt-2 flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 rounded-lg px-5 py-2.5 transition cursor-pointer"
+                className="mt-2 flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] rounded-lg px-5 py-2.5 transition cursor-pointer"
               >
                 <IconCamera /> Adicionar primeira foto
               </button>
@@ -439,7 +439,7 @@ export default function BibliotecaClient({
               {getSizes(viewFoto).length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {getSizes(viewFoto).map(s => (
-                    <span key={s} className="text-sm font-bold bg-violet-500/20 text-violet-300 px-3 py-1 rounded-full border border-violet-500/30">{s}</span>
+                    <span key={s} className="text-sm font-bold bg-[#C79A54]/20 text-[#E0B36A] px-3 py-1 rounded-full border border-[#C79A54]/30">{s}</span>
                   ))}
                 </div>
               )}
@@ -466,9 +466,9 @@ export default function BibliotecaClient({
                 {step === 'photo' ? 'Foto do produto' : 'Vincular ao estoque'}
               </h2>
               <div className="flex items-center gap-2 text-xs text-zinc-600">
-                <span className={step === 'photo' ? 'text-violet-400 font-bold' : ''}>1. Foto</span>
+                <span className={step === 'photo' ? 'text-[#C79A54] font-bold' : ''}>1. Foto</span>
                 <span>→</span>
-                <span className={step === 'link' ? 'text-violet-400 font-bold' : ''}>2. Vincular</span>
+                <span className={step === 'link' ? 'text-[#C79A54] font-bold' : ''}>2. Vincular</span>
               </div>
               <button onClick={closeDrawer} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer">
                 <IconX />
@@ -516,7 +516,7 @@ export default function BibliotecaClient({
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex-1 flex flex-col items-center justify-center gap-2 py-8 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300"
+                          className="flex-1 flex flex-col items-center justify-center gap-2 py-8 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-[#C79A54]/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
@@ -526,7 +526,7 @@ export default function BibliotecaClient({
                         <button
                           type="button"
                           onClick={() => galleryInputRef.current?.click()}
-                          className="flex-1 flex flex-col items-center justify-center gap-2 py-8 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-violet-500/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300"
+                          className="flex-1 flex flex-col items-center justify-center gap-2 py-8 bg-zinc-800/50 border-2 border-dashed border-zinc-700 hover:border-[#C79A54]/50 hover:bg-zinc-800 rounded-2xl transition cursor-pointer text-zinc-500 hover:text-zinc-300"
                         >
                           <IconImage />
                           <span className="text-xs font-medium">Galeria</span>
@@ -545,7 +545,7 @@ export default function BibliotecaClient({
                   <button
                     type="button"
                     onClick={() => setShowScanner(true)}
-                    className="flex items-center justify-center gap-2 text-sm text-zinc-400 hover:text-violet-400 border border-zinc-700 hover:border-violet-500/50 rounded-xl py-3 w-full transition cursor-pointer"
+                    className="flex items-center justify-center gap-2 text-sm text-zinc-400 hover:text-[#C79A54] border border-zinc-700 hover:border-[#C79A54]/50 rounded-xl py-3 w-full transition cursor-pointer"
                   >
                     <IconBarcode /> Tirar foto da etiqueta — IA identifica o produto
                   </button>
@@ -584,7 +584,7 @@ export default function BibliotecaClient({
                           onBlur={() => setTimeout(() => setSearchDropdown(false), 200)}
                           placeholder="Buscar produto por nome..."
                           autoComplete="off"
-                          className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:border-violet-500 transition"
+                          className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:border-[#C79A54] transition"
                         />
                         {searchDropdown && productsFiltrados.length > 0 && (
                           <div className="absolute z-20 top-full mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
@@ -593,7 +593,7 @@ export default function BibliotecaClient({
                                 key={p.id}
                                 type="button"
                                 onMouseDown={() => selectProduct(p)}
-                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-violet-500/20 transition flex items-center justify-between gap-2"
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center justify-between gap-2"
                               >
                                 <div>
                                   <p className="text-zinc-200 font-medium">{p.nome}</p>
@@ -610,7 +610,7 @@ export default function BibliotecaClient({
                       <button
                         type="button"
                         onClick={() => setShowScanner(true)}
-                        className="p-2.5 bg-zinc-800 border border-zinc-700 text-violet-400 hover:bg-zinc-700 rounded-xl transition cursor-pointer shrink-0"
+                        className="p-2.5 bg-zinc-800 border border-zinc-700 text-[#C79A54] hover:bg-zinc-700 rounded-xl transition cursor-pointer shrink-0"
                         title="Escanear código de barras"
                       >
                         <IconBarcode />
@@ -623,7 +623,7 @@ export default function BibliotecaClient({
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-zinc-300">Variações encontradas</p>
-                        <span className="text-xs font-bold bg-violet-500/20 text-violet-300 px-2.5 py-1 rounded-full">
+                        <span className="text-xs font-bold bg-[#C79A54]/20 text-[#E0B36A] px-2.5 py-1 rounded-full">
                           {variants.length} produto{variants.length !== 1 ? 's' : ''}
                         </span>
                       </div>
@@ -638,7 +638,7 @@ export default function BibliotecaClient({
                                   key={v.id}
                                   className={`flex items-center gap-3 px-4 py-3 ${idx < variants.length - 1 ? 'border-b border-zinc-700/50' : ''}`}
                                 >
-                                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+                                  <div className="w-8 h-8 rounded-lg bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-xs font-bold shrink-0">
                                     {tamanho ?? '—'}
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -656,7 +656,7 @@ export default function BibliotecaClient({
                         </>
                       ) : (
                         <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl px-4 py-3 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-xs font-bold shrink-0">
                             {extractTamanho(selectedProduct.nome) ?? '—'}
                           </div>
                           <div>
@@ -691,7 +691,7 @@ export default function BibliotecaClient({
                 <button
                   onClick={() => setStep('link')}
                   disabled={!photoFile}
-                  className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl py-3 transition cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-40 disabled:cursor-not-allowed rounded-xl py-3 transition cursor-pointer flex items-center justify-center gap-2"
                 >
                   Próximo
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -700,7 +700,7 @@ export default function BibliotecaClient({
                 <button
                   onClick={handleSave}
                   disabled={!selectedProduct || saving}
-                  className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl py-3 transition cursor-pointer"
+                  className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] disabled:opacity-40 disabled:cursor-not-allowed rounded-xl py-3 transition cursor-pointer"
                 >
                   {saving ? 'Salvando...' : `Vincular a ${variants.length || 1} produto(s)`}
                 </button>

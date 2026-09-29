@@ -142,7 +142,7 @@ export default function RecebimentoClient({
             </div>
             <p className="font-medium text-zinc-300">Nenhuma conferência pendente</p>
             <p className="text-zinc-500 text-sm">Importe uma NF-e pelo Estoque para iniciar a conferência.</p>
-            <Link href="/estoque" className="mt-2 text-sm font-semibold text-violet-400 hover:text-violet-300 transition">
+            <Link href="/estoque" className="mt-2 text-sm font-semibold text-[#C79A54] hover:text-[#E0B36A] transition">
               Ir para Estoque →
             </Link>
           </div>
@@ -209,7 +209,7 @@ export default function RecebimentoClient({
                     <button
                       onClick={() => abrirNovidades(grupo.grupoId)}
                       disabled={carregando === grupo.grupoId}
-                      className="shrink-0 text-sm font-semibold text-violet-300 border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15 disabled:opacity-50 rounded-lg px-3 py-2 transition cursor-pointer"
+                      className="shrink-0 text-sm font-semibold text-[#E0B36A] border border-[#C79A54]/40 bg-[#C79A54]/10 hover:bg-[#C79A54]/15 disabled:opacity-50 rounded-lg px-3 py-2 transition cursor-pointer"
                     >
                       {carregando === grupo.grupoId ? 'Carregando…' : '📣 Avisar novidades'}
                     </button>

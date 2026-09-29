@@ -80,12 +80,12 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
         >
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#8b5cf6" />
+              <stop offset="0%" stopColor="#C79A54" />
               <stop offset="100%" stopColor="#6366f1" />
             </linearGradient>
             <linearGradient id={gradFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+              <stop offset="0%" stopColor="#C79A54" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#C79A54" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -103,7 +103,7 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
 
           {/* Today marker */}
           {byDay[today] !== undefined && (
-            <circle cx={xPos(today)} cy={yPos(byDay[today] ?? 0)} r="4" fill="#8b5cf6" stroke="#09090b" strokeWidth="2" />
+            <circle cx={xPos(today)} cy={yPos(byDay[today] ?? 0)} r="4" fill="#C79A54" stroke="#09090b" strokeWidth="2" />
           )}
 
           {/* Y axis labels */}
@@ -116,7 +116,7 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
           {/* X axis labels */}
           {xTicks.map(({ day }) => (
             <text key={day} x={xPos(day)} y={H - 6} textAnchor="middle" fontSize="9"
-              fill={day === today ? '#a78bfa' : '#52525b'} fontWeight={day === today ? '600' : '400'}>
+              fill={day === today ? '#E0B36A' : '#52525b'} fontWeight={day === today ? '600' : '400'}>
               {day}
             </text>
           ))}
@@ -139,7 +139,7 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
             <g>
               <line x1={tooltip.x} x2={tooltip.x} y1={PAD.top} y2={PAD.top + chartH}
                 stroke="#3f3f46" strokeWidth="1" strokeDasharray="3 3" />
-              <circle cx={tooltip.x} cy={tooltip.y} r="4" fill="#8b5cf6" stroke="#09090b" strokeWidth="2" />
+              <circle cx={tooltip.x} cy={tooltip.y} r="4" fill="#C79A54" stroke="#09090b" strokeWidth="2" />
               <rect x={Math.min(tooltip.x - 44, W - PAD.right - 88)} y={tooltip.y - 30}
                 width="88" height="22" rx="4" fill="#18181b" stroke="#3f3f46" strokeWidth="1" />
               <text x={Math.min(tooltip.x - 44, W - PAD.right - 88) + 44} y={tooltip.y - 15}

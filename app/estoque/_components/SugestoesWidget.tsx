@@ -24,7 +24,7 @@ const TIPO_LABEL: Record<Sugestao['tipo'], string> = {
 }
 
 const TIPO_COLOR: Record<Sugestao['tipo'], string> = {
-  categoria_incorreta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  categoria_incorreta: 'bg-[#C79A54]/15 text-[#E0B36A] border-[#C79A54]/25',
   custo_faltando:      'bg-amber-500/15 text-amber-300 border-amber-500/25',
   preco_anomalia:      'bg-red-500/15 text-red-300 border-red-500/25',
 }
@@ -113,9 +113,9 @@ export default function SugestoesWidget({
     return (
       <button
         onClick={analisar}
-        className="mb-5 flex items-center gap-2 text-sm text-violet-300 bg-violet-500/8 hover:bg-violet-500/15 border border-violet-500/20 hover:border-violet-500/35 rounded-xl px-4 py-2.5 transition cursor-pointer w-full"
+        className="mb-5 flex items-center gap-2 text-sm text-[#E0B36A] bg-[#C79A54]/8 hover:bg-[#C79A54]/15 border border-[#C79A54]/20 hover:border-[#C79A54]/35 rounded-xl px-4 py-2.5 transition cursor-pointer w-full"
       >
-        <span className="flex items-center gap-1.5 text-violet-400">
+        <span className="flex items-center gap-1.5 text-[#C79A54]">
           <IconSparkle />
           <span className="font-semibold text-xs uppercase tracking-wider">IA</span>
         </span>
@@ -127,7 +127,7 @@ export default function SugestoesWidget({
 
   if (loading) {
     return (
-      <div className="mb-5 flex items-center gap-3 text-sm text-violet-300 bg-violet-500/8 border border-violet-500/20 rounded-xl px-4 py-3">
+      <div className="mb-5 flex items-center gap-3 text-sm text-[#E0B36A] bg-[#C79A54]/8 border border-[#C79A54]/20 rounded-xl px-4 py-3">
         <IconSpinner />
         Analisando {produtos.length} produtos com IA...
       </div>
@@ -155,11 +155,11 @@ export default function SugestoesWidget({
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 text-violet-400">
+              <span className="flex items-center gap-1.5 text-[#C79A54]">
                 <IconSparkle />
                 <span className="text-xs font-semibold uppercase tracking-wider">Sugestões IA</span>
               </span>
-              <span className="text-xs font-semibold px-2 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded-full">
+              <span className="text-xs font-semibold px-2 py-0.5 bg-[#C79A54]/15 text-[#E0B36A] border border-[#C79A54]/25 rounded-full">
                 {visiveis.length}
               </span>
             </div>
@@ -193,7 +193,7 @@ export default function SugestoesWidget({
                     <button
                       onClick={() => aplicar(s)}
                       disabled={aplicando === s.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 rounded-lg transition cursor-pointer"
                     >
                       {aplicando === s.id ? <IconSpinner /> : <IconCheck />}
                       Aplicar

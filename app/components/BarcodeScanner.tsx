@@ -133,13 +133,13 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
             <div className="flex bg-zinc-800/80 rounded-lg p-0.5 gap-0.5">
               <button
                 onClick={() => setMode('scan')}
-                className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${mode === 'scan' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${mode === 'scan' ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400 hover:text-zinc-200'}`}
               >
                 Scanner
               </button>
               <button
                 onClick={() => { setMode('photo'); setPhotoError(null); setPreview('') }}
-                className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${mode === 'photo' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${mode === 'photo' ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400 hover:text-zinc-200'}`}
               >
                 Foto IA
               </button>
@@ -159,11 +159,11 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
           <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="relative w-72 h-44">
-              <div className="absolute top-0 left-0 w-8 h-8 border-violet-400 rounded-tl-md" style={{ borderTopWidth: 3, borderLeftWidth: 3 }} />
-              <div className="absolute top-0 right-0 w-8 h-8 border-violet-400 rounded-tr-md" style={{ borderTopWidth: 3, borderRightWidth: 3 }} />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-violet-400 rounded-bl-md" style={{ borderBottomWidth: 3, borderLeftWidth: 3 }} />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-violet-400 rounded-br-md" style={{ borderBottomWidth: 3, borderRightWidth: 3 }} />
-              <div className="absolute left-0 right-0 h-0.5 bg-violet-400/80 animate-scan" style={{ top: '50%' }} />
+              <div className="absolute top-0 left-0 w-8 h-8 border-[#C79A54] rounded-tl-md" style={{ borderTopWidth: 3, borderLeftWidth: 3 }} />
+              <div className="absolute top-0 right-0 w-8 h-8 border-[#C79A54] rounded-tr-md" style={{ borderTopWidth: 3, borderRightWidth: 3 }} />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-[#C79A54] rounded-bl-md" style={{ borderBottomWidth: 3, borderLeftWidth: 3 }} />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-[#C79A54] rounded-br-md" style={{ borderBottomWidth: 3, borderRightWidth: 3 }} />
+              <div className="absolute left-0 right-0 h-0.5 bg-[#C79A54]/80 animate-scan" style={{ top: '50%' }} />
             </div>
           </div>
           <p className="absolute bottom-8 left-0 right-0 text-center text-white/70 text-xs">
@@ -200,7 +200,7 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={preview} alt="Etiqueta" className="w-44 h-44 object-cover rounded-2xl shadow-xl" />
               )}
-              <div className="flex items-center gap-2.5 text-violet-400">
+              <div className="flex items-center gap-2.5 text-[#C79A54]">
                 <IconSpinner />
                 <p className="font-medium">IA lendo a etiqueta...</p>
               </div>
@@ -224,7 +224,7 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
                 <div className="flex gap-3 w-full max-w-xs">
                   <button
                     onClick={() => { setPhotoError(null); photoInputRef.current?.click() }}
-                    className="flex-1 flex flex-col items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-2xl px-4 py-4 text-sm transition cursor-pointer shadow-lg shadow-violet-500/30"
+                    className="flex-1 flex flex-col items-center gap-1.5 bg-[#C79A54] hover:bg-[#C79A54] text-[#16151A] font-semibold rounded-2xl px-4 py-4 text-sm transition cursor-pointer shadow-lg shadow-[#C79A54]/30"
                   >
                     <IconCamera />
                     <span className="text-xs">Câmera</span>
@@ -268,7 +268,7 @@ export default function BarcodeScanner({ onScan, onClose, onLabelScan }: Props) 
                       onChange={e => setManual(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && manual.trim()) onScan(manual.trim()) }}
                       placeholder="Ex: 7891234567890"
-                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-center rounded-xl px-4 py-3 text-sm tracking-widest outline-none focus:border-violet-500"
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-center rounded-xl px-4 py-3 text-sm tracking-widest outline-none focus:border-[#C79A54]"
                     />
                     <button
                       onClick={() => { if (manual.trim()) onScan(manual.trim()) }}

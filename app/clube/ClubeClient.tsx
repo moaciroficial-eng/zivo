@@ -206,7 +206,7 @@ export default function ClubeClient({
             <input readOnly value={linkPublico} className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none" />
             <div className="flex gap-2">
               <button onClick={copiarLink} className="flex-1 text-sm font-medium border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-2 transition cursor-pointer">Copiar</button>
-              <button onClick={convidarTodos} disabled={convidando} className="flex-1 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-3 py-2 transition cursor-pointer disabled:opacity-50 whitespace-nowrap">
+              <button onClick={convidarTodos} disabled={convidando} className="flex-1 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-3 py-2 transition cursor-pointer disabled:opacity-50 whitespace-nowrap">
                 {convidando ? 'Enviando...' : 'Convidar todos'}
               </button>
             </div>
@@ -218,17 +218,17 @@ export default function ClubeClient({
           <button onClick={() => setModal('noclube')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-emerald-500/40 rounded-2xl p-4 transition cursor-pointer">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider">No clube</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{noClube.length}</p>
-            <p className="text-[10px] text-violet-400 mt-0.5">editar →</p>
+            <p className="text-[10px] text-[#C79A54] mt-0.5">editar →</p>
           </button>
-          <button onClick={() => setModal('membros')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-violet-500/40 rounded-2xl p-4 transition cursor-pointer">
+          <button onClick={() => setModal('membros')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-[#C79A54]/40 rounded-2xl p-4 transition cursor-pointer">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Membros VIP</p>
             <p className="text-2xl font-bold mt-1">{membros.length}</p>
-            <p className="text-[10px] text-violet-400 mt-0.5">ver lista →</p>
+            <p className="text-[10px] text-[#C79A54] mt-0.5">ver lista →</p>
           </button>
           <button onClick={() => setModal('vendas')} className="text-left bg-zinc-900/60 border border-zinc-800/60 hover:border-emerald-500/40 rounded-2xl p-4 transition cursor-pointer">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Vendas</p>
             <p className="text-2xl font-bold mt-1 text-emerald-400">{vendas.length}</p>
-            <p className="text-[10px] text-violet-400 mt-0.5">ver lista →</p>
+            <p className="text-[10px] text-[#C79A54] mt-0.5">ver lista →</p>
           </button>
         </div>
 
@@ -246,7 +246,7 @@ export default function ClubeClient({
               </div>
               <div className="flex items-center justify-between border-t border-zinc-800/60 pt-4">
                 <div><p className="text-sm font-medium">Cadastro de novos VIPs</p><p className="text-xs text-zinc-500">Aberto: qualquer um com o link entra. Fechado: só quem já é VIP.</p></div>
-                <button onClick={() => toggleConfig('clube_cadastro_aberto', !aberto)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition shrink-0 ${aberto ? 'bg-[#3B6FFF]' : 'bg-zinc-700'}`}><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${aberto ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                <button onClick={() => toggleConfig('clube_cadastro_aberto', !aberto)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition shrink-0 ${aberto ? 'bg-[#C79A54]' : 'bg-zinc-700'}`}><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${aberto ? 'translate-x-6' : 'translate-x-1'}`} /></button>
               </div>
               <div className="border-t border-zinc-800/60 pt-4 space-y-3">
                 <p className="text-sm font-medium">Personalização</p>
@@ -254,12 +254,12 @@ export default function ClubeClient({
                   <div className="w-14 h-14 rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center text-zinc-600 text-xs">
                     {logo ? <img src={logo} alt="logo" className="w-full h-full object-contain" /> : 'logo'}
                   </div>
-                  <label className={`inline-block text-sm font-medium border rounded-lg px-3 py-2 cursor-pointer transition ${uploadingLogo ? 'opacity-50 pointer-events-none border-zinc-700' : 'border-zinc-700 hover:border-violet-500/50'}`}>
+                  <label className={`inline-block text-sm font-medium border rounded-lg px-3 py-2 cursor-pointer transition ${uploadingLogo ? 'opacity-50 pointer-events-none border-zinc-700' : 'border-zinc-700 hover:border-[#C79A54]/50'}`}>
                     {uploadingLogo ? 'Enviando...' : logo ? 'Trocar logo' : 'Enviar logo'}
                     <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
                   </label>
                 </div>
-                <textarea value={comoTxt} onChange={e => setComoTxt(e.target.value)} onBlur={salvarComoComprar} rows={3} placeholder={'Como comprar (rodapé do site) — ex.: 1) Escolha  2) Clique em Comprar  3) Retirada/entrega...'} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500 resize-none" />
+                <textarea value={comoTxt} onChange={e => setComoTxt(e.target.value)} onBlur={salvarComoComprar} rows={3} placeholder={'Como comprar (rodapé do site) — ex.: 1) Escolha  2) Clique em Comprar  3) Retirada/entrega...'} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54] resize-none" />
               </div>
               <div className="border-t border-zinc-800/60 pt-4 space-y-2">
                 <div className="flex items-center justify-between">
@@ -268,7 +268,7 @@ export default function ClubeClient({
                 </div>
                 <p className="text-xs text-zinc-500">Access Token do Mercado Pago (produção). Com ele o cliente paga no site; sem token, o botão vira &quot;Quero essa&quot; no WhatsApp.</p>
                 <div className="flex gap-2">
-                  <input type="password" value={mp} onChange={e => setMp(e.target.value)} placeholder="APP_USR-..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+                  <input type="password" value={mp} onChange={e => setMp(e.target.value)} placeholder="APP_USR-..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54]" />
                   <button onClick={salvarMp} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
                 </div>
               </div>
@@ -279,7 +279,7 @@ export default function ClubeClient({
                 </div>
                 <p className="text-xs text-zinc-500">Se você tem um domínio só pro clube (ex.: <b className="text-zinc-400">clubemoca.com.br</b>), coloque aqui. O endereço abre direto a vitrine — sem o &quot;/clube/...&quot;. Antes precisa apontar o domínio pra Vercel.</p>
                 <div className="flex gap-2">
-                  <input type="text" value={dominio} onChange={e => setDominio(e.target.value)} onBlur={salvarDominio} placeholder="clubemoca.com.br" className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+                  <input type="text" value={dominio} onChange={e => setDominio(e.target.value)} onBlur={salvarDominio} placeholder="clubemoca.com.br" className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54]" />
                   <button onClick={salvarDominio} className="text-sm font-semibold border border-zinc-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition cursor-pointer shrink-0">Salvar</button>
                 </div>
               </div>
@@ -293,10 +293,10 @@ export default function ClubeClient({
             <h2 className="font-semibold text-sm">Selecione os produtos do clube</h2>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
-                <input type="checkbox" checked={soParados} onChange={e => setSoParados(e.target.checked)} className="accent-violet-500" />
+                <input type="checkbox" checked={soParados} onChange={e => setSoParados(e.target.checked)} className="accent-[#C79A54]" />
                 Só parados (30+ dias)
               </label>
-              <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar..." className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-violet-500" />
+              <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar..." className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#C79A54]" />
             </div>
           </div>
           <div className="p-4 sm:p-5 max-h-[640px] overflow-y-auto">
@@ -457,21 +457,21 @@ export default function ClubeClient({
               {membros.map(m => (
                 <div key={m.id} className="px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-violet-500/15 border border-violet-500/25 flex items-center justify-center text-violet-300 text-xs font-bold shrink-0">{(m.nome ?? m.email).charAt(0).toUpperCase()}</div>
+                    <div className="w-8 h-8 rounded-full bg-[#C79A54]/15 border border-[#C79A54]/25 flex items-center justify-center text-[#E0B36A] text-xs font-bold shrink-0">{(m.nome ?? m.email).charAt(0).toUpperCase()}</div>
                     <div className="flex-1 min-w-0">
                       <p className="truncate text-sm">{m.nome || m.email}</p>
                       <p className="text-xs text-zinc-500 truncate">{m.email}{m.telefone ? ` · ${m.telefone}` : ''}</p>
                     </div>
                     {m.cliente_id
                       ? <span className="text-[11px] text-emerald-400 shrink-0">✓ {nomeCliente(m.cliente_id)}</span>
-                      : <button onClick={() => { setLinkMembro(linkMembro === m.id ? null : m.id); setLinkBusca('') }} className="text-[11px] font-semibold text-violet-300 border border-violet-500/30 rounded px-2 py-1 shrink-0 hover:bg-violet-500/10 transition cursor-pointer">Linkar cliente</button>}
+                      : <button onClick={() => { setLinkMembro(linkMembro === m.id ? null : m.id); setLinkBusca('') }} className="text-[11px] font-semibold text-[#E0B36A] border border-[#C79A54]/30 rounded px-2 py-1 shrink-0 hover:bg-[#C79A54]/10 transition cursor-pointer">Linkar cliente</button>}
                   </div>
                   {linkMembro === m.id && (
                     <div className="mt-2 sm:pl-11">
-                      <input autoFocus value={linkBusca} onChange={e => setLinkBusca(e.target.value)} placeholder="Buscar cliente pelo nome ou telefone..." className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-violet-500" />
+                      <input autoFocus value={linkBusca} onChange={e => setLinkBusca(e.target.value)} placeholder="Buscar cliente pelo nome ou telefone..." className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C79A54]" />
                       <div className="mt-1 max-h-40 overflow-y-auto">
                         {clientes.filter(c => c.nome.toLowerCase().includes(linkBusca.toLowerCase()) || (c.telefone ?? '').includes(linkBusca)).slice(0, 8).map(c => (
-                          <button key={c.id} onClick={() => linkarCliente(m.id, c.id)} className="w-full text-left px-3 py-2 text-sm hover:bg-violet-500/20 rounded transition cursor-pointer">
+                          <button key={c.id} onClick={() => linkarCliente(m.id, c.id)} className="w-full text-left px-3 py-2 text-sm hover:bg-[#C79A54]/20 rounded transition cursor-pointer">
                             {c.nome} <span className="text-xs text-zinc-500">{c.telefone ?? ''}</span>
                           </button>
                         ))}

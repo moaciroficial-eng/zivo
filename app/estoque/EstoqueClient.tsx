@@ -35,7 +35,7 @@ const CAT_LABEL: Record<Produto['categoria'], string> = {
 }
 
 const CAT_COLOR: Record<Produto['categoria'], string> = {
-  camiseta: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  camiseta: 'bg-[#C79A54]/15 text-[#E0B36A] border-[#C79A54]/25',
   blusa:    'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
   camisa:   'bg-orange-500/15 text-orange-300 border-orange-500/25',
   regata:   'bg-rose-500/15 text-rose-300 border-rose-500/25',
@@ -44,7 +44,7 @@ const CAT_COLOR: Record<Produto['categoria'], string> = {
   polo:     'bg-sky-500/15 text-sky-300 border-sky-500/25',
   tenis:    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
   chinelo:  'bg-amber-500/15 text-amber-300 border-amber-500/25',
-  cueca:    'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  cueca:    'bg-[#A67C3D]/15 text-[#E0B36A] border-[#A67C3D]/25',
   meia:     'bg-teal-500/15 text-teal-300 border-teal-500/25',
   bone:     'bg-lime-500/15 text-lime-300 border-lime-500/25',
   acessorios: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
@@ -225,7 +225,7 @@ export default function EstoqueClient({
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
             <button
               onClick={() => setColarOpen(true)}
-              className="flex items-center gap-2 text-sm text-zinc-200 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/30 rounded-lg px-4 py-2 transition cursor-pointer"
+              className="flex items-center gap-2 text-sm text-zinc-200 bg-[#C79A54]/15 hover:bg-[#C79A54]/25 border border-[#C79A54]/30 rounded-lg px-4 py-2 transition cursor-pointer"
             >
               📋 Colar lista
             </button>
@@ -243,7 +243,7 @@ export default function EstoqueClient({
             </button>
             <Link
               href="/estoque/novo"
-              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-4 py-2 transition shadow-lg shadow-violet-500/20"
+              className="flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-4 py-2 transition shadow-lg shadow-[#C79A54]/20"
             >
               <IconPlus /> Novo Produto
             </Link>
@@ -254,7 +254,7 @@ export default function EstoqueClient({
         <div className="flex gap-2 mb-4">
           <Link
             href="/estoque/condicional"
-            className="flex items-center gap-2 text-sm font-medium text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/25 rounded-xl px-4 py-2.5 transition"
+            className="flex items-center gap-2 text-sm font-medium text-[#C79A54] bg-[#C79A54]/10 hover:bg-[#C79A54]/20 border border-[#C79A54]/25 rounded-xl px-4 py-2.5 transition"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -294,12 +294,12 @@ export default function EstoqueClient({
           const cond = produtos.filter(p => p.status === 'em_condicional')
           if (!cond.length) return null
           return (
-            <div className="mb-4 flex items-center justify-between gap-4 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-xl">
-              <div className="flex items-center gap-2.5 text-sm text-violet-400">
-                <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0"/>
+            <div className="mb-4 flex items-center justify-between gap-4 px-4 py-3 bg-[#C79A54]/10 border border-[#C79A54]/20 rounded-xl">
+              <div className="flex items-center gap-2.5 text-sm text-[#C79A54]">
+                <span className="w-2 h-2 rounded-full bg-[#C79A54] animate-pulse shrink-0"/>
                 {cond.length} peça{cond.length !== 1 ? 's' : ''} em condicional
               </div>
-              <Link href="/estoque/condicional" className="text-sm font-semibold text-violet-400 hover:text-violet-300 transition whitespace-nowrap">
+              <Link href="/estoque/condicional" className="text-sm font-semibold text-[#C79A54] hover:text-[#E0B36A] transition whitespace-nowrap">
                 Ver condicional →
               </Link>
             </div>
@@ -358,7 +358,7 @@ export default function EstoqueClient({
               placeholder="Buscar produto ou marca..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full sm:w-64 bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition"
+              className="w-full sm:w-64 bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 transition"
             />
           </div>
           {lowStockCount > 0 && (
@@ -380,13 +380,13 @@ export default function EstoqueClient({
             {search || catFiltro !== 'todos' ? (
               <>
                 <p className="font-medium text-zinc-300">Nenhum resultado encontrado</p>
-                <button onClick={() => { setSearch(''); setCatFiltro('todos') }} className="text-sm text-violet-400 hover:text-violet-300 transition">Limpar filtros</button>
+                <button onClick={() => { setSearch(''); setCatFiltro('todos') }} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">Limpar filtros</button>
               </>
             ) : (
               <>
                 <p className="font-medium text-zinc-300">Nenhum produto no estoque</p>
                 <p className="text-zinc-500 text-sm">Adicione o primeiro produto ou importe via CSV.</p>
-                <Link href="/estoque/novo" className="mt-2 inline-block text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg px-5 py-2 transition">Novo Produto</Link>
+                <Link href="/estoque/novo" className="mt-2 inline-block text-sm font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] rounded-lg px-5 py-2 transition">Novo Produto</Link>
               </>
             )}
           </div>
@@ -477,7 +477,7 @@ export default function EstoqueClient({
                             ) : (
                               <>
                                 <Link href={`/estoque/${p.id}/editar`} title="Editar" className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition opacity-0 group-hover:opacity-100"><IconEdit /></Link>
-                                <Link href={`/estoque/novo?duplicar=${p.id}`} title="Duplicar (ex.: outra cor)" className="p-1.5 text-zinc-500 hover:text-violet-300 hover:bg-zinc-800 rounded-lg transition opacity-0 group-hover:opacity-100"><IconCopy /></Link>
+                                <Link href={`/estoque/novo?duplicar=${p.id}`} title="Duplicar (ex.: outra cor)" className="p-1.5 text-zinc-500 hover:text-[#E0B36A] hover:bg-zinc-800 rounded-lg transition opacity-0 group-hover:opacity-100"><IconCopy /></Link>
                                 <button onClick={() => setConfirmDelete(p.id)} title="Excluir" className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconTrash /></button>
                               </>
                             )}
@@ -594,7 +594,7 @@ function ColarProdutosModal({ onClose, onDone }: { onClose: () => void; onDone: 
             <>
               <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={10}
                 placeholder={"Cola aqui do Excel ou do caderno...\nEx:\nCamiseta Aramis Azul  M/G/GG  R$199\nCalça Jeans 38(2) 40(3) 42  custo 45 venda 149\nChinelo Havaianas 38 39 40  29,90"}
-                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 resize-y focus:outline-none focus:border-[#C79A54] [color-scheme:dark]" />
               <p className="text-[11px] text-zinc-600 mt-1.5">A IA identifica nome, marca, cor, categoria, gênero, a grade (tamanhos+qtd) e os preços.</p>
             </>
           ) : (
@@ -604,7 +604,7 @@ function ColarProdutosModal({ onClose, onDone }: { onClose: () => void; onDone: 
                 <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-2 flex flex-col gap-1.5">
                   <div className="flex items-center gap-1.5">
                     <input value={p.nome} onChange={e => upd(i, 'nome', e.target.value)} placeholder="nome"
-                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-violet-500" />
+                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-[#C79A54]" />
                     <select value={p.genero ?? ''} onChange={e => upd(i, 'genero', e.target.value)}
                       className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1 text-xs text-zinc-200 [color-scheme:dark]">
                       <option value="">?</option><option value="M">M</option><option value="F">F</option><option value="U">Uni</option>
@@ -614,13 +614,13 @@ function ColarProdutosModal({ onClose, onDone }: { onClose: () => void; onDone: 
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <input value={p.marca ?? ''} onChange={e => upd(i, 'marca', e.target.value)} placeholder="marca"
-                      className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input value={p.categoria ?? ''} onChange={e => upd(i, 'categoria', e.target.value)} placeholder="categoria"
-                      className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input defaultValue={gradeStr(p.tamanhos)} onBlur={e => updGrade(i, e.target.value)} placeholder="grade: M G(2) GG"
-                      className="w-32 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500" />
+                      className="w-32 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#C79A54]" />
                     <input value={p.preco_venda ?? ''} onChange={e => upd(i, 'preco_venda', e.target.value)} placeholder="venda R$" inputMode="decimal"
-                      className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-[#00D4AA] focus:outline-none focus:border-violet-500" />
+                      className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[11px] text-[#00D4AA] focus:outline-none focus:border-[#C79A54]" />
                   </div>
                 </div>
               ))}
@@ -632,7 +632,7 @@ function ColarProdutosModal({ onClose, onDone }: { onClose: () => void; onDone: 
         <div className="p-4 border-t border-zinc-800 shrink-0 flex gap-2">
           {!preview ? (
             <button onClick={ler} disabled={!texto.trim() || lendo}
-              className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+              className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
               {lendo ? 'Lendo a lista...' : '✨ Ler lista'}
             </button>
           ) : (
@@ -640,7 +640,7 @@ function ColarProdutosModal({ onClose, onDone }: { onClose: () => void; onDone: 
               <button onClick={() => { setPreview(null); setErro(null) }} disabled={importando}
                 className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">← Voltar</button>
               <button onClick={importar} disabled={importando || !preview.length}
-                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition cursor-pointer">
+                className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer">
                 {importando ? 'Importando...' : `Importar ${preview.length} produto(s)`}
               </button>
             </>

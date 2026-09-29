@@ -806,7 +806,7 @@ export default function DashboardClient({
               <p className="font-semibold text-lg">Defina sua meta de faturamento</p>
               <p className="text-zinc-400 text-sm mt-1 max-w-sm">A IA cria um plano de vendas diário com produtos a priorizar e clientes a contatar para você bater a meta.</p>
             </div>
-            <button onClick={() => setShowMetaModal(true)} className="mt-1 px-5 py-2.5 bg-gradient-to-r from-[#C79A54] to-[#00D4AA] hover:opacity-90 text-white rounded-xl font-semibold text-sm transition cursor-pointer">
+            <button onClick={() => setShowMetaModal(true)} className="mt-1 px-5 py-2.5 bg-gradient-to-r from-[#C79A54] to-[#00D4AA] hover:opacity-90 text-[#16151A] rounded-xl font-semibold text-sm transition cursor-pointer">
               Definir meta do mês
             </button>
           </div>
