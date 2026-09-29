@@ -1,6 +1,7 @@
 import { after } from 'next/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { varrerConversasPendentes } from '@/lib/agentes/varredura'
+import { logErro } from '@/lib/log-erro'
 
 /* ══════════════════════════════════════════════════════════════
    PIPELINE DE MENSAGEM RECEBIDA — compartilhado entre provedores
@@ -126,7 +127,7 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
       body: JSON.stringify({ userId: cleanUserId, mensagem: conteudo, ownerPhone }),
-    }).catch(() => null))
+    }).catch(e => logErro('inbound:owner-comando', e, undefined, cleanUserId)))
     return
   }
 
@@ -302,20 +303,20 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
             contatoId:       contato.id,
             respostaContato: conteudo,
           }),
-        }).catch(() => null))
+        }).catch(e => logErro('inbound:gerente-executar', e, { contatoId: contato.id }, cleanUserId)))
       } else {
         /* Atendimento normal: debounce de 3s para agrupar mensagens em sequência */
         after(fetch(`${baseUrl}/api/agentes/dados`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ contatoId: contato.id, userId: cleanUserId }),
-        }).catch(() => null))
+        }).catch(e => logErro('inbound:agentes-dados', e, { contatoId: contato.id }, cleanUserId)))
 
         after(fetch(`${baseUrl}/api/agentes/processar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
           body: JSON.stringify({ contatoId: contato.id, userId: cleanUserId, timestamp }),
-        }).catch(() => null))
+        }).catch(e => logErro('inbound:agentes-processar', e, { contatoId: contato.id }, cleanUserId)))
       }
     }
   }
