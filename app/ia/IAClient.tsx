@@ -662,7 +662,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
       {/* ── Tab: Oportunidades (motor) ──────────────────── */}
       {tab === 'oportunidades' && (
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col gap-2.5 pr-1">
-          <p className="text-xs text-zinc-500 shrink-0">Cruzamentos do dia — produto certo × pessoa certa (tamanho, marca, temperatura). Envie pelo Zivo em 1 clique.</p>
+          <p className="text-xs text-zinc-500 shrink-0">Cruzamentos do dia — produto certo × pessoa certa (tamanho, marca, temperatura). Envie pelo Terny em 1 clique.</p>
           {oportunidades.length === 0 && (
             <div className="text-center py-10 text-sm text-zinc-500">Nenhuma oportunidade forte agora. Conforme os clientes ganham histórico e chega estoque novo, elas aparecem aqui.</div>
           )}
@@ -763,7 +763,7 @@ export default function IAClient({ sugestoes: initialSugestoes, agentes, logs, o
   )
 }
 
-/* Card de oportunidade do motor — editável, foto, envio pelo Zivo, remover */
+/* Card de oportunidade do motor — editável, foto, envio pelo Terny, remover */
 function OportunidadeCard({ o, onResolvido }: { o: OportunidadeFeed; onResolvido: () => void }) {
   const [aberto, setAberto] = useState(false)
   const [msg, setMsg] = useState(o.copy)
@@ -846,7 +846,7 @@ function OportunidadeCard({ o, onResolvido }: { o: OportunidadeFeed; onResolvido
           <div className="flex items-center gap-2 mt-2">
             <button onClick={enviar} disabled={enviando || !msg.trim()}
               className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer">
-              {enviando ? 'Enviando...' : '📤 Enviar pelo Zivo'}
+              {enviando ? 'Enviando...' : '📤 Enviar pelo Terny'}
             </button>
             <button onClick={() => fileRef.current?.click()} disabled={subindo || enviando}
               className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded-lg px-2.5 py-1.5 transition cursor-pointer">

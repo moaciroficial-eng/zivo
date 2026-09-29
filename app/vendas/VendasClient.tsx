@@ -552,7 +552,7 @@ export default function VendasClient({
   const [trocoEmHaver, setTrocoEmHaver] = useState(false)
   const [usarHaver, setUsarHaver] = useState('')
   /* Observação do cliente capturada na hora da venda (1 linha). É o
-     combustível da inteligência — o Zivo lê isso pra pensar como o dono. */
+     combustível da inteligência — o Terny lê isso pra pensar como o dono. */
   const [obsCliente, setObsCliente] = useState('')
   const [obsOverrides, setObsOverrides] = useState<Record<string, string>>({})
   const [pagandoParcela, setPagandoParcela] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
@@ -2027,7 +2027,7 @@ export default function VendasClient({
                   <p className="text-xs text-violet-400 flex items-center gap-1 mt-0.5"><IconCheck size={12}/> Cliente selecionado</p>
                 )}
 
-                {/* Observação em 1 linha — o Zivo aprende o cliente. Salva
+                {/* Observação em 1 linha — o Terny aprende o cliente. Salva
                     sozinho ao sair do campo. Sem formulário, sem travar. */}
                 {form.clienteId && (
                   <>
@@ -2039,7 +2039,7 @@ export default function VendasClient({
                       placeholder={`💡 O que você sabe de ${form.clienteNome?.split(' ')[0] || 'quem'}? (gosta de X, compra em promoção...)`}
                       className={`${INPUT} mt-2 text-sm`}
                     />
-                    {/* Zivo sugere a nota a partir do histórico (marca com
+                    {/* Terny sugere a nota a partir do histórico (marca com
                         afinidade real). Um toque adiciona. */}
                     {(() => {
                       const marca = marcaPorCliente[form.clienteId]

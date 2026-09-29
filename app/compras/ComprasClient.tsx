@@ -449,7 +449,7 @@ export default function ComprasClient({ marcas, publico }: { marcas: string[]; p
             {(resPedido?.alerta_dados_insuficientes || resMeta?.alerta_dados_insuficientes) && (
               <div className="flex gap-2 items-start bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-300">
                 <span className="shrink-0 mt-0.5">⚠️</span>
-                <span>Baseado em <strong>{resultado.mesesAnalisados} {resultado.mesesAnalisados === 1 ? 'mês' : 'meses'}</strong> de histórico. Os números são uma referência — conforme você usar o Zivo, as recomendações ficam mais precisas.</span>
+                <span>Baseado em <strong>{resultado.mesesAnalisados} {resultado.mesesAnalisados === 1 ? 'mês' : 'meses'}</strong> de histórico. Os números são uma referência — conforme você usar o Terny, as recomendações ficam mais precisas.</span>
               </div>
             )}
 

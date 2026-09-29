@@ -335,7 +335,7 @@ export async function sendWhatsAppTemplate(opts: TemplateOptions): Promise<{ mes
    CONTROLE DE ORIGEM — IA vs humano
 
    Toda mensagem enviada pela IA é gravada com raw.origem = 'ia'.
-   Mensagens manuais (UI do Zivo ou celular do dono) não têm esse
+   Mensagens manuais (UI do Terny ou celular do dono) não têm esse
    marcador. Se o dono mandou mensagem manual há pouco, ele ASSUMIU
    a conversa — a IA não pode responder por cima.
    ══════════════════════════════════════════════════════════════ */

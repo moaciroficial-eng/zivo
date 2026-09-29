@@ -156,7 +156,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
           <h1 className="text-xl font-bold text-white">Configurações da Loja</h1>
-          <p className="text-sm text-zinc-500 mt-1">Personalize como o Zivo representa sua loja</p>
+          <p className="text-sm text-zinc-500 mt-1">Personalize como o Terny representa sua loja</p>
         </div>
 
         {/* Dados da loja */}
@@ -352,7 +352,7 @@ export default function LojaConfigClient({ user, config }: { user: { id: string;
                   {provisionando ? 'Provisionando...' : 'Provisionar templates'}
                 </button>
               </div>
-              <p className="text-xs text-zinc-600">"Provisionar templates" copia os modelos já aprovados do Zivo pra WABA desta loja (a Meta ainda aprova cada um).</p>
+              <p className="text-xs text-zinc-600">"Provisionar templates" copia os modelos já aprovados do Terny pra WABA desta loja (a Meta ainda aprova cada um).</p>
             </div>
           )}
         </div>

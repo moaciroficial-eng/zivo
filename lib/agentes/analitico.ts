@@ -107,7 +107,7 @@ ${estoquesBaixos.slice(0, 5).map((e: { nome: string; cor: string | null; tamanho
     max_tokens: 600,
     messages: [{
       role: 'user',
-      content: `Você é o analista de negócios do Zivo. Gere um relatório objetivo e direto para o dono de uma loja de roupas.
+      content: `Você é o analista de negócios do Terny. Gere um relatório objetivo e direto para o dono de uma loja de roupas.
 
 DADOS:
 ${contexto}

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import WhatsAppClient from './WhatsAppClient'
 
-export const metadata: Metadata = { title: 'WhatsApp — Zivo' }
+export const metadata: Metadata = { title: 'WhatsApp — Terny' }
 
 export default async function WhatsAppPage() {
   const supabase = await createClient()

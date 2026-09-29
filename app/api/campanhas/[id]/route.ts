@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 /* Detalhe + resultado de uma campanha (pro histórico tipo "conversa").
    Resultado HONESTO: cruza quem recebeu × quem RESPONDEU e quem COMPROU
-   depois do disparo (venda registrada no Zivo). */
+   depois do disparo (venda registrada no Terny). */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

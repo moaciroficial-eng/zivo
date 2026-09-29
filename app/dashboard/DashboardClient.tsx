@@ -318,7 +318,7 @@ function ProdutoCard({ p }: { p: ProdutoPriorizar }) {
   )
 }
 
-/* Caixa reutilizável: mensagem editável + foto + envio pelo Zivo */
+/* Caixa reutilizável: mensagem editável + foto + envio pelo Terny */
 function EnviarContato({ clienteId, nome, telefone, mensagemInicial }: { clienteId: string | null; nome: string; telefone: string | null; mensagemInicial: string }) {
   const [msg, setMsg] = useState(mensagemInicial)
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
@@ -377,7 +377,7 @@ function EnviarContato({ clienteId, nome, telefone, mensagemInicial }: { cliente
       <div className="flex items-center gap-2 mt-2">
         <button onClick={enviar} disabled={enviando || !msg.trim()}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer">
-          {enviando ? 'Enviando...' : '📤 Enviar pelo Zivo'}
+          {enviando ? 'Enviando...' : '📤 Enviar pelo Terny'}
         </button>
         <button onClick={() => fileRef.current?.click()} disabled={subindo || enviando}
           className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded-lg px-2.5 py-1.5 transition cursor-pointer">
@@ -477,7 +477,7 @@ function PrimeirosPassos({ setup }: { setup: SetupEstado }) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <p className="text-base font-bold text-white">🚀 Primeiros passos</p>
-          <p className="text-xs text-zinc-400 mt-0.5">Deixe o Zivo pronto pra trabalhar por você — {feitos} de {passos.length} concluídos.</p>
+          <p className="text-xs text-zinc-400 mt-0.5">Deixe o Terny pronto pra trabalhar por você — {feitos} de {passos.length} concluídos.</p>
         </div>
         <button onClick={() => setOculto(true)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer shrink-0">ocultar</button>
       </div>

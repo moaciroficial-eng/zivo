@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════
    RESULTADO DO ZIVO — atribuição de vendas
 
-   Venda atribuída: o cliente recebeu uma mensagem do Zivo (aprovada
+   Venda atribuída: o cliente recebeu uma mensagem do Terny (aprovada
    pelo dono ou automática) e comprou em até 7 dias. É a métrica que
    prova o retorno da assinatura em reais.
 
@@ -15,7 +15,7 @@ type Acao = { cliente_id: string | null; mensagem: string; enviada_em: string }
 type Venda = { cliente_id: string | null; cliente_nome: string; valor: number; created_at: string }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function resultadoZivo(admin: any, userId: string, dias = 30): Promise<string> {
+export async function resultadoTerny(admin: any, userId: string, dias = 30): Promise<string> {
   const desde = new Date(Date.now() - dias * 86400000).toISOString()
 
   const { data: acoes } = await admin
@@ -27,7 +27,7 @@ export async function resultadoZivo(admin: any, userId: string, dias = 30): Prom
 
   const listaAcoes = (acoes ?? []) as Acao[]
   if (listaAcoes.length === 0) {
-    return `🤖 *Resultado do Zivo — últimos ${dias} dias*\n\nAinda não enviei mensagens aprovadas nesse período. Aprova as sugestões do resumo diário que eu começo a trabalhar! 💪`
+    return `🤖 *Resultado do Terny — últimos ${dias} dias*\n\nAinda não enviei mensagens aprovadas nesse período. Aprova as sugestões do resumo diário que eu começo a trabalhar! 💪`
   }
 
   const clienteIds = [...new Set(listaAcoes.map(a => a.cliente_id).filter(Boolean))] as string[]
@@ -57,7 +57,7 @@ export async function resultadoZivo(admin: any, userId: string, dias = 30): Prom
   const clientesAlcancados = clienteIds.length
 
   if (atribuidas.length === 0) {
-    return `🤖 *Resultado do Zivo — últimos ${dias} dias*\n\n📤 ${listaAcoes.length} mensagem(ns) enviadas para ${clientesAlcancados} cliente(s)\n💰 Nenhuma venda atribuída ainda (janela de ${JANELA_ATRIBUICAO_DIAS} dias após a mensagem)\n\nSemente plantada — as vendas costumam vir nos dias seguintes. 🌱`
+    return `🤖 *Resultado do Terny — últimos ${dias} dias*\n\n📤 ${listaAcoes.length} mensagem(ns) enviadas para ${clientesAlcancados} cliente(s)\n💰 Nenhuma venda atribuída ainda (janela de ${JANELA_ATRIBUICAO_DIAS} dias após a mensagem)\n\nSemente plantada — as vendas costumam vir nos dias seguintes. 🌱`
   }
 
   const lista = atribuidas
@@ -66,7 +66,7 @@ export async function resultadoZivo(admin: any, userId: string, dias = 30): Prom
     .map(v => `• ${v.cliente_nome ?? 'Cliente'} — R$${Number(v.valor).toFixed(2)}`)
     .join('\n')
 
-  return `🤖 *Resultado do Zivo — últimos ${dias} dias*
+  return `🤖 *Resultado do Terny — últimos ${dias} dias*
 
 📤 ${listaAcoes.length} mensagem(ns) enviadas para ${clientesAlcancados} cliente(s)
 🛍️ *${atribuidas.length} venda(s) atribuída(s)* (compra em até ${JANELA_ATRIBUICAO_DIAS} dias após a mensagem)

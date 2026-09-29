@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import CalendarioClient from './CalendarioClient'
 
-export const metadata: Metadata = { title: 'Calendário — Zivo' }
+export const metadata: Metadata = { title: 'Calendário — Terny' }
 
 export default async function CalendarioPage() {
   const supabase = await createClient()

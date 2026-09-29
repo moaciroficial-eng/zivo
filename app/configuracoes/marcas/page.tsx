@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import MarcasClient from './MarcasClient'
 
-export const metadata: Metadata = { title: 'Marcas — Zivo' }
+export const metadata: Metadata = { title: 'Marcas — Terny' }
 
 export default async function MarcasPage() {
   const supabase = await createClient()

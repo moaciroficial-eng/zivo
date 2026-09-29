@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import VendasClient from './VendasClient'
 
-export const metadata: Metadata = { title: 'Vendas — Zivo' }
+export const metadata: Metadata = { title: 'Vendas — Terny' }
 
 function calcResumoServer(vs: Array<{ forma_pagamento: string | null; valor: number }>) {
   const r: Record<string, number> = {}

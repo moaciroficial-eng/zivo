@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import CaixaClient from './CaixaClient'
 
-export const metadata: Metadata = { title: 'Levantar Caixa — Zivo' }
+export const metadata: Metadata = { title: 'Levantar Caixa — Terny' }
 
 export default async function CaixaPage() {
   const supabase = await createClient()

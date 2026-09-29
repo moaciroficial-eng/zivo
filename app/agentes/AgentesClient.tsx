@@ -217,7 +217,7 @@ export default function AgentesClient({
             {gerenteMsgs.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-3xl mb-3">🧑‍💼</p>
-                <p className="text-zinc-300 font-medium">Olá! Sou o Gerente IA do Zivo.</p>
+                <p className="text-zinc-300 font-medium">Olá! Sou o Gerente IA do Terny.</p>
                 <p className="text-zinc-500 text-sm mt-1 max-w-sm mx-auto">Me diga o que precisa e coordeno os agentes para executar. Exemplos:</p>
                 <div className="flex flex-col gap-2 mt-4 max-w-sm mx-auto">
                   {[
@@ -468,7 +468,7 @@ export default function AgentesClient({
               <p className="text-4xl mb-3">🧠</p>
               <p className="text-zinc-200 font-semibold text-base">Sessão de Aprendizado</p>
               <p className="text-zinc-500 text-sm mt-2 max-w-md mx-auto leading-relaxed">
-                Conta pro Zivo o que você sabe sobre seus clientes, o que funcionou, estratégias que deram certo.
+                Conta pro Terny o que você sabe sobre seus clientes, o que funcionou, estratégias que deram certo.
                 Ele vai fazer perguntas pra entender melhor e absorver como inteligência permanente.
               </p>
               <div className="flex flex-col gap-2 mt-5 max-w-sm mx-auto">
@@ -536,7 +536,7 @@ export default function AgentesClient({
                   const data = await res.json()
                   setAprendResumo(
                     data.resumo
-                      ? `${data.resumo}\n\n${data.salvos} insight(s) salvos na base de conhecimento do Zivo.`
+                      ? `${data.resumo}\n\n${data.salvos} insight(s) salvos na base de conhecimento do Terny.`
                       : `${data.salvos} insight(s) salvos.`
                   )
                 } finally {

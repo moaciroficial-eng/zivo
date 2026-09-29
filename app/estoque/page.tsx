@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import EstoqueClient from './EstoqueClient'
 
-export const metadata: Metadata = { title: 'Estoque — Zivo' }
+export const metadata: Metadata = { title: 'Estoque — Terny' }
 
 export default async function EstoquePage() {
   const supabase = await createClient()

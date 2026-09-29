@@ -83,7 +83,7 @@ export type PerfilCliente = {
   cacaNovidades: boolean
   tendenciaTicket: 'subindo' | 'caindo' | 'estavel' | null
   marcasTop: { marca: string; pct: number; n: number }[]
-  /* Confiança estatística: com poucos dados o Zivo OBSERVA, não afirma */
+  /* Confiança estatística: com poucos dados o Terny OBSERVA, não afirma */
   historicoCurto: boolean          // <= 2 compras: nada de padrão ainda
   ritmoConfiavel: boolean          // 3+ intervalos regulares e não-sazonais
   pctComprasSazonais: number       // % das compras dentro de janelas de data comemorativa
@@ -660,7 +660,7 @@ Os COMPORTAMENTOS abaixo foram CALCULADOS a partir do histórico real de vendas 
 
 NÍVEIS DE CONFIANÇA (respeite RIGOROSAMENTE):
 - Flags ⚑ = padrões CONFIRMADOS com dados suficientes → podem virar ação
-- "？indícios" = hipóteses com POUCOS dados (ex: 2 itens Tommy ≠ fiel à Tommy) → NUNCA afirme o padrão nem crie ação baseada nele; o Zivo está aguardando mais compras pra confirmar
+- "？indícios" = hipóteses com POUCOS dados (ex: 2 itens Tommy ≠ fiel à Tommy) → NUNCA afirme o padrão nem crie ação baseada nele; o Terny está aguardando mais compras pra confirmar
 - ⚠ POUCO-HISTÓRICO = 1-2 compras → sem padrão nenhum; só valem ações de calendário (aniversário, data comemorativa) ou atualização de cadastro
 - "ritmo IRREGULAR" = intervalos inconsistentes ou sazonais → NÃO use como ritmo de recompra; 2 compras no mesmo mês podem ter sido uma data específica ou novidade, não frequência
 
@@ -692,7 +692,7 @@ MÊS ATUAL: ${agora.getMonth() + 1} | DATA: ${hojeStr}
 Gere de 3 a 8 AÇÕES DE VENDA cruzando comportamento × estoque × meta × calendário — SÓ as que os dados sustentam; 3 ações sólidas valem mais que 8 fracas. REGRAS:
 0. 📝 NOTA DO DONO é a VERDADE MÁXIMA. Quando um cliente tem "NOTA DO DONO", ela vale MAIS que qualquer padrão inferido dos números — é o que o dono SABE dele na vida real. Se a nota diz "gosta de Aramis" ou "compra em promoção", trate como fato e AJA em cima disso, mesmo com pouco histórico de compra. Nunca contrarie a nota do dono.
 1. PROIBIDO genérico ("faça uma promoção", "entre em contato"). Toda ação nomeia CLIENTES (pelo código) e PRODUTOS específicos.
-2. Toda ação traz a EVIDÊNCIA numérica que a sustenta (os números estão acima). Ação baseada em ？indício ou POUCO-HISTÓRICO é PROIBIDA — no máximo mencione no final, em UMA sugestão tipo "oportunidade" com prioridade 3, o que o Zivo está observando e aguardando confirmar.
+2. Toda ação traz a EVIDÊNCIA numérica que a sustenta (os números estão acima). Ação baseada em ？indício ou POUCO-HISTÓRICO é PROIBIDA — no máximo mencione no final, em UMA sugestão tipo "oportunidade" com prioridade 3, o que o Terny está observando e aguardando confirmar.
 3. META REALISTA: se falta bater a meta, monte o caminho com o PADRÃO da loja — várias vendas no ticket típico, de peças CAMPEÃS, para clientes QUENTES. NUNCA proponha uma única venda heroica de peça cara e difícil pra cliente frio (ex: faltam R$600 → 3 vendas de R$200 de peças que giram, não 1 peça de R$600 que só sai com desconto).
 4. Priorize cruzamentos que o dono NÃO veria sozinho: promo-buyer × encalhado do tamanho dele; caça-novidades × peça que chegou essa semana; PRESENTE-MÊS(${agora.getMonth() + 1}) agora; paga-preço-cheio × novidade premium; crediário × peça cara parcelada; atrasado × marca favorita em estoque.
 5. Respeite o perfil: fiel à marca recebe SÓ a marca dele; PAGA-PREÇO-CHEIO nunca recebe desconto; SÓ-PROMOÇÃO nunca recebe preço cheio; cliente FRIO não é alvo de meta urgente.

@@ -116,9 +116,9 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
 
     /* SEGURANÇA: a mensagem do dono NUNCA é encaminhada sozinha pra um cliente.
        Antes, qualquer msg do dono era "encaminhada" pra escalação pendente mais
-       recente (caso Márcia: o dono só queria copiar e o Zivo mandou pra ela).
+       recente (caso Márcia: o dono só queria copiar e o Terny mandou pra ela).
        Agora TODA mensagem do dono vai pro comando/gerente. Pra responder um
-       cliente, o dono usa a tela do WhatsApp no Zivo (envio explícito). */
+       cliente, o dono usa a tela do WhatsApp no Terny (envio explícito). */
     if (conteudo && conteudo.trim().length > 3) {
       sendWhatsAppMessage({ phone: ownerPhone, message: '⏳', creds }).catch(() => null)
     }

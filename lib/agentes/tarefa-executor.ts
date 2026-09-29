@@ -226,7 +226,7 @@ ${regrasGenero}
       const ownerPhone = String(cfg?.owner_phone ?? process.env.OWNER_PHONE ?? '').replace(/\D/g, '')
       if (ownerPhone) {
         await sendWhatsAppMessage({ phone: ownerPhone, creds: loja?.creds,
-          message: `🔔 *${nomeContato}* perguntou algo que eu não sei responder:\n\n"${respostaContato ?? ''}"\n\nResponda pelo Zivo (aba WhatsApp).` }).catch(() => {})
+          message: `🔔 *${nomeContato}* perguntou algo que eu não sei responder:\n\n"${respostaContato ?? ''}"\n\nResponda pelo Terny (aba WhatsApp).` }).catch(() => {})
       }
     } catch { /* ignora */ }
     await admin.from('agente_conversa_estado').update({

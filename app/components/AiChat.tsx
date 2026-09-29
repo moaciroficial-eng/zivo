@@ -113,7 +113,7 @@ export default function AiChat() {
               </svg>
             </div>
             <div>
-              <p className="text-sm font-semibold leading-tight">Assistente Zivo</p>
+              <p className="text-sm font-semibold leading-tight">Assistente Terny</p>
               <p className="text-xs text-zinc-500 leading-tight">Pergunte sobre sua loja</p>
             </div>
           </div>

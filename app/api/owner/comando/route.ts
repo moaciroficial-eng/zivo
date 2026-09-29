@@ -8,7 +8,7 @@ import { planoSemana, analisarCrescimento } from '@/lib/agentes/estrategista'
 import { diagnosticoEstoque, buscarProduto } from '@/lib/agentes/estoquista'
 import { salvarAprendizado, carregarConhecimento } from '@/lib/conhecimento'
 import { buscarSugestaoDigest, aprovarSugestaoDigest } from '@/lib/inteligencia/digest'
-import { resultadoZivo } from '@/lib/inteligencia/resultado'
+import { resultadoTerny } from '@/lib/inteligencia/resultado'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -67,13 +67,13 @@ export async function POST(request: NextRequest) {
   /* Carrega conhecimento da loja para contexto do classificador */
   const conhecimento = await carregarConhecimento(admin, userId)
 
-  /* Zivo como assistente inteligente do dono — decide o que fazer */
+  /* Terny como assistente inteligente do dono — decide o que fazer */
   const decisao = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 300,
     messages: [{
       role: 'user',
-      content: `Você é o Zivo, assistente pessoal inteligente do dono de uma loja de roupas.
+      content: `Você é o Terny, assistente pessoal inteligente do dono de uma loja de roupas.
 ${conhecimento ? `\n${conhecimento}\n` : ''}
 Analise a mensagem e decida a ação correta.
 
@@ -198,7 +198,7 @@ Exemplos:
       }
 
       case 'resultado_zivo':
-        resposta = await resultadoZivo(admin, userId, 30)
+        resposta = await resultadoTerny(admin, userId, 30)
         break
 
       case 'pausar':

@@ -45,7 +45,7 @@ Clientes inativos (sem compra há +30 dias): ${(clientesInativos ?? []).length}
     max_tokens: 600,
     messages: [{
       role: 'user',
-      content: `Você é o estrategista do Zivo. Crie um plano de ação para essa semana para uma loja de roupas.
+      content: `Você é o estrategista do Terny. Crie um plano de ação para essa semana para uma loja de roupas.
 
 DADOS:
 ${contexto}

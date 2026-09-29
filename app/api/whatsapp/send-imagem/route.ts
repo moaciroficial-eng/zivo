@@ -4,7 +4,7 @@ import { sendWhatsAppImage } from '@/lib/whatsapp'
 import { getLoja } from '@/lib/loja'
 import { NextRequest, NextResponse } from 'next/server'
 
-/* Envia uma imagem pelo inbox do Zivo (dono respondendo o cliente).
+/* Envia uma imagem pelo inbox do Terny (dono respondendo o cliente).
    Imagem livre só funciona dentro da janela de 24h — se a conversa estiver
    fechada, a Meta rejeita (aí seria preciso template com header de imagem). */
 

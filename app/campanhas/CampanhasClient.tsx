@@ -289,7 +289,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
         : ''
       const comFoto = (proposta && fotoUrl) ? ' A foto foi junto pros clientes quentes.' : ''
       const posInsta = plano ? ' O roteiro do Instagram fica salvo aqui pra você postar.' : ''
-      const posLembrete = (data.lembretes_agendados ?? 0) > 0 ? ` ⏰ ${data.lembretes_agendados} lembrete(s) agendado(s) — o Zivo dispara sozinho conforme a data chega.` : ''
+      const posLembrete = (data.lembretes_agendados ?? 0) > 0 ? ` ⏰ ${data.lembretes_agendados} lembrete(s) agendado(s) — o Terny dispara sozinho conforme a data chega.` : ''
       setResultado(`✅ Enviado para ${data.enviados} cliente(s)! ${data.por_template ?? 0} por template (frios) e ${data.por_texto ?? 0} direto (quentes).${comFoto}${naResposta}${posInsta}${posLembrete} O resultado aparece no histórico.`)
       if (data.campanhaId) {
         setCampanhas(prev => [{
@@ -497,7 +497,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
               {/* Cadência de lembretes — editáveis, com foto própria */}
               {lembretes.length > 0 && (
                 <div className="border-t border-[#25D366]/20 pt-2">
-                  <p className="text-xs font-semibold text-zinc-400 mb-1.5">⏰ Lembretes automáticos <span className="text-zinc-600 font-normal">— o Zivo dispara conforme a data chega</span></p>
+                  <p className="text-xs font-semibold text-zinc-400 mb-1.5">⏰ Lembretes automáticos <span className="text-zinc-600 font-normal">— o Terny dispara conforme a data chega</span></p>
                   <input ref={lembreteFileRef} type="file" accept="image/*" onChange={onFotoLembrete} className="hidden" />
                   <div className="flex flex-col gap-2">
                     {lembretes.map((l, i) => (
@@ -568,7 +568,7 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
                     </details>
                   ))}
                 </div>
-                <p className="text-[11px] text-zinc-600 mt-2">O roteiro é pra você postar — o Zivo não posta sozinho.</p>
+                <p className="text-[11px] text-zinc-600 mt-2">O roteiro é pra você postar — o Terny não posta sozinho.</p>
               </div>
             )}
 

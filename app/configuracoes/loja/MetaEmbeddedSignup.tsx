@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /* Botão de conexão automática (Embedded Signup da Meta).
-   O lojista clica, loga na conta Meta dele no popup oficial, e o Zivo
+   O lojista clica, loga na conta Meta dele no popup oficial, e o Terny
    recebe o `code` + WABA/phone pra finalizar no backend. Sem painel de
    desenvolvedor, sem colar credencial na mão. */
 

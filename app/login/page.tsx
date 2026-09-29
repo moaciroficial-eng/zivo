@@ -21,7 +21,7 @@ export default function LoginPage() {
               <path d="M24 10.5 L18.6 10.5 M24 10.5 L24 15.9" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
-          <h1 className="text-2xl font-bold tracking-tight text-white">zivo</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">terny</h1>
           <p className="text-sm text-zinc-400 mt-1">
             {mode === 'login' ? 'Entre na sua conta' : 'Recuperar senha'}
           </p>

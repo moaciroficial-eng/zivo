@@ -256,7 +256,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
             <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-[#00D4AA] zivo-dot-ring" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#00D4AA] zivo-dot-core" />
           </div>
-          <span className="font-bold text-white text-lg tracking-tight">zivo</span>
+          <span className="font-bold text-white text-lg tracking-tight">terny</span>
         </Link>
         <button
           onClick={onClose}

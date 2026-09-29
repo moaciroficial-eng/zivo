@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import DashboardClient from './DashboardClient'
 
-export const metadata: Metadata = { title: 'Dashboard — Zivo' }
+export const metadata: Metadata = { title: 'Dashboard — Terny' }
 
 export default async function DashboardPage() {
   const supabase = await createClient()

@@ -54,7 +54,7 @@ export default function OnboardingPage() {
               <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Bem-vindo ao Zivo!</h1>
+          <h1 className="text-2xl font-bold text-white">Bem-vindo ao Terny!</h1>
           <p className="text-sm text-zinc-400 mt-1">Configure sua loja em 3 passos rápidos</p>
         </div>
 
@@ -141,7 +141,7 @@ export default function OnboardingPage() {
                   ← Voltar
                 </button>
                 <button onClick={salvar} disabled={loading} className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition cursor-pointer">
-                  {loading ? 'Salvando...' : 'Entrar no Zivo →'}
+                  {loading ? 'Salvando...' : 'Entrar no Terny →'}
                 </button>
               </div>
             </div>

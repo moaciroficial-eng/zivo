@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
     try {
       const r = await sendWhatsAppMessage({
         phone: loja.ownerPhone,
-        message: '🔧 Teste de diagnóstico do Zivo — se você recebeu isto, o envio pela Meta está funcionando.',
+        message: '🔧 Teste de diagnóstico do Terny — se você recebeu isto, o envio pela Meta está funcionando.',
       })
       return NextResponse.json({ ...diag, envio: { ok: true, messageId: r.messageId ?? null } })
     } catch (e) {

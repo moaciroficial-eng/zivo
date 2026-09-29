@@ -5,7 +5,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const SYSTEM_APRENDIZADO = `Você é o Zivo, o cérebro estratégico de uma loja de roupas.
+const SYSTEM_APRENDIZADO = `Você é o Terny, o cérebro estratégico de uma loja de roupas.
 Sua função agora é APRENDER com o dono da loja.
 
 Quando o dono compartilha uma experiência, estratégia ou observação:
@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest) {
     max_tokens: 1500,
     messages: [{
       role: 'user',
-      content: `Você é o Zivo. Leia essa conversa de aprendizado e extraia os insights mais valiosos para guardar na base de conhecimento da loja.
+      content: `Você é o Terny. Leia essa conversa de aprendizado e extraia os insights mais valiosos para guardar na base de conhecimento da loja.
 
 CONVERSA:
 ${transcricao}

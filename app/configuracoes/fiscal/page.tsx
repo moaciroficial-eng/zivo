@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import FiscalConfigClient from './FiscalConfigClient'
 
-export const metadata: Metadata = { title: 'Configuração Fiscal — Zivo' }
+export const metadata: Metadata = { title: 'Configuração Fiscal — Terny' }
 
 export default async function FiscalConfigPage() {
   const supabase = await createClient()

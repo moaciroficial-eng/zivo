@@ -7,7 +7,7 @@ import { trocarCodePorToken, registrarNumero, assinarWebhook, clonarTemplates } 
    da Meta devolveu, e deixa a loja pronta pra usar o WhatsApp:
    1) troca o code por um token de acesso
    2) registra o número na Cloud API
-   3) assina o Zivo nos webhooks da WABA
+   3) assina o Terny nos webhooks da WABA
    4) clona os templates já aprovados da WABA-fonte
    5) salva as credenciais na loja_config */
 

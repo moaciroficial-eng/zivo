@@ -5,7 +5,7 @@ import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
 
-/* Envia a oferta de um contato do PLANO DIÁRIO pelo Zivo (não abre WhatsApp
+/* Envia a oferta de um contato do PLANO DIÁRIO pelo Terny (não abre WhatsApp
    externo): window-aware (quente=texto, frio=template), grava no chat e conta
    na cadência (inteligencia_acoes) pra o motor não sugerir o mesmo de novo. */
 

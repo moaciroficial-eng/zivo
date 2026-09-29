@@ -16,7 +16,7 @@ export default function PrivacidadePage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">1. Quem somos</h2>
-            <p>O Zivo é uma plataforma de gestão para lojistas. Esta política descreve como coletamos, usamos e protegemos os dados pessoais de acordo com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
+            <p>O Terny é uma plataforma de gestão para lojistas. Esta política descreve como coletamos, usamos e protegemos os dados pessoais de acordo com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
           </section>
 
           <section>

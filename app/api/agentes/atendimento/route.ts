@@ -156,7 +156,7 @@ async function handleAtendimento(request: NextRequest) {
   const mensagensOrdenadas = [...(mensagens ?? [])].reverse()
 
   /* ── HUMANO NO COMANDO: se o dono mandou mensagem manual há pouco
-     (pela UI do Zivo ou pelo celular), ele assumiu a conversa — a IA
+     (pela UI do Terny ou pelo celular), ele assumiu a conversa — a IA
      NÃO responde por cima. Exceção: instrução explícita do dono. */
   if (!instrucaoOwner && humanoAtivoNaConversa(mensagens ?? [])) {
     return NextResponse.json({ ok: true, skipped: 'dono ativo na conversa — IA em silêncio' })
@@ -403,7 +403,7 @@ ${historico || 'Início da conversa'}`,
     const phoneLimpo = contato.phone.replace(/\D/g, '')
     const contatoEhDono = ownerPhone && (phoneLimpo.slice(-11) === ownerPhone.slice(-11) || phoneLimpo.slice(-10) === ownerPhone.slice(-10))
     if (ownerPhone && !contatoEhDono) {
-      const msgOwner = `🔔 *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda o cliente pelo Zivo (aba WhatsApp).`
+      const msgOwner = `🔔 *${nomeCliente}* está esperando resposta:\n\n"${acao.motivo_escalar ?? mensagem}"\n\nResponda o cliente pelo Terny (aba WhatsApp).`
       notificarDono(admin, userId, ownerPhone, msgOwner).catch(() => null)
       await registrarEscalacao(admin, userId, contatoId, acao.motivo_escalar ?? mensagem, msgOwner)
     }

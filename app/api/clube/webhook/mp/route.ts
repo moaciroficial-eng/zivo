@@ -2,7 +2,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* Webhook do Mercado Pago: quando um pagamento é aprovado, marca o pedido
-   como pago, BAIXA o estoque no tamanho certo e registra a venda no Zivo.
+   como pago, BAIXA o estoque no tamanho certo e registra a venda no Terny.
    O slug (loja) vem na query da notification_url. Idempotente. */
 
 export async function POST(request: NextRequest) {
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // registra UMA venda no Zivo com todos os itens, linkada ao cliente
+    // registra UMA venda no Terny com todos os itens, linkada ao cliente
     await admin.from('vendas').insert({
       user_id: loja.user_id,
       cliente_id: clienteId,

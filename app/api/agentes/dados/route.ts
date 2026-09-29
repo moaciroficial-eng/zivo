@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       marcasFavoritas.map(m => `- ${m.marca}: ${m.qtd}x comprado → ${m.nivel}`).join('\n')
     : ''
 
-  const prompt = `Você é o Agente de Dados do Zivo, sistema de gestão de loja de roupas.
+  const prompt = `Você é o Agente de Dados do Terny, sistema de gestão de loja de roupas.
 
 Analise o contato "${contato?.nome ?? 'Desconhecido'}" com base na conversa e no histórico de compras.${historicoCompras}${contextoMarcas}
 

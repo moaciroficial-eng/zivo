@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Exclusão de Dados — Zivo' }
+export const metadata = { title: 'Exclusão de Dados — Terny' }
 
 export default function ExclusaoDeDadosPage() {
   return (
@@ -18,11 +18,11 @@ export default function ExclusaoDeDadosPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">Como solicitar a exclusão dos seus dados</h2>
-            <p>O Zivo é uma plataforma de gestão para lojistas. Você tem o direito de solicitar a exclusão de todos os seus dados pessoais a qualquer momento, de acordo com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
+            <p>O Terny é uma plataforma de gestão para lojistas. Você tem o direito de solicitar a exclusão de todos os seus dados pessoais a qualquer momento, de acordo com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-2">Se você é lojista (tem uma conta no Zivo)</h2>
+            <h2 className="text-base font-semibold text-white mb-2">Se você é lojista (tem uma conta no Terny)</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li>Envie um e-mail para <strong className="text-zinc-200">moaciroficial@gmail.com</strong> a partir do endereço cadastrado na sua conta, com o assunto <em>“Exclusão de dados”</em>.</li>
               <li>Confirmaremos sua identidade e excluiremos permanentemente sua conta e todos os dados associados (loja, clientes, vendas, estoque e mensagens) em até <strong className="text-zinc-200">30 dias</strong>.</li>
@@ -30,7 +30,7 @@ export default function ExclusaoDeDadosPage() {
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-2">Se você é cliente de uma loja que usa o Zivo</h2>
+            <h2 className="text-base font-semibold text-white mb-2">Se você é cliente de uma loja que usa o Terny</h2>
             <p>Seus dados (nome, telefone, e-mail) foram cadastrados pela própria loja. Você pode:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>Pedir a exclusão diretamente à loja com quem você se relaciona; ou</li>
@@ -40,7 +40,7 @@ export default function ExclusaoDeDadosPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">Dados do WhatsApp</h2>
-            <p>Quando uma loja conecta o WhatsApp oficial (Meta) ao Zivo, processamos as mensagens apenas para viabilizar o atendimento em nome da loja. Ao excluir a conta ou desconectar o WhatsApp, esses dados também são removidos dentro do mesmo prazo de 30 dias.</p>
+            <p>Quando uma loja conecta o WhatsApp oficial (Meta) ao Terny, processamos as mensagens apenas para viabilizar o atendimento em nome da loja. Ao excluir a conta ou desconectar o WhatsApp, esses dados também são removidos dentro do mesmo prazo de 30 dias.</p>
           </section>
 
           <section>

@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 const display = Sora({ subsets: ['latin'], weight: ['600', '700', '800'] })
 
 export const metadata: Metadata = {
-  title: 'Zivo — sua loja vendendo todos os dias, no automático',
-  description: 'O Zivo transforma os clientes que você já tem em vendas: acha quem quer cada produto, monta a campanha e fala no WhatsApp por você. Feito pra loja de roupas.',
+  title: 'Terny — sua loja vendendo todos os dias, no automático',
+  description: 'O Terny transforma os clientes que você já tem em vendas: acha quem quer cada produto, monta a campanha e fala no WhatsApp por você. Feito pra loja de roupas.',
 }
 
 /* Planos — ajuste os preços aqui quando definir o billing */
@@ -35,7 +35,7 @@ export default async function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Logo />
-            <span className={`${display.className} text-lg font-bold tracking-tight`}>zivo</span>
+            <span className={`${display.className} text-lg font-bold tracking-tight`}>terny</span>
           </div>
           <div className="flex items-center gap-1">
             <a href="#ecossistema" className="hidden sm:inline text-sm text-zinc-400 hover:text-white px-3 py-2 rounded-lg transition">Como funciona</a>
@@ -65,7 +65,7 @@ export default async function LandingPage() {
             <span className="bg-gradient-to-r from-violet-300 via-violet-400 to-indigo-400 bg-clip-text text-transparent">todos os dias</span>, no automático
           </h1>
           <p className="text-lg sm:text-xl text-zinc-400 mt-7 max-w-2xl mx-auto leading-relaxed">
-            O Zivo transforma os clientes que você <span className="text-zinc-200">já tem</span> em vendas — acha quem quer cada produto, monta a campanha e fala no WhatsApp por você. Sem precisar lembrar de nada.
+            O Terny transforma os clientes que você <span className="text-zinc-200">já tem</span> em vendas — acha quem quer cada produto, monta a campanha e fala no WhatsApp por você. Sem precisar lembrar de nada.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-10">
             <Link href={user ? '/dashboard' : '/signup'} className="group w-full sm:w-auto text-center font-semibold bg-white text-zinc-950 hover:bg-zinc-200 rounded-full px-8 py-4 transition shadow-2xl shadow-violet-900/30">
@@ -80,9 +80,9 @@ export default async function LandingPage() {
       {/* ECOSSISTEMA — o mapa (peça central) */}
       <section id="ecossistema" className="max-w-5xl mx-auto px-6 py-20">
         <div className="text-center mb-14">
-          <p className="text-sm font-semibold text-violet-300 mb-2">O ecossistema Zivo</p>
+          <p className="text-sm font-semibold text-violet-300 mb-2">O ecossistema Terny</p>
           <h2 className={`${display.className} text-3xl sm:text-4xl font-bold tracking-tight`}>Uma máquina de vendas. Não uma featurezinha.</h2>
-          <p className="text-zinc-400 mt-3 max-w-xl mx-auto">Tudo o que você já tem vira venda — e o Zivo aprende com o resultado pra ficar melhor a cada dia.</p>
+          <p className="text-zinc-400 mt-3 max-w-xl mx-auto">Tudo o que você já tem vira venda — e o Terny aprende com o resultado pra ficar melhor a cada dia.</p>
         </div>
 
         <div className="flex flex-col items-center gap-0">
@@ -102,7 +102,7 @@ export default async function LandingPage() {
             <div className="absolute -inset-4 bg-[radial-gradient(50%_60%_at_50%_50%,rgba(124,58,237,0.25),transparent)] blur-xl" />
             <div className="relative rounded-2xl border border-violet-400/40 bg-gradient-to-b from-violet-600/20 to-indigo-600/5 p-5 text-center">
               <div className="text-3xl mb-1">🧠</div>
-              <p className={`${display.className} font-bold text-white`}>O cérebro do Zivo</p>
+              <p className={`${display.className} font-bold text-white`}>O cérebro do Terny</p>
               <p className="text-sm text-zinc-300 mt-1">Cruza tudo e acha <span className="text-white font-medium">quem quer comprar cada produto</span> — por tamanho, marca e comportamento.</p>
             </div>
           </div>
@@ -145,9 +145,9 @@ export default async function LandingPage() {
       <section className="max-w-4xl mx-auto px-6 py-16">
         <div className="grid sm:grid-cols-3 gap-4">
           {[
-            { t: 'Vende com quem você já tem', d: 'Não precisa gastar em anúncio pra achar cliente novo. O Zivo faz a base que você já tem comprar mais.' },
+            { t: 'Vende com quem você já tem', d: 'Não precisa gastar em anúncio pra achar cliente novo. O Terny faz a base que você já tem comprar mais.' },
             { t: 'Do jeito que você fala', d: 'A mensagem sai humana, no seu tom, do número da sua loja — não parece robô nem spam.' },
-            { t: 'Você no controle', d: 'O Zivo sugere e prepara tudo; você aprova antes de enviar. Nada sai sem você deixar.' },
+            { t: 'Você no controle', d: 'O Terny sugere e prepara tudo; você aprova antes de enviar. Nada sai sem você deixar.' },
           ].map(x => (
             <div key={x.t} className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
               <div className="w-1.5 h-6 rounded-full bg-gradient-to-b from-violet-400 to-indigo-500 mb-3" />
@@ -164,12 +164,12 @@ export default async function LandingPage() {
           <div className="text-center mb-9">
             <p className="text-sm font-semibold text-violet-300 mb-2">Sem complicação</p>
             <h2 className={`${display.className} text-3xl sm:text-4xl font-bold tracking-tight`}>Você não precisa entender de<br className="hidden sm:block" /> marketing nem de tecnologia.</h2>
-            <p className="text-zinc-400 mt-3 max-w-xl mx-auto">O Zivo carrega a parte difícil. Você cuida da sua loja, ele cuida de vender.</p>
+            <p className="text-zinc-400 mt-3 max-w-xl mx-auto">O Terny carrega a parte difícil. Você cuida da sua loja, ele cuida de vender.</p>
           </div>
           <div className="grid sm:grid-cols-3 gap-4">
             {[
               { q: '“Não sei o que postar nem o que oferecer”', a: 'A consultora te faz as perguntas certas e monta tudo pronto: a oferta, o texto, o público e até o post do Instagram.' },
-              { q: '“Não entendo de desconto, público, campanha”', a: 'O Zivo decide o certo pra cada caso e te mostra do jeito simples. Você só olha e aprova.' },
+              { q: '“Não entendo de desconto, público, campanha”', a: 'O Terny decide o certo pra cada caso e te mostra do jeito simples. Você só olha e aprova.' },
               { q: '“Não sou de tecnologia, tenho medo de errar”', a: 'É só clicar. Tudo em português, do jeito de quem é do balcão — e nada sai sem você deixar.' },
             ].map(x => (
               <div key={x.q} className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
@@ -223,7 +223,7 @@ export default async function LandingPage() {
           <div className="absolute inset-0 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(124,58,237,0.25),transparent)]" />
           <div className="relative">
             <h2 className={`${display.className} text-3xl sm:text-4xl font-bold tracking-tight`}>Sua loja vendendo sozinha começa hoje.</h2>
-            <p className="text-zinc-400 mt-3 max-w-lg mx-auto">Coloca sua base e deixa o Zivo trabalhar. Em minutos você vê a primeira oportunidade.</p>
+            <p className="text-zinc-400 mt-3 max-w-lg mx-auto">Coloca sua base e deixa o Terny trabalhar. Em minutos você vê a primeira oportunidade.</p>
             <Link href={user ? '/dashboard' : '/signup'} className="inline-flex items-center gap-1.5 mt-8 font-semibold bg-white text-zinc-950 hover:bg-zinc-200 rounded-full px-9 py-4 transition">
               {user ? 'Ir pro painel' : 'Criar minha conta'} →
             </Link>
@@ -234,7 +234,7 @@ export default async function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <div className="flex items-center gap-2"><Logo small /><span className={`${display.className} font-bold text-zinc-300`}>zivo</span></div>
+          <div className="flex items-center gap-2"><Logo small /><span className={`${display.className} font-bold text-zinc-300`}>terny</span></div>
           <div className="flex items-center gap-5">
             <Link href="/login" className="hover:text-zinc-300 transition">Entrar</Link>
             <Link href="/termos" className="hover:text-zinc-300 transition">Termos</Link>
@@ -263,7 +263,7 @@ function Conector() {
   return <div className="w-px h-8 bg-gradient-to-b from-violet-500/50 to-violet-500/10 my-1" />
 }
 
-/* Logo Zivo — squircle com "seta de crescimento" (vende o resultado) */
+/* Logo Terny — squircle com "seta de crescimento" (vende o resultado) */
 function Logo({ small }: { small?: boolean }) {
   const s = small ? 24 : 32
   return (

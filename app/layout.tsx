@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "Zivo",
+  title: "Terny",
   description: "Gerencie sua loja com inteligência",
 };
 

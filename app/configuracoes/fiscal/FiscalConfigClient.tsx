@@ -158,7 +158,7 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-200">Emitir nota nas vendas</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Quando ligado (e com tudo preenchido), o Zivo passa a emitir a NFC-e.</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Quando ligado (e com tudo preenchido), o Terny passa a emitir a NFC-e.</p>
             </div>
             <button type="button" onClick={() => setAtivo(!ativo)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${ativo ? 'bg-[#00D4AA]' : 'bg-zinc-700'}`}>
               <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${ativo ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -289,7 +289,7 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
               <input type="date" className={inputClass} value={validade} onChange={e => setValidade(e.target.value)} />
             </div>
           </div>
-          <p className="text-xs text-zinc-600">🔒 O certificado vai pra um espaço privado — ninguém além de você e o Zivo acessa. Nunca compartilhe o .pfx nem a senha por WhatsApp/email.</p>
+          <p className="text-xs text-zinc-600">🔒 O certificado vai pra um espaço privado — ninguém além de você e o Terny acessa. Nunca compartilhe o .pfx nem a senha por WhatsApp/email.</p>
         </div>
 
         <button onClick={salvar} disabled={saving} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#3B6FFF] to-[#00D4AA] text-white font-semibold text-sm hover:opacity-90 transition disabled:opacity-50">

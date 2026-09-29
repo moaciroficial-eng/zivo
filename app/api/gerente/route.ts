@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     .sort((a, b) => a.dias - b.dias)
     .map(d => `${d.nome} (~${d.data}, em ${d.dias}d${d.aprox ? ', data aproximada' : ''})`)
 
-  const systemPrompt = `Você é o Gerente IA do Zivo, o cérebro da loja de roupas — o dono conversa com você.
+  const systemPrompt = `Você é o Gerente IA do Terny, o cérebro da loja de roupas — o dono conversa com você.
 Você faz DUAS coisas: (1) RESPONDE perguntas do dono sobre a loja e (2) EXECUTA comandos/tarefas.
 Você TEM ACESSO DIRETO aos dados de vendas, clientes e estoque — NUNCA diga que não tem acesso.
 

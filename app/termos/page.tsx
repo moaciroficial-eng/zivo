@@ -16,12 +16,12 @@ export default function TermosPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">1. Aceitação dos Termos</h2>
-            <p>Ao criar uma conta e utilizar o Zivo, você concorda com estes Termos de Uso. Se não concordar, não utilize o serviço.</p>
+            <p>Ao criar uma conta e utilizar o Terny, você concorda com estes Termos de Uso. Se não concordar, não utilize o serviço.</p>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">2. O Serviço</h2>
-            <p>O Zivo é uma plataforma SaaS de gestão para lojistas do segmento de moda e calçados. Oferece funcionalidades de controle de estoque, cadastro de clientes, registro de vendas, análise de compras e atendimento via WhatsApp com auxílio de inteligência artificial.</p>
+            <p>O Terny é uma plataforma SaaS de gestão para lojistas do segmento de moda e calçados. Oferece funcionalidades de controle de estoque, cadastro de clientes, registro de vendas, análise de compras e atendimento via WhatsApp com auxílio de inteligência artificial.</p>
           </section>
 
           <section>
@@ -37,12 +37,12 @@ export default function TermosPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">4. Uso Proibido</h2>
-            <p>É vedado utilizar o Zivo para fins ilegais, enviar spam, burlar mecanismos de segurança, revender acesso sem autorização ou usar os dados de outros usuários.</p>
+            <p>É vedado utilizar o Terny para fins ilegais, enviar spam, burlar mecanismos de segurança, revender acesso sem autorização ou usar os dados de outros usuários.</p>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">5. Propriedade Intelectual</h2>
-            <p>O Zivo e seus componentes (código, design, marca) são de propriedade exclusiva de seus desenvolvedores. Os dados inseridos pelo usuário permanecem de propriedade do próprio usuário.</p>
+            <p>O Terny e seus componentes (código, design, marca) são de propriedade exclusiva de seus desenvolvedores. Os dados inseridos pelo usuário permanecem de propriedade do próprio usuário.</p>
           </section>
 
           <section>
@@ -52,7 +52,7 @@ export default function TermosPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">7. Limitação de Responsabilidade</h2>
-            <p>O Zivo não se responsabiliza por perdas de dados, lucros cessantes ou danos indiretos decorrentes do uso ou impossibilidade de uso da plataforma.</p>
+            <p>O Terny não se responsabiliza por perdas de dados, lucros cessantes ou danos indiretos decorrentes do uso ou impossibilidade de uso da plataforma.</p>
           </section>
 
           <section>

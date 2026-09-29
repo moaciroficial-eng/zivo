@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     contato = c1
   } else {
     /* 2. Fallback: acha pelo telefone do cliente; se não existir contato, CRIA
-       (assim a venda de balcão vira um contato e aparece no WhatsApp do Zivo). */
+       (assim a venda de balcão vira um contato e aparece no WhatsApp do Terny). */
     const { data: cliente } = await admin
       .from('clientes').select('telefone, nome').eq('id', clienteId).maybeSingle()
 

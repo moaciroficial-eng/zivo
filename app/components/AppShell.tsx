@@ -48,7 +48,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <circle cx="12" cy="12" r="8" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="43 7" transform="rotate(-46 12 12)"/>
               </svg>
             </div>
-            <span className="font-bold text-white">zivo</span>
+            <span className="font-bold text-white">terny</span>
           </Link>
         </div>
 

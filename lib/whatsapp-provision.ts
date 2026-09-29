@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
    PROVISIONAMENTO META (Tech Provider / Embedded Signup)
 
-   Helpers pra conectar a WABA de uma loja pelo Zivo, sem o dono
+   Helpers pra conectar a WABA de uma loja pelo Terny, sem o dono
    precisar mexer no painel de desenvolvedor da Meta:
    - troca o `code` do Embedded Signup por um token de acesso
    - registra o número de telefone (Cloud API)
-   - assina o app do Zivo nos webhooks daquela WABA
+   - assina o app do Terny nos webhooks daquela WABA
    - clona os templates já aprovados da WABA-fonte pra WABA nova
    ══════════════════════════════════════════════════════════════ */
 
@@ -13,7 +13,7 @@ const META_API_VERSION = process.env.META_API_VERSION || 'v21.0'
 const GRAPH = 'https://graph.facebook.com'
 
 /* Troca o `code` do Embedded Signup por um token de acesso (business
-   integration system user). Precisa do App ID + App Secret do Zivo. */
+   integration system user). Precisa do App ID + App Secret do Terny. */
 export async function trocarCodePorToken(code: string): Promise<string> {
   const appId = process.env.META_APP_ID
   const appSecret = process.env.META_APP_SECRET
@@ -47,7 +47,7 @@ export async function registrarNumero(phoneNumberId: string, token: string, pin?
   return { ok: false, motivo: `(${res.status}) ${txt.slice(0, 200)}` }
 }
 
-/* Assina o app do Zivo nos webhooks da WABA — sem isso, as mensagens
+/* Assina o app do Terny nos webhooks da WABA — sem isso, as mensagens
    que chegam pra essa loja não são entregues no nosso /webhook. */
 export async function assinarWebhook(wabaId: string, token: string): Promise<{ ok: boolean; motivo?: string }> {
   const res = await fetch(`${GRAPH}/${META_API_VERSION}/${wabaId}/subscribed_apps`, {

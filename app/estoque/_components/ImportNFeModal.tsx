@@ -455,7 +455,7 @@ export default function ImportNFeModal({
             {step === 'preview' && precisaResolver && (
               <div className="text-sm bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2.5">
                 <p className="text-amber-200 font-medium">A nota veio como <span className="font-bold">&ldquo;{emitente}&rdquo;</span>. Essa é qual marca?</p>
-                <p className="text-[11px] text-amber-400/80 mt-0.5 mb-2">Ex: a Aramis emite como &ldquo;VCI Vanguard&rdquo;. Diz uma vez e o Zivo lembra nas próximas notas.</p>
+                <p className="text-[11px] text-amber-400/80 mt-0.5 mb-2">Ex: a Aramis emite como &ldquo;VCI Vanguard&rdquo;. Diz uma vez e o Terny lembra nas próximas notas.</p>
                 <div className="flex flex-wrap gap-1.5">
                   {marcasList.map(m => (
                     <button key={m.nome} onClick={() => resolverComExistente(m.nome)}

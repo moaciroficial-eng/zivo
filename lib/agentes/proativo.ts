@@ -217,7 +217,7 @@ export async function rodarProativo(
     /* Sem alertas hoje — manda resumo rápido se tiver dados */
     await sendWhatsAppMessage({
       phone: ownerPhone,
-      message: `🤖 *Zivo — Bom dia!*\n\nAnalisei tudo aqui e hoje está tudo em dia. Nenhuma ação urgente por enquanto. Boas vendas! 💪`,
+      message: `🤖 *Terny — Bom dia!*\n\nAnalisei tudo aqui e hoje está tudo em dia. Nenhuma ação urgente por enquanto. Boas vendas! 💪`,
       userId,
     })
     return { rodou: true, alertas: 0 }
@@ -230,13 +230,13 @@ export async function rodarProativo(
     max_tokens: 800,
     messages: [{
       role: 'user',
-      content: `Você é o Zivo, assistente inteligente de uma loja de roupas. Mande um resumo matinal pro dono (${nomeLoja}) com as oportunidades do dia. Tom: direto, animado, como um sócio que quer crescer junto.
+      content: `Você é o Terny, assistente inteligente de uma loja de roupas. Mande um resumo matinal pro dono (${nomeLoja}) com as oportunidades do dia. Tom: direto, animado, como um sócio que quer crescer junto.
 
 DADOS ANALISADOS:
 ${resumoBruto}
 
 Formate assim:
-🤖 *Zivo — Bom dia, ${nomeLoja}!*
+🤖 *Terny — Bom dia, ${nomeLoja}!*
 
 Analisei a loja e encontrei ${partes.length} oportunidade(s) pra hoje:
 

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import LojaConfigClient from './LojaConfigClient'
 
-export const metadata: Metadata = { title: 'Configurações da Loja — Zivo' }
+export const metadata: Metadata = { title: 'Configurações da Loja — Terny' }
 
 export default async function LojaConfigPage() {
   const supabase = await createClient()

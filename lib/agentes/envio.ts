@@ -8,7 +8,7 @@ import { sendWhatsAppMessage, sendWhatsAppTemplate, sendWhatsAppImage, type What
    decide sozinho:
      • janela aberta  → manda o texto livre (a copy inteira)
      • janela fechada → manda o template aprovado (com variáveis)
-   e grava no histórico do chat pra aparecer no Zivo.
+   e grava no histórico do chat pra aparecer no Terny.
 
    Assim nenhuma oferta "some" — ou entrega por texto, ou por template.
    ══════════════════════════════════════════════════════════════ */

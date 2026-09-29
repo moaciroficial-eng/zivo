@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import ClubeClient from './ClubeClient'
 
-export const metadata: Metadata = { title: 'Clube de Oportunidades — Zivo' }
+export const metadata: Metadata = { title: 'Clube de Oportunidades — Terny' }
 
 function gerarSlug(): string {
   return Array.from({ length: 10 }, () => 'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 32)]).join('')
