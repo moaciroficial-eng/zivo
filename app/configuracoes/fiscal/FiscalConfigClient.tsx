@@ -63,8 +63,24 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [enviandoCert, setEnviandoCert] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [registrando, setRegistrando] = useState(false)
+  const [resultadoFocus, setResultadoFocus] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
+
+  async function registrarNaFocus() {
+    setRegistrando(true); setResultadoFocus(null)
+    try {
+      const res = await fetch('/api/fiscal/registrar-empresa', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (d?.ok) setResultadoFocus('✅ Loja registrada na Focus! Já dá pra emitir a NFC-e.')
+      else {
+        const det = typeof d?.data === 'object' ? JSON.stringify(d.data) : (d?.erro || d?.data || 'Falha ao registrar')
+        setResultadoFocus('❌ ' + String(det).slice(0, 400))
+      }
+    } catch (e) { setResultadoFocus('❌ ' + (e instanceof Error ? e.message : 'falha de conexão')) }
+    finally { setRegistrando(false) }
+  }
 
   async function buscarCep() {
     const c = soDigitos(cep)
@@ -295,6 +311,18 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
         <button onClick={salvar} disabled={saving} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#C79A54] to-[#00D4AA] text-[#16151A] font-semibold text-sm hover:opacity-90 transition disabled:opacity-50">
           {saving ? 'Salvando...' : 'Salvar configuração fiscal'}
         </button>
+
+        {/* Ativar emissão — registra a loja na Focus (uma vez, após salvar) */}
+        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#C79A54]" />Ativar emissão</h2>
+          <p className="text-xs text-zinc-500">Depois de <b className="text-zinc-400">salvar</b> os dados + certificado, clique aqui pra registrar a loja na Focus (uma vez só). A partir daí o Terny consegue emitir a NFC-e.</p>
+          <button onClick={registrarNaFocus} disabled={registrando} className="w-full py-2.5 rounded-xl border border-[#C79A54]/40 text-[#E0B36A] hover:bg-[#C79A54]/10 font-semibold text-sm transition disabled:opacity-50 cursor-pointer">
+            {registrando ? 'Registrando…' : 'Registrar loja na Focus'}
+          </button>
+          {resultadoFocus && (
+            <p className={`text-xs rounded-lg px-3 py-2 ${resultadoFocus.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/25' : 'bg-red-500/10 text-red-300 border border-red-500/25'}`}>{resultadoFocus}</p>
+          )}
+        </div>
       </div>
     </div>
   )
