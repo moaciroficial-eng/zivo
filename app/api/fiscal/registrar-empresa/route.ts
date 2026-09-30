@@ -5,8 +5,9 @@ import { logErro } from '@/lib/log-erro'
 import { NextResponse } from 'next/server'
 
 /* Registra a loja do usuário logado na Focus NFe (usa os dados fiscais +
-   o certificado já salvos). Rode uma vez, depois de subir o certificado. */
-export async function POST() {
+   o certificado já salvos). Rode uma vez, depois de subir o certificado.
+   Aceita POST (botão) e GET (abrir o link direto, à prova de cache). */
+async function handle() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
@@ -20,3 +21,6 @@ export async function POST() {
     return NextResponse.json({ ok: false, erro: err instanceof Error ? err.message : 'falha' }, { status: 500 })
   }
 }
+
+export const POST = handle
+export const GET = handle
