@@ -2,6 +2,7 @@ import { after } from 'next/server'
 import { sendWhatsAppMessage, normalizarTelefoneBR } from '@/lib/whatsapp'
 import { varrerConversasPendentes } from '@/lib/agentes/varredura'
 import { logErro } from '@/lib/log-erro'
+import { enviarPushParaUsuario } from '@/lib/push'
 
 /* ══════════════════════════════════════════════════════════════
    PIPELINE DE MENSAGEM RECEBIDA — compartilhado entre provedores
@@ -257,6 +258,16 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
   }
 
   if (direcao === 'recebida') {
+
+    /* Avisa o dono no celular (push): chegou mensagem de cliente.
+       tag por contato agrupa avisos da mesma conversa. Só o dono tem
+       inscrição, então nunca vai pro cliente. */
+    after(enviarPushParaUsuario(supabase, cleanUserId, {
+      title: `💬 ${nomeContato}`,
+      body: (conteudo ?? tipo).slice(0, 140),
+      url: `/whatsapp?contato=${contato.id}`,
+      tag: `msg-${contato.id}`,
+    }).catch(e => logErro('inbound:push', e, { contatoId: contato.id }, cleanUserId)))
 
     /* Vigia: reprocessa conversas de tarefa que ficaram pendentes
        (rede de segurança — se algum disparo falhou, se cura aqui) */
