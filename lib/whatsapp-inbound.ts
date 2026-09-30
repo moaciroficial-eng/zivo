@@ -123,9 +123,6 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
        recente (caso Márcia: o dono só queria copiar e o Terny mandou pra ela).
        Agora TODA mensagem do dono vai pro comando/gerente. Pra responder um
        cliente, o dono usa a tela do WhatsApp no Terny (envio explícito). */
-    if (conteudo && conteudo.trim().length > 3) {
-      sendWhatsAppMessage({ phone: ownerPhone, message: '⏳', creds }).catch(() => null)
-    }
     after(fetch(`${baseUrl}/api/owner/comando`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.WEBHOOK_SECRET ?? ''}` },
