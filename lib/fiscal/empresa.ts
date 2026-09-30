@@ -1,4 +1,4 @@
-import { focusRequest, focusAmbiente } from '@/lib/fiscal/focus'
+import { focusRequest, ambienteDaLoja } from '@/lib/fiscal/focus'
 
 /* ══════════════════════════════════════════════════════════════
    REGISTRAR EMPRESA NA FOCUS — cadastra a loja (CNPJ + certificado +
@@ -12,7 +12,7 @@ import { focusRequest, focusAmbiente } from '@/lib/fiscal/focus'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function registrarEmpresaFocus(admin: any, userId: string): Promise<{ ok: boolean; status: number; data: unknown }> {
   const { data: cfg } = await admin.from('loja_config')
-    .select('nome_loja, fiscal_cnpj, fiscal_razao_social, fiscal_ie, fiscal_regime, fiscal_csc, fiscal_csc_id, fiscal_cep, fiscal_logradouro, fiscal_numero, fiscal_bairro, fiscal_municipio, fiscal_uf, fiscal_cod_municipio, fiscal_cert_path, fiscal_cert_senha, owner_phone')
+    .select('nome_loja, fiscal_ambiente, fiscal_cnpj, fiscal_razao_social, fiscal_ie, fiscal_regime, fiscal_csc, fiscal_csc_id, fiscal_cep, fiscal_logradouro, fiscal_numero, fiscal_bairro, fiscal_municipio, fiscal_uf, fiscal_cod_municipio, fiscal_cert_path, fiscal_cert_senha, owner_phone')
     .eq('user_id', userId).maybeSingle()
 
   if (!cfg?.fiscal_cnpj) return { ok: false, status: 0, data: { erro: 'Falta o CNPJ na configuração fiscal.' } }
@@ -24,7 +24,7 @@ export async function registrarEmpresaFocus(admin: any, userId: string): Promise
   if (dlErr || !file) return { ok: false, status: 0, data: { erro: 'Não consegui ler o certificado no armazenamento.' } }
   const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
 
-  const amb = focusAmbiente()
+  const amb = ambienteDaLoja(cfg.fiscal_ambiente)
   const cscFields = amb === 'producao'
     ? { csc_nfce_producao: cfg.fiscal_csc, id_token_nfce_producao: cfg.fiscal_csc_id }
     : { csc_nfce_homologacao: cfg.fiscal_csc, id_token_nfce_homologacao: cfg.fiscal_csc_id }
@@ -49,5 +49,5 @@ export async function registrarEmpresaFocus(admin: any, userId: string): Promise
     ...cscFields,
   }
 
-  return focusRequest('POST', '/v2/empresas', payload)
+  return focusRequest('POST', '/v2/empresas', payload, amb)
 }

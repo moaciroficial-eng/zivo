@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { montarNfcePayload, type FiscalCfg } from '@/lib/fiscal/nfce'
-import { emitirNfce, consultarNfce, focusAmbiente } from '@/lib/fiscal/focus'
+import { emitirNfce, consultarNfce, ambienteDaLoja } from '@/lib/fiscal/focus'
 import { logErro } from '@/lib/log-erro'
 
 export const maxDuration = 60
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   const [{ data: venda }, { data: cfg }] = await Promise.all([
     admin.from('vendas').select('id, cliente_nome, forma_pagamento, produtos, valor').eq('id', vendaId).eq('user_id', user.id).maybeSingle(),
-    admin.from('loja_config').select('fiscal_ativo, fiscal_cnpj, fiscal_razao_social, fiscal_ie, fiscal_regime, fiscal_csc, fiscal_csc_id, fiscal_cep, fiscal_logradouro, fiscal_numero, fiscal_bairro, fiscal_municipio, fiscal_uf, fiscal_cod_municipio').eq('user_id', user.id).maybeSingle(),
+    admin.from('loja_config').select('fiscal_ativo, fiscal_ambiente, fiscal_cnpj, fiscal_razao_social, fiscal_ie, fiscal_regime, fiscal_csc, fiscal_csc_id, fiscal_cep, fiscal_logradouro, fiscal_numero, fiscal_bairro, fiscal_municipio, fiscal_uf, fiscal_cod_municipio').eq('user_id', user.id).maybeSingle(),
   ])
   if (!venda) return NextResponse.json({ ok: false, erro: 'Venda não encontrada.' }, { status: 404 })
   if (!cfg?.fiscal_ativo) return NextResponse.json({ ok: false, erro: 'Emissão fiscal desligada (ligue em Configurações → Fiscal).' })
@@ -36,25 +36,26 @@ export async function POST(request: NextRequest) {
     for (const it of (itens ?? [])) estoqueById.set(it.id, it)
   }
 
+  const amb = ambienteDaLoja(cfg.fiscal_ambiente)
   const ref = `venda-${vendaId}`
   const payload = montarNfcePayload(venda, cfg as FiscalCfg, estoqueById)
 
   try {
-    let r = await emitirNfce(ref, payload)
+    let r = await emitirNfce(ref, payload, amb)
     /* NFC-e processa async — se ainda não finalizou, consulta uma vez */
     let d = r.data as { status?: string; numero?: string; chave_nfe?: string; caminho_danfe?: string; caminho_xml_nota_fiscal?: string; mensagem_sefaz?: string; erros?: unknown }
     if (r.ok && (!d?.status || d.status === 'processando_autorizacao')) {
       await new Promise(res => setTimeout(res, 2500))
-      const c = await consultarNfce(ref)
+      const c = await consultarNfce(ref, amb)
       if (c.data) { r = c; d = c.data as typeof d }
     }
 
     const status = d?.status === 'autorizado' ? 'autorizado'
       : (d?.status && d.status !== 'processando_autorizacao') ? 'erro' : 'processando'
-    const base = focusAmbiente() === 'producao' ? 'https://api.focusnfe.com.br' : 'https://homologacao.focusnfe.com.br'
+    const base = amb === 'producao' ? 'https://api.focusnfe.com.br' : 'https://homologacao.focusnfe.com.br'
 
     await admin.from('notas_fiscais').upsert({
-      user_id: user.id, venda_id: vendaId, ref, ambiente: focusAmbiente(),
+      user_id: user.id, venda_id: vendaId, ref, ambiente: amb,
       status,
       numero: d?.numero ?? null,
       chave: d?.chave_nfe ?? null,

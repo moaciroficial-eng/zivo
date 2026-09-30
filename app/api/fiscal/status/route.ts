@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { focusAmbiente, focusConfigurada } from '@/lib/fiscal/focus'
+import { ambienteDaLoja, focusConfigurada } from '@/lib/fiscal/focus'
 
 /* Verificador da configuração fiscal da loja — mostra o que está preenchido
    e o que falta (sem expor segredos). Ajuda a conferir antes de registrar. */
@@ -40,11 +40,11 @@ export async function GET() {
   if (!campos.certificado_enviado) faltando.push('Certificado (.p12)')
   if (!campos.senha_certificado) faltando.push('Senha do certificado')
 
+  const amb = ambienteDaLoja(c?.fiscal_ambiente)
   return NextResponse.json({
     loja: c?.nome_loja ?? null,
-    ambiente_terny: c?.fiscal_ambiente ?? 'homologacao',
-    ambiente_focus: focusAmbiente(),
-    focus_token_configurado: focusConfigurada(),
+    ambiente: amb,
+    focus_token_configurado: focusConfigurada(amb),
     emitir_ligado: !!c?.fiscal_ativo,
     campos,
     faltando,
