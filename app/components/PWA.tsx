@@ -125,7 +125,7 @@ export default function PWA() {
   if (!mostrarInstalar && !mostrarPush) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[70] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pointer-events-none">
+    <div className="fixed inset-x-0 bottom-0 z-[70] px-3 pb-[calc(env(safe-area-inset-bottom)+76px)] lg:pb-[calc(env(safe-area-inset-bottom)+12px)] pointer-events-none">
       <div className="pointer-events-auto mx-auto max-w-md rounded-2xl border border-[#C79A54]/30 bg-[#141317]/95 backdrop-blur-xl shadow-2xl shadow-black/50 p-4">
         <div className="flex items-start gap-3">
           <div className="shrink-0 w-11 h-11 rounded-xl bg-[#0B0B0D] border border-white/5 flex items-center justify-center">

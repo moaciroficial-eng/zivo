@@ -621,8 +621,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
         {/* ── Lista de contatos ── */}
         <aside className={`
-          ${view === 'chat' ? 'hidden' : 'flex'} md:flex relative
-          flex-col w-full md:w-72 lg:w-80 border-r border-zinc-800 shrink-0 bg-zinc-950 min-h-0
+          ${view === 'chat' ? 'hidden' : 'flex'} lg:flex relative
+          flex-col w-full lg:w-80 border-r border-zinc-800 shrink-0 bg-zinc-950 min-h-0
         `}>
           <div className="p-3 border-b border-zinc-800 flex gap-2">
             <input
@@ -752,7 +752,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         </aside>
 
         {/* ── Área de chat ── */}
-        <main className={`${view === 'list' ? 'hidden' : 'flex'} md:flex flex-1 flex-col overflow-hidden min-h-0`}>
+        <main className={`${view === 'list' ? 'hidden' : 'flex'} lg:flex flex-1 flex-col overflow-hidden min-h-0`}>
 
           {/* Empty state */}
           {!selectedContato && (
@@ -770,7 +770,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
               <div className="shrink-0 px-4 py-3 border-b border-zinc-800 flex items-center gap-3 bg-zinc-950/80 backdrop-blur-sm">
                 <button
                   onClick={() => setView('list')}
-                  className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-400 transition-colors"
+                  className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-400 transition-colors"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M19 12H5M12 5l-7 7 7 7"/>

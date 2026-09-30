@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Wordmark } from '@/app/components/Wordmark'
 import Sidebar from './Sidebar'
+import MobileTabBar from './MobileTabBar'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -18,11 +19,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Landing e páginas PÚBLICAS do clube (/clube/<slug>) não usam o chrome do app
   if (pathname === '/' || /^\/clube\/[^/]+/.test(pathname)) return <>{children}</>
 
+  // Telas "cheias" (ocupam a altura toda, têm navegação própria) escondem a
+  // barra de abas pra não cobrir o rodapé/composer.
+  const telaCheia = pathname.startsWith('/whatsapp') || pathname.startsWith('/caixa')
+
   return (
     <div className="relative min-h-screen bg-[#09090b] text-white overflow-x-hidden">
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 bg-black/60 z-30 backdrop-blur-sm lg:hidden transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/60 z-40 backdrop-blur-sm lg:hidden transition-opacity duration-300 ${
           sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setSidebarOpen(false)}
@@ -55,10 +60,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Page content */}
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${telaCheia ? '' : 'pb-[calc(3.75rem+env(safe-area-inset-bottom))] lg:pb-0'}`}>
           {children}
         </div>
       </div>
+
+      {/* Barra de abas (celular) — cara de app */}
+      {!telaCheia && <MobileTabBar onMore={() => setSidebarOpen(true)} />}
     </div>
   )
 }

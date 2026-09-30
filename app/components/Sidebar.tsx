@@ -247,7 +247,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <aside
-      className={`sidebar-drawer ${open ? 'sidebar-open' : ''} fixed top-0 left-0 h-screen w-60 z-40 flex flex-col bg-[#080B10] border-r border-zinc-800/40 transition-transform duration-300 ease-in-out`}
+      className={`sidebar-drawer ${open ? 'sidebar-open' : ''} fixed top-0 left-0 h-screen w-60 z-50 flex flex-col bg-[#080B10] border-r border-zinc-800/40 transition-transform duration-300 ease-in-out`}
     >
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-zinc-800/60 shrink-0">
