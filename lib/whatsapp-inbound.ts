@@ -1,5 +1,5 @@
 import { after } from 'next/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, normalizarTelefoneBR } from '@/lib/whatsapp'
 import { varrerConversasPendentes } from '@/lib/agentes/varredura'
 import { logErro } from '@/lib/log-erro'
 
@@ -101,10 +101,13 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
   if (direcao === 'recebida' && isOwner && conteudo) {
     console.log(`[inbound] Dono detectado: ${phone}`)
 
-    /* Salva a mensagem do dono no histórico */
+    /* Salva a mensagem do dono no histórico — SEMPRE no contato canônico do dono
+       (mesmo telefone normalizado que o owner/comando e o resumo usam), senão a
+       conversa "Você" racha em dois contatos e a última mensagem some da ordem. */
+    const donoPhone = normalizarTelefoneBR(ownerPhone) || phone
     const { data: contatoDono } = await supabase
       .from('whatsapp_contatos')
-      .upsert({ user_id: cleanUserId, phone, nome: 'Você', ultima_mensagem: conteudo, ultima_mensagem_at: timestamp },
+      .upsert({ user_id: cleanUserId, phone: donoPhone, nome: 'Você', ultima_mensagem: conteudo, ultima_mensagem_at: timestamp },
         { onConflict: 'user_id,phone', ignoreDuplicates: false })
       .select('id').single()
     if (contatoDono?.id && messageId) {

@@ -1,4 +1,4 @@
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, normalizarTelefoneBR } from '@/lib/whatsapp'
 import { enviarOferta } from '@/lib/agentes/envio'
 
 /* ══════════════════════════════════════════════════════════════
@@ -100,8 +100,9 @@ export async function enviarResumoDiario(admin: any, userId: string): Promise<{ 
 
   const { messageId } = await sendWhatsAppMessage({ phone: ownerPhone, message: corpo, userId })
 
-  /* Salva no histórico da conversa com o dono */
-  const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
+  /* Salva no histórico da conversa com o dono — contato canônico (com o 9),
+     igual ao recebimento e ao owner/comando, pra não rachar a conversa. */
+  const phone = normalizarTelefoneBR(ownerPhone)
   const { data: contatoDono } = await admin
     .from('whatsapp_contatos').select('id').eq('user_id', userId).eq('phone', phone).maybeSingle()
   if (contatoDono?.id) {
