@@ -68,6 +68,33 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
 
+  /* Exportar XMLs das notas do mês (pra contadora) */
+  const [mesExport, setMesExport] = useState(new Date().toISOString().slice(0, 7))
+  const [exportando, setExportando] = useState(false)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
+
+  async function baixarXmls() {
+    setExportando(true); setExportMsg(null)
+    try {
+      const res = await fetch(`/api/fiscal/exportar-xml?mes=${mesExport}`)
+      const ct = res.headers.get('content-type') ?? ''
+      if (!ct.includes('zip')) {
+        const d = await res.json().catch(() => ({}))
+        setExportMsg(d.erro ?? 'Nenhuma nota encontrada nesse mês.')
+        return
+      }
+      const blob = await res.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `notas-${mesExport}.zip`
+      document.body.appendChild(a); a.click(); a.remove()
+      URL.revokeObjectURL(a.href)
+      setExportMsg('Download iniciado ✅')
+    } catch {
+      setExportMsg('Erro ao gerar o arquivo. Tente de novo.')
+    } finally { setExportando(false) }
+  }
+
   async function registrarNaFocus() {
     setRegistrando(true); setResultadoFocus(null)
     try {
@@ -322,6 +349,22 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
           {resultadoFocus && (
             <p className={`text-xs rounded-lg px-3 py-2 ${resultadoFocus.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/25' : 'bg-red-500/10 text-red-300 border border-red-500/25'}`}>{resultadoFocus}</p>
           )}
+        </div>
+
+        {/* Exportar XMLs do mês — pra enviar à contadora */}
+        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA]" />Exportar notas (XML) pra contadora</h2>
+          <p className="text-xs text-zinc-500">Baixa um .zip com os XMLs de todas as notas emitidas no mês escolhido — o arquivo que a contabilidade usa.</p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className={labelClass}>Mês</label>
+              <input type="month" className={inputClass} value={mesExport} onChange={e => setMesExport(e.target.value)} />
+            </div>
+            <button onClick={baixarXmls} disabled={exportando} className="py-2.5 px-4 rounded-xl border border-[#00D4AA]/40 text-[#00D4AA] hover:bg-[#00D4AA]/10 font-semibold text-sm transition disabled:opacity-50 cursor-pointer whitespace-nowrap">
+              {exportando ? 'Gerando…' : 'Baixar XMLs'}
+            </button>
+          </div>
+          {exportMsg && <p className="text-xs text-zinc-400">{exportMsg}</p>}
         </div>
       </div>
     </div>
