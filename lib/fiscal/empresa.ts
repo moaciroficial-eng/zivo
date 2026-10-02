@@ -29,6 +29,14 @@ export async function registrarEmpresaFocus(admin: any, userId: string): Promise
     ? { csc_nfce_producao: cfg.fiscal_csc, id_token_nfce_producao: cfg.fiscal_csc_id }
     : { csc_nfce_homologacao: cfg.fiscal_csc, id_token_nfce_homologacao: cfg.fiscal_csc_id }
 
+  /* Série dedicada ao Terny, pra não colidir com o sistema antigo da loja
+     (que normalmente emite na série 1). Produção: série 2. Homologação:
+     série 900 (faixa reservada a teste pela SEFAZ). A Focus controla a
+     numeração por aqui, não pelo payload do cupom. */
+  const serieFields = amb === 'producao'
+    ? { serie_nfce_producao: '2', proximo_numero_nfce_producao: 1 }
+    : { serie_nfce_homologacao: '900', proximo_numero_nfce_homologacao: 1 }
+
   const payload = {
     nome: cfg.fiscal_razao_social || cfg.nome_loja,
     nome_fantasia: cfg.nome_loja || cfg.fiscal_razao_social,
@@ -47,6 +55,7 @@ export async function registrarEmpresaFocus(admin: any, userId: string): Promise
     arquivo_certificado_base64: base64,
     senha_certificado: cfg.fiscal_cert_senha,
     ...cscFields,
+    ...serieFields,
   }
 
   return focusRequest('POST', '/v2/empresas', payload, amb)

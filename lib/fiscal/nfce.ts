@@ -111,7 +111,10 @@ export function montarNfcePayload(venda: Venda, cfg: FiscalCfg, estoqueById: Map
   return {
     cnpj_emitente: (cfg.fiscal_cnpj ?? '').replace(/\D/g, ''),
     data_emissao: new Date().toISOString(),
-    serie: 900,                     // série dedicada ao Terny, bem alta pra não colidir com o Nex (séries 1/2 já tinham histórico/inutilização na SEFAZ)
+    /* Série e numeração são controladas NA CONTA FOCUS (serie_nfce_producao /
+       proximo_numero_nfce_producao da empresa) — o campo "serie" no payload é
+       ignorado. A loja da Moca usa série 2 (o Nex usa a 1). Séries 900-999 são
+       reservadas pra homologação, não servem em produção. */
     presenca_comprador: '1',        // presencial
     modalidade_frete: '9',          // sem frete
     local_destino: '1',             // operação interna
