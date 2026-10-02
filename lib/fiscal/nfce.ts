@@ -69,11 +69,17 @@ export function montarNfcePayload(venda: Venda, cfg: FiscalCfg, estoqueById: Map
     totalProdutos += bruto
     totalDesconto += desc
     const est = p.estoque_id ? estoqueById.get(p.estoque_id) : undefined
+    /* CFOP de SAÍDA (venda). O cfop guardado no produto costuma ser o de
+       COMPRA (entrada: 1xxx/2xxx) vindo da importação da NF-e — inválido num
+       cupom de venda. Só aceita um 5xxx do produto; senão usa 5102 (padrão
+       Simples, dentro do estado, consumidor final). */
+    const cfopProd = (est?.cfop ?? '').replace(/\D/g, '')
+    const cfop = /^5\d{3}$/.test(cfopProd) ? cfopProd : '5102'
     return {
       numero_item: i + 1,
       codigo_produto: p.estoque_id?.slice(0, 12) ?? String(i + 1),
       descricao: (p.nome ?? 'Produto').slice(0, 120),
-      cfop: (est?.cfop ?? '5102').replace(/\D/g, '') || '5102',
+      cfop,
       unidade_comercial: 'UN',
       quantidade_comercial: qtd,
       valor_unitario_comercial: unit,
