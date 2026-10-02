@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const [{ data: venda }, { data: cfg }] = await Promise.all([
-    admin.from('vendas').select('id, cliente_nome, forma_pagamento, produtos, valor').eq('id', vendaId).eq('user_id', user.id).maybeSingle(),
+    admin.from('vendas').select('id, cliente_nome, forma_pagamento, produtos, valor, cpf_nota').eq('id', vendaId).eq('user_id', user.id).maybeSingle(),
     admin.from('loja_config').select('fiscal_ativo, fiscal_ambiente, fiscal_cnpj, fiscal_razao_social, fiscal_ie, fiscal_regime, fiscal_csc, fiscal_csc_id, fiscal_cep, fiscal_logradouro, fiscal_numero, fiscal_bairro, fiscal_municipio, fiscal_uf, fiscal_cod_municipio').eq('user_id', user.id).maybeSingle(),
   ])
   if (!venda) return NextResponse.json({ ok: false, erro: 'Venda não encontrada.' }, { status: 404 })
@@ -38,7 +38,8 @@ export async function POST(request: NextRequest) {
 
   const amb = ambienteDaLoja(cfg.fiscal_ambiente)
   const ref = `venda-${vendaId}`
-  const payload = montarNfcePayload(venda, cfg as FiscalCfg, estoqueById)
+  const vendaComCpf = { ...venda, cliente_cpf: (venda as { cpf_nota?: string | null }).cpf_nota ?? null }
+  const payload = montarNfcePayload(vendaComCpf, cfg as FiscalCfg, estoqueById)
 
   try {
     let r = await emitirNfce(ref, payload, amb)

@@ -42,7 +42,7 @@ type Caixa = {
 
 type ClienteDependente = { id: string; nome: string; relacao: string; genero: 'M' | 'F'; tamanho_camiseta?: string; tamanho_calca?: string; tamanho_tenis?: string }
 
-type ClienteOption = { id: string; nome: string; dependentes?: ClienteDependente[]; saldo_credito?: number | null; observacoes?: string | null }
+type ClienteOption = { id: string; nome: string; telefone?: string | null; dependentes?: ClienteDependente[]; saldo_credito?: number | null; observacoes?: string | null }
 
 type TamanhoQtd = { tamanho: string; qtd: number }
 
@@ -259,6 +259,7 @@ const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" heigh
 const IconX = ({ size = 18 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 const IconCheck = ({ size = 14 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 18 4 13"/></svg>
 const IconReceipt = ({ size = 15 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+const IconWhats = ({ size = 15 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.37-.5.05-.98.24-3.3-.69-2.78-1.1-4.55-3.95-4.69-4.14-.14-.19-1.13-1.5-1.13-2.86 0-1.36.71-2.03.96-2.31.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.06.62.48.24.57.81 1.96.88 2.1.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.37-.42.49-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.6-.07.17-.19.69-.8.87-1.08.18-.28.37-.23.62-.14.25.09 1.6.76 1.87.9.28.14.46.21.53.33.07.12.07.68-.17 1.36Z"/></svg>
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 const IconPackage = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -537,6 +538,7 @@ export default function VendasClient({
   const [isPresente, setIsPresente] = useState(false)
   const [agradecer, setAgradecer] = useState(true)  // manda msg de agradecimento ao fechar
   const [emitirCupomNaVenda, setEmitirCupomNaVenda] = useState(fiscalAtivo)  // emite NFC-e ao fechar a venda
+  const [cpfNota, setCpfNota] = useState('')  // CPF do cliente no cupom (opcional)
   const [tipoPresente, setTipoPresente] = useState('')
   const [obsPresente, setObsPresente] = useState('')
   const [presenteTamanho, setPresenteTamanho] = useState('')
@@ -915,7 +917,7 @@ export default function VendasClient({
     setClienteDropdown(false); setProductSearch(''); setProductDropdown(false); setShowScanner(false)
     setShowPayment(false); resetPayment()
     setDescontoVendaTipo('%'); setDescontoVendaValor('')
-    setIsPresente(false); setTipoPresente(''); setObsPresente(''); setPresenteTamanho(''); setAgradecer(true)
+    setIsPresente(false); setTipoPresente(''); setObsPresente(''); setPresenteTamanho(''); setAgradecer(true); setCpfNota(''); setEmitirCupomNaVenda(fiscalAtivo)
     setClienteDependentes([]); setSelectedDepId('')
   }
 
@@ -1071,6 +1073,7 @@ export default function VendasClient({
       presente_tamanho: isPresente && presenteTamanho ? presenteTamanho : null,
       para_dependente_nome: selectedDep?.nome ?? null,
       para_dependente_id: selectedDepId || null,
+      cpf_nota: cpfNota.replace(/\D/g, '').length === 11 ? cpfNota.replace(/\D/g, '') : null,
       produtos: form.produtos.filter(p => p.nome.trim()).map(p => ({
         nome: p.nome.trim(),
         tamanho: p.tamanho || undefined,
@@ -1386,6 +1389,19 @@ export default function VendasClient({
     } finally {
       setCancelandoCupom(null)
     }
+  }
+
+  /* Link pra mandar o cupom no WhatsApp do cliente (dono confere e envia).
+     Só quando há cupom autorizado com DANFE e o cliente tem telefone. */
+  function linkWhatsCupom(venda: Venda): string | null {
+    const nota = notas[venda.id]
+    if (!nota?.url_danfe || nota.status !== 'autorizado') return null
+    const cli = venda.cliente_id ? clientes.find(c => c.id === venda.cliente_id) : null
+    const tel = (cli?.telefone ?? '').replace(/\D/g, '')
+    if (tel.length < 10) return null
+    const num = tel.startsWith('55') ? tel : `55${tel}`
+    const msg = `Olá! Segue o cupom fiscal da sua compra: ${nota.url_danfe}`
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`
   }
 
   /* ── Derived ── */
@@ -1729,6 +1745,9 @@ export default function VendasClient({
                                         {nota.url_danfe
                                           ? <a href={nota.url_danfe} target="_blank" rel="noopener noreferrer" title={`Cupom nº ${nota.numero ?? ''} — abrir/imprimir`} className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition cursor-pointer flex items-center"><IconReceipt /></a>
                                           : <span title={`Cupom nº ${nota.numero ?? ''} emitido`} className="p-1.5 text-emerald-400 flex items-center"><IconReceipt /></span>}
+                                        {(() => { const l = linkWhatsCupom(v); return l
+                                          ? <a href={l} target="_blank" rel="noopener noreferrer" title="Enviar cupom no WhatsApp do cliente" className="p-1.5 text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition cursor-pointer flex items-center"><IconWhats /></a>
+                                          : null })()}
                                         <button onClick={() => setConfirmCancelCupom(v.id)} title="Cancelar cupom" className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"><IconX size={14}/></button>
                                       </>
                                     )
@@ -2343,6 +2362,18 @@ export default function VendasClient({
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${emitirCupomNaVenda ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
+                  {emitirCupomNaVenda && (
+                    <div className="mt-3 pt-3 border-t border-zinc-800/60">
+                      <label className="text-xs text-zinc-400">CPF na nota <span className="text-zinc-600">(opcional — só se o cliente pedir)</span></label>
+                      <input
+                        value={cpfNota}
+                        onChange={e => setCpfNota(e.target.value.replace(/[^\d.\-]/g, '').slice(0, 14))}
+                        placeholder="000.000.000-00"
+                        inputMode="numeric"
+                        className="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm placeholder-zinc-600 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
