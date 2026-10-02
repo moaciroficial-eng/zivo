@@ -1729,7 +1729,7 @@ export default function VendasClient({
                                         {nota.url_danfe
                                           ? <a href={nota.url_danfe} target="_blank" rel="noopener noreferrer" title={`Cupom nº ${nota.numero ?? ''} — abrir/imprimir`} className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition cursor-pointer flex items-center"><IconReceipt /></a>
                                           : <span title={`Cupom nº ${nota.numero ?? ''} emitido`} className="p-1.5 text-emerald-400 flex items-center"><IconReceipt /></span>}
-                                        <button onClick={() => setConfirmCancelCupom(v.id)} title="Cancelar cupom" className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconX size={14}/></button>
+                                        <button onClick={() => setConfirmCancelCupom(v.id)} title="Cancelar cupom" className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"><IconX size={14}/></button>
                                       </>
                                     )
                                   }

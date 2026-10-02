@@ -81,7 +81,7 @@ export function montarNfcePayload(venda: Venda, cfg: FiscalCfg, estoqueById: Map
       unidade_tributavel: 'UN',
       quantidade_tributavel: qtd,
       valor_unitario_tributavel: unit,
-      ncm: ncmDoProduto(est),
+      codigo_ncm: ncmDoProduto(est),    // Focus usa "codigo_ncm" (não "ncm")
       icms_origem: '0',                 // nacional
       icms_situacao_tributaria: '102',  // CSOSN Simples Nacional (sem crédito)
       /* PIS/COFINS no Simples Nacional: CST 49 (outras operações), valor zero.
