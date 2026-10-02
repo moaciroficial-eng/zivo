@@ -111,7 +111,7 @@ export function montarNfcePayload(venda: Venda, cfg: FiscalCfg, estoqueById: Map
   return {
     cnpj_emitente: (cfg.fiscal_cnpj ?? '').replace(/\D/g, ''),
     data_emissao: new Date().toISOString(),
-    serie: 2,                       // série dedicada ao Terny (o Nex usa a 1) — evita duplicidade
+    serie: 900,                     // série dedicada ao Terny, bem alta pra não colidir com o Nex (séries 1/2 já tinham histórico/inutilização na SEFAZ)
     presenca_comprador: '1',        // presencial
     modalidade_frete: '9',          // sem frete
     local_destino: '1',             // operação interna
