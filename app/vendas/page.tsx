@@ -36,7 +36,7 @@ export default async function VendasPage() {
   d.setUTCDate(d.getUTCDate() + 1)
   const tomorrow = d.toISOString().split('T')[0]
 
-  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }, { data: insights }, { data: fotos }] = await Promise.all([
+  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }, { data: insights }, { data: fotos }, { data: notas }, { data: cfgFiscal }] = await Promise.all([
     supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
     supabase.from('clientes').select('id, nome, dependentes, saldo_credito, observacoes').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, cor, codigo_barras, codigo_produto, preco_venda, preco_custo, status, tamanhos')
@@ -46,7 +46,17 @@ export default async function VendasPage() {
     /* marca principal por cliente — pra sugerir a observação na venda */
     supabase.from('contato_insights').select('cliente_id, marca_principal, fidelidade_marca').eq('user_id', user.id),
     supabase.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
+    /* cupons/notas já emitidos (pra mostrar status por venda) */
+    supabase.from('notas_fiscais').select('venda_id, status, numero, url_danfe, mensagem').eq('user_id', user.id),
+    /* emissão fiscal está ligada? */
+    supabase.from('loja_config').select('fiscal_ativo').eq('user_id', user.id).maybeSingle(),
   ])
+
+  /* Mapa venda_id → nota fiscal (cupom) */
+  const notasPorVenda: Record<string, { status: string; numero: string | null; url_danfe: string | null; mensagem: string | null }> = {}
+  for (const n of (notas ?? []) as { venda_id: string | null; status: string; numero: string | null; url_danfe: string | null; mensagem: string | null }[]) {
+    if (n.venda_id) notasPorVenda[n.venda_id] = { status: n.status, numero: n.numero, url_danfe: n.url_danfe, mensagem: n.mensagem }
+  }
 
   /* Mapa produtoId → foto (miniatura na busca de venda) */
   const fotoMap: Record<string, string> = {}
@@ -120,6 +130,8 @@ export default async function VendasPage() {
       marcaPorCliente={marcaPorCliente}
       fotoMap={fotoMap}
       modo={modo}
+      fiscalAtivo={!!cfgFiscal?.fiscal_ativo}
+      notasFiscais={notasPorVenda}
     />
   )
 }

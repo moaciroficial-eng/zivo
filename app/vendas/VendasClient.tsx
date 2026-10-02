@@ -22,6 +22,8 @@ type Venda = {
   created_at: string
 }
 
+type NotaFiscal = { status: string; numero: string | null; url_danfe: string | null; mensagem: string | null }
+
 type Caixa = {
   id: string
   user_id: string
@@ -256,6 +258,7 @@ const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height
 const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
 const IconX = ({ size = 18 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 const IconCheck = ({ size = 14 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 18 4 13"/></svg>
+const IconReceipt = ({ size = 15 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 const IconPackage = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -488,6 +491,8 @@ export default function VendasClient({
   marcaPorCliente = {},
   fotoMap = {},
   modo = 'dono',
+  fiscalAtivo = false,
+  notasFiscais = {},
 }: {
   user: { id: string; email: string }
   initialVendas: Venda[]
@@ -499,11 +504,17 @@ export default function VendasClient({
   marcaPorCliente?: Record<string, string>
   fotoMap?: Record<string, string>
   modo?: 'dono' | 'funcionaria'
+  fiscalAtivo?: boolean
+  notasFiscais?: Record<string, NotaFiscal>
 }) {
   const supabase = createClient()
   // Modo funcionária: desconto máximo permitido numa venda
   const descontoMaxPct = modo === 'funcionaria' ? 60 : 100
   const [vendas, setVendas] = useState(initialVendas)
+  /* Fiscal (cupom NFC-e) */
+  const [notas, setNotas] = useState<Record<string, NotaFiscal>>(notasFiscais)
+  const [emitindoCupom, setEmitindoCupom] = useState<string | null>(null)
+  const [cupomResult, setCupomResult] = useState<{ ok: boolean; titulo: string; msg: string; url?: string | null } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
   const [editing, setEditing] = useState<Venda | null>(null)
@@ -1311,6 +1322,41 @@ export default function VendasClient({
     setDeleting(null); setConfirmDelete(null)
   }
 
+  /* ── Cupom fiscal (NFC-e) ── */
+
+  async function emitirCupom(venda: Venda) {
+    if (!fiscalAtivo) {
+      setCupomResult({ ok: false, titulo: 'Emissão desligada', msg: 'Ligue a emissão fiscal em Configurações → Fiscal (o botão "Ativar emissão") antes de emitir o cupom.' })
+      return
+    }
+    setEmitindoCupom(venda.id)
+    try {
+      const res = await fetch('/api/fiscal/emitir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendaId: venda.id }),
+      })
+      const d = await res.json()
+      if (d.ok && (d.status === 'autorizado' || d.status === 'processando')) {
+        const url = d.url_danfe ?? null
+        setNotas(n => ({ ...n, [venda.id]: { status: d.status, numero: d.numero ?? null, url_danfe: url, mensagem: null } }))
+        setCupomResult(d.status === 'autorizado'
+          ? { ok: true, titulo: 'Cupom emitido! 🎉', msg: `Cupom nº ${d.numero ?? ''} autorizado pela SEFAZ.`, url }
+          : { ok: true, titulo: 'Cupom em processamento', msg: 'A SEFAZ ainda está autorizando. Em instantes atualize a página pra ver o cupom.', url })
+      } else {
+        const msg = typeof d.mensagem === 'string' ? d.mensagem
+          : d.mensagem ? JSON.stringify(d.mensagem)
+          : d.erro ?? 'Não consegui emitir o cupom.'
+        setNotas(n => ({ ...n, [venda.id]: { status: 'erro', numero: null, url_danfe: null, mensagem: String(msg) } }))
+        setCupomResult({ ok: false, titulo: 'Não deu pra emitir', msg: String(msg) })
+      }
+    } catch {
+      setCupomResult({ ok: false, titulo: 'Erro de conexão', msg: 'Não consegui falar com o servidor. Tente de novo.' })
+    } finally {
+      setEmitindoCupom(null)
+    }
+  }
+
   /* ── Derived ── */
 
   const now = new Date()
@@ -1518,6 +1564,25 @@ export default function VendasClient({
           </div>
         )}
 
+        {/* Resultado da emissão do cupom */}
+        {cupomResult && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setCupomResult(null)}>
+            <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${cupomResult.ok ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                {cupomResult.ok ? <IconReceipt size={22}/> : <IconX size={22}/>}
+              </div>
+              <h3 className="text-lg font-semibold text-white">{cupomResult.titulo}</h3>
+              <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed break-words">{cupomResult.msg}</p>
+              <div className="flex items-center gap-2 mt-5">
+                {cupomResult.url && (
+                  <a href={cupomResult.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-sm font-semibold bg-[#C79A54] hover:bg-[#B98C46] text-[#16151A] rounded-lg px-4 py-2.5 transition">Imprimir cupom</a>
+                )}
+                <button onClick={() => setCupomResult(null)} className={`${cupomResult.url ? '' : 'flex-1'} text-sm text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg px-4 py-2.5 transition`}>Fechar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Search */}
         <div className="mb-5">
           <div className="relative w-full sm:w-72">
@@ -1613,6 +1678,26 @@ export default function VendasClient({
                               </>
                             ) : (
                               <>
+                                {(() => {
+                                  const nota = notas[v.id]
+                                  if (nota?.status === 'autorizado') {
+                                    return nota.url_danfe
+                                      ? <a href={nota.url_danfe} target="_blank" rel="noopener noreferrer" title={`Cupom nº ${nota.numero ?? ''} — abrir/imprimir`} className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition cursor-pointer flex items-center"><IconReceipt /></a>
+                                      : <span title={`Cupom nº ${nota.numero ?? ''} emitido`} className="p-1.5 text-emerald-400 flex items-center"><IconReceipt /></span>
+                                  }
+                                  if (emitindoCupom === v.id) {
+                                    return <span className="p-1.5 text-[#C79A54] flex items-center"><span className="w-4 h-4 border-2 border-[#C79A54] border-t-transparent rounded-full animate-spin" /></span>
+                                  }
+                                  return (
+                                    <button
+                                      onClick={() => emitirCupom(v)}
+                                      title={nota?.status === 'erro' ? `Falhou: ${nota.mensagem ?? ''} — tentar de novo` : 'Emitir cupom fiscal (NFC-e)'}
+                                      className={`p-1.5 rounded-lg transition cursor-pointer ${nota?.status === 'erro' ? 'text-amber-400 hover:bg-amber-500/10' : 'text-zinc-500 hover:text-[#E0B36A] hover:bg-[#C79A54]/10'}`}
+                                    >
+                                      <IconReceipt />
+                                    </button>
+                                  )
+                                })()}
                                 <button onClick={() => openEdit(v)} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconEdit /></button>
                                 <button onClick={() => setConfirmDelete(v.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconTrash /></button>
                               </>
