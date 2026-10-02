@@ -84,6 +84,17 @@ export function montarNfcePayload(venda: Venda, cfg: FiscalCfg, estoqueById: Map
       ncm: ncmDoProduto(est),
       icms_origem: '0',                 // nacional
       icms_situacao_tributaria: '102',  // CSOSN Simples Nacional (sem crédito)
+      /* PIS/COFINS no Simples Nacional: CST 49 (outras operações), valor zero.
+         Pagos na DAS; no cupom vão padronizados — não é dado por produto.
+         CEST não entra: só vale com ICMS-ST (CSOSN de ST), não com o 102. */
+      pis_situacao_tributaria: '49',
+      pis_base_calculo: 0,
+      pis_aliquota_porcentual: 0,
+      pis_valor: 0,
+      cofins_situacao_tributaria: '49',
+      cofins_base_calculo: 0,
+      cofins_aliquota_porcentual: 0,
+      cofins_valor: 0,
       ...(desc > 0 ? { valor_desconto: desc } : {}),
     }
   })

@@ -514,6 +514,8 @@ export default function VendasClient({
   /* Fiscal (cupom NFC-e) */
   const [notas, setNotas] = useState<Record<string, NotaFiscal>>(notasFiscais)
   const [emitindoCupom, setEmitindoCupom] = useState<string | null>(null)
+  const [confirmCancelCupom, setConfirmCancelCupom] = useState<string | null>(null)
+  const [cancelandoCupom, setCancelandoCupom] = useState<string | null>(null)
   const [cupomResult, setCupomResult] = useState<{ ok: boolean; titulo: string; msg: string; url?: string | null } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
@@ -534,6 +536,7 @@ export default function VendasClient({
   const [isHibrido, setIsHibrido] = useState(false)
   const [isPresente, setIsPresente] = useState(false)
   const [agradecer, setAgradecer] = useState(true)  // manda msg de agradecimento ao fechar
+  const [emitirCupomNaVenda, setEmitirCupomNaVenda] = useState(fiscalAtivo)  // emite NFC-e ao fechar a venda
   const [tipoPresente, setTipoPresente] = useState('')
   const [obsPresente, setObsPresente] = useState('')
   const [presenteTamanho, setPresenteTamanho] = useState('')
@@ -1169,6 +1172,10 @@ export default function VendasClient({
       }).catch(() => {})
     }
     setSaving(false); closeDrawer()
+    /* Emite o cupom fiscal (NFC-e) da venda recém-criada, se escolhido.
+       A venda já foi salva acima — se a emissão falhar, a venda NÃO se perde;
+       o cupom pode ser reemitido pelo botão na lista. */
+    if (emitirCupomNaVenda && fiscalAtivo && data) emitirCupom(data as Venda)
   }
 
   async function handleMarcarPago(crediarioId: string, parcelaId: string, formaPagamento: string) {
@@ -1354,6 +1361,30 @@ export default function VendasClient({
       setCupomResult({ ok: false, titulo: 'Erro de conexão', msg: 'Não consegui falar com o servidor. Tente de novo.' })
     } finally {
       setEmitindoCupom(null)
+    }
+  }
+
+  async function cancelarCupom(venda: Venda) {
+    setConfirmCancelCupom(null)
+    setCancelandoCupom(venda.id)
+    try {
+      const res = await fetch('/api/fiscal/cancelar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendaId: venda.id }),
+      })
+      const d = await res.json()
+      if (d.ok) {
+        setNotas(n => ({ ...n, [venda.id]: { ...(n[venda.id] ?? { numero: null, url_danfe: null }), status: 'cancelado', mensagem: 'Cancelado' } }))
+        setCupomResult({ ok: true, titulo: 'Cupom cancelado', msg: 'O cupom foi cancelado na SEFAZ.' })
+      } else {
+        const msg = typeof d.mensagem === 'string' ? d.mensagem : d.mensagem ? JSON.stringify(d.mensagem) : d.erro ?? 'Não consegui cancelar.'
+        setCupomResult({ ok: false, titulo: 'Não deu pra cancelar', msg: String(msg) })
+      }
+    } catch {
+      setCupomResult({ ok: false, titulo: 'Erro de conexão', msg: 'Não consegui falar com o servidor. Tente de novo.' })
+    } finally {
+      setCancelandoCupom(null)
     }
   }
 
@@ -1680,13 +1711,30 @@ export default function VendasClient({
                               <>
                                 {(() => {
                                   const nota = notas[v.id]
-                                  if (nota?.status === 'autorizado') {
-                                    return nota.url_danfe
-                                      ? <a href={nota.url_danfe} target="_blank" rel="noopener noreferrer" title={`Cupom nº ${nota.numero ?? ''} — abrir/imprimir`} className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition cursor-pointer flex items-center"><IconReceipt /></a>
-                                      : <span title={`Cupom nº ${nota.numero ?? ''} emitido`} className="p-1.5 text-emerald-400 flex items-center"><IconReceipt /></span>
+                                  if (confirmCancelCupom === v.id) {
+                                    return (
+                                      <>
+                                        <span className="text-xs text-zinc-400 mr-1 whitespace-nowrap">Cancelar cupom?</span>
+                                        <button onClick={() => cancelarCupom(v)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"><IconCheck /></button>
+                                        <button onClick={() => setConfirmCancelCupom(null)} className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition cursor-pointer"><IconX size={14}/></button>
+                                      </>
+                                    )
                                   }
-                                  if (emitindoCupom === v.id) {
+                                  if (emitindoCupom === v.id || cancelandoCupom === v.id) {
                                     return <span className="p-1.5 text-[#C79A54] flex items-center"><span className="w-4 h-4 border-2 border-[#C79A54] border-t-transparent rounded-full animate-spin" /></span>
+                                  }
+                                  if (nota?.status === 'autorizado') {
+                                    return (
+                                      <>
+                                        {nota.url_danfe
+                                          ? <a href={nota.url_danfe} target="_blank" rel="noopener noreferrer" title={`Cupom nº ${nota.numero ?? ''} — abrir/imprimir`} className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition cursor-pointer flex items-center"><IconReceipt /></a>
+                                          : <span title={`Cupom nº ${nota.numero ?? ''} emitido`} className="p-1.5 text-emerald-400 flex items-center"><IconReceipt /></span>}
+                                        <button onClick={() => setConfirmCancelCupom(v.id)} title="Cancelar cupom" className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconX size={14}/></button>
+                                      </>
+                                    )
+                                  }
+                                  if (nota?.status === 'cancelado') {
+                                    return <span title="Cupom cancelado" className="p-1.5 text-zinc-600 flex items-center"><IconReceipt /></span>
                                   }
                                   return (
                                     <button
@@ -2274,6 +2322,25 @@ export default function VendasClient({
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${agradecer ? 'bg-[#00D4AA]' : 'bg-zinc-700'}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${agradecer ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 4c. CUPOM FISCAL — emitir NFC-e ao fechar a venda (só se a emissão estiver ligada) */}
+              {fiscalAtivo && !editing && (
+                <div className="border border-zinc-800 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-200">Emitir cupom fiscal (NFC-e)</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Sai o cupom na SEFAZ ao fechar a venda. Desligue pra vender sem cupom.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmitirCupomNaVenda(v => !v)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${emitirCupomNaVenda ? 'bg-[#C79A54]' : 'bg-zinc-700'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${emitirCupomNaVenda ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
                 </div>
