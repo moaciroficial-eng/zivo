@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeScanner'
+import NfeModal from './NfeModal'
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -260,6 +261,7 @@ const IconX = ({ size = 18 }: { size?: number }) => <svg xmlns="http://www.w3.or
 const IconCheck = ({ size = 14 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 18 4 13"/></svg>
 const IconReceipt = ({ size = 15 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
 const IconWhats = ({ size = 15 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.37-.5.05-.98.24-3.3-.69-2.78-1.1-4.55-3.95-4.69-4.14-.14-.19-1.13-1.5-1.13-2.86 0-1.36.71-2.03.96-2.31.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.06.62.48.24.57.81 1.96.88 2.1.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.37-.42.49-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.6-.07.17-.19.69-.8.87-1.08.18-.28.37-.23.62-.14.25.09 1.6.76 1.87.9.28.14.46.21.53.33.07.12.07.68-.17 1.36Z"/></svg>
+const IconFileText = ({ size = 15 }: { size?: number }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 const IconPackage = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -518,6 +520,7 @@ export default function VendasClient({
   const [confirmCancelCupom, setConfirmCancelCupom] = useState<string | null>(null)
   const [cancelandoCupom, setCancelandoCupom] = useState<string | null>(null)
   const [cupomResult, setCupomResult] = useState<{ ok: boolean; titulo: string; msg: string; url?: string | null } | null>(null)
+  const [nfeVenda, setNfeVenda] = useState<Venda | null>(null)
   const [drawer, setDrawer] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
   const [editing, setEditing] = useState<Venda | null>(null)
@@ -1630,6 +1633,19 @@ export default function VendasClient({
           </div>
         )}
 
+        {/* Modal de NF-e (modelo 55) */}
+        {nfeVenda && (
+          <NfeModal
+            vendaId={nfeVenda.id}
+            clienteNome={nfeVenda.cliente_nome}
+            onClose={() => setNfeVenda(null)}
+            onResultado={(r, vid) => {
+              if (r.ok) setNotas(n => ({ ...n, [vid]: { status: r.url ? 'autorizado' : 'processando', numero: null, url_danfe: r.url ?? null, mensagem: null } }))
+              setCupomResult(r)
+            }}
+          />
+        )}
+
         {/* Search */}
         <div className="mb-5">
           <div className="relative w-full sm:w-72">
@@ -1765,6 +1781,7 @@ export default function VendasClient({
                                     </button>
                                   )
                                 })()}
+                                {fiscalAtivo && <button onClick={() => setNfeVenda(v)} title="Emitir NF-e (modelo 55)" className="p-1.5 text-zinc-500 hover:text-[#E0B36A] hover:bg-[#C79A54]/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconFileText /></button>}
                                 <button onClick={() => openEdit(v)} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconEdit /></button>
                                 <button onClick={() => setConfirmDelete(v.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer opacity-0 group-hover:opacity-100"><IconTrash /></button>
                               </>

@@ -79,6 +79,17 @@ export async function cancelarNfce(ref: string, justificativa: string, amb?: Foc
   return focusRequest('DELETE', `/v2/nfce/${encodeURIComponent(ref)}`, { justificativa }, amb)
 }
 
+/* ── NF-e (modelo 55) — nota "cheia", pra quando o cliente/empresa exige ── */
+export async function emitirNfe(ref: string, payload: unknown, amb?: FocusAmbiente): Promise<FocusResp> {
+  return focusRequest('POST', `/v2/nfe?ref=${encodeURIComponent(ref)}`, payload, amb)
+}
+export async function consultarNfe(ref: string, amb?: FocusAmbiente): Promise<FocusResp> {
+  return focusRequest('GET', `/v2/nfe/${encodeURIComponent(ref)}`, undefined, amb)
+}
+export async function cancelarNfe(ref: string, justificativa: string, amb?: FocusAmbiente): Promise<FocusResp> {
+  return focusRequest('DELETE', `/v2/nfe/${encodeURIComponent(ref)}`, { justificativa }, amb)
+}
+
 /* Lista as empresas cadastradas na conta (serve de teste de conexão). */
 export async function listarEmpresas(amb?: FocusAmbiente): Promise<FocusResp> {
   return focusRequest('GET', '/v2/empresas', undefined, amb)
