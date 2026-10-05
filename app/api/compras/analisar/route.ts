@@ -9,6 +9,10 @@ interface ProdutoVenda {
   nome?: string
   marca?: string
   preco_venda?: number
+  preco_unitario?: number
+  desconto?: number
+  qtd?: number
+  estoque_id?: string
   tamanho?: string
 }
 
@@ -79,7 +83,7 @@ export async function POST(request: NextRequest) {
   const sinceStr = since.toISOString().split('T')[0]
   const hojeStr  = new Date().toISOString().split('T')[0]
 
-  const [{ data: vendas }, { data: estoque }, { data: clientes }, { data: insights }] = await Promise.all([
+  const [{ data: vendas }, { data: estoque }, { data: clientes }, { data: insights }, { data: estoqueAll }] = await Promise.all([
     admin.from('vendas')
       .select('id, valor, data_venda, produtos')
       .eq('user_id', user.id)
@@ -95,11 +99,22 @@ export async function POST(request: NextRequest) {
     admin.from('contato_insights')
       .select('tamanhos')
       .eq('user_id', user.id),
+    /* TODOS os itens (inclusive vendidos) só pra mapear estoque_id → marca
+       das vendas — senão produto vendido não casa com nenhuma marca. */
+    admin.from('estoque')
+      .select('id, marca')
+      .eq('user_id', user.id),
   ])
 
-  /* ── Marcas canônicas (do estoque = nome limpo) ─────────── */
+  /* Mapa estoque_id → marca (inclui vendidos) */
+  const marcaPorId = new Map<string, string>()
+  for (const it of (estoqueAll ?? [])) {
+    if (it.marca) marcaPorId.set(it.id as string, it.marca as string)
+  }
+
+  /* ── Marcas canônicas (de TODO o estoque, inclusive vendido) ── */
   const marcasCanónicas = [...new Set(
-    (estoque ?? []).map(i => i.marca as string).filter(Boolean)
+    (estoqueAll ?? []).map(i => i.marca as string).filter(Boolean)
   )]
 
   /* ── Meses de dados disponíveis ─────────────────────────── */
@@ -115,12 +130,26 @@ export async function POST(request: NextRequest) {
   const brandSales = new Map<string, BrandStat>()
   for (const venda of vendaList) {
     for (const prod of (venda.produtos as ProdutoVenda[]) ?? []) {
-      if (!prod.marca) continue
-      const marcaNorm = normalizarMarca(prod.marca, marcasCanónicas)
+      /* A venda NÃO guarda a marca no produto. Descobrimos pela ordem:
+         1) marca explícita (raro)  2) estoque_id → marca
+         3) marca canônica achada dentro do nome (ex: "... (Aramis)") */
+      let marcaRaw: string | undefined = prod.marca || (prod.estoque_id ? marcaPorId.get(prod.estoque_id) : undefined)
+      if (!marcaRaw && prod.nome) {
+        const low = prod.nome.toLowerCase()
+        marcaRaw = marcasCanónicas.find(c => low.includes(c.toLowerCase()))
+      }
+      if (!marcaRaw) continue
+
+      const qtd  = Number(prod.qtd ?? 1) || 1
+      const unit = Number(prod.preco_unitario ?? prod.preco_venda ?? 0)
+      const desc = Number(prod.desconto ?? 0)
+      const valor = Math.max(0, unit * qtd - desc)
+
+      const marcaNorm = normalizarMarca(marcaRaw, marcasCanónicas)
       const s = brandSales.get(marcaNorm) ?? { valor: 0, pecas: 0, tamanhos: {} }
-      s.valor += prod.preco_venda ?? 0
-      s.pecas++
-      if (prod.tamanho) s.tamanhos[prod.tamanho] = (s.tamanhos[prod.tamanho] ?? 0) + 1
+      s.valor += valor
+      s.pecas += qtd
+      if (prod.tamanho) s.tamanhos[prod.tamanho] = (s.tamanhos[prod.tamanho] ?? 0) + qtd
       brandSales.set(marcaNorm, s)
     }
   }
