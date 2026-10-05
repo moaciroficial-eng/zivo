@@ -523,6 +523,16 @@ export default function VendasClient({
   /* Remover crediário */
   const [confirmDelCr, setConfirmDelCr] = useState<string | null>(null)
   const [deletingCr, setDeletingCr] = useState<string | null>(null)
+  /* Cadastro rápido de produto no estoque */
+  const [cadastrandoProd, setCadastrandoProd] = useState(false)
+  const [prodNome, setProdNome] = useState('')
+  const [prodMarca, setProdMarca] = useState('')
+  const [prodCategoria, setProdCategoria] = useState('')
+  const [prodPrecoVenda, setProdPrecoVenda] = useState('')
+  const [prodPrecoCusto, setProdPrecoCusto] = useState('')
+  const [prodTamanho, setProdTamanho] = useState('')
+  const [prodQtd, setProdQtd] = useState('1')
+  const [salvandoProd, setSalvandoProd] = useState(false)
   /* Fiscal (cupom NFC-e) */
   const [notas, setNotas] = useState<Record<string, NotaFiscal>>(notasFiscais)
   const [emitindoCupom, setEmitindoCupom] = useState<string | null>(null)
@@ -685,6 +695,46 @@ export default function VendasClient({
     setProductSearch('')
     setProductDropdown(false)
     setTimeout(() => productSearchRef.current?.focus(), 0)
+  }
+
+  /* Abre o cadastro rápido de produto (salva no estoque) com o nome digitado */
+  function abrirCadastroProduto() {
+    setProdNome(productSearch.trim())
+    setProdMarca(''); setProdCategoria(''); setProdPrecoVenda(''); setProdPrecoCusto(''); setProdTamanho(''); setProdQtd('1')
+    setProductDropdown(false)
+    setCadastrandoProd(true)
+  }
+
+  /* Cadastra o produto no estoque e já adiciona 1 unidade à venda */
+  async function cadastrarProdutoRapido() {
+    const nome = prodNome.trim()
+    if (!nome) { showToast('Informe o nome do produto.', 'error'); return }
+    const pv = parseFloat(prodPrecoVenda.replace(',', '.')) || 0
+    if (pv <= 0) { showToast('Informe o preço de venda.', 'error'); return }
+    const pc = prodPrecoCusto.trim() ? (parseFloat(prodPrecoCusto.replace(',', '.')) || null) : null
+    const tam = prodTamanho.trim()
+    const qtd = Math.max(1, parseInt(prodQtd) || 1)
+    setSalvandoProd(true)
+    const { data, error } = await supabase.from('estoque').insert({
+      user_id: user.id,
+      nome,
+      marca: prodMarca.trim() || null,
+      categoria: prodCategoria || null,
+      preco_venda: pv,
+      preco_custo: pc,
+      tamanhos: [{ tamanho: tam || 'UN', qtd }],
+      status: 'disponivel',
+    }).select('id, nome, marca').single()
+    setSalvandoProd(false)
+    if (error || !data) { showToast(error?.message ?? 'Erro ao cadastrar produto.', 'error'); return }
+    const nomeLinha = data.nome + (tam ? ` ${tam}` : '') + (data.marca ? ` (${data.marca})` : '')
+    setForm(f => ({
+      ...f,
+      produtos: [...f.produtos, { estoqueId: data.id, nome: nomeLinha, tamanho: tam, qtd: '1', precoUnitario: String(pv), desconto: '0', precoCusto: pc != null ? String(pc) : '' }],
+    }))
+    setCadastrandoProd(false)
+    setProductSearch('')
+    showToast('Produto cadastrado no estoque!')
   }
 
   function onScanBarcode(barcode: string) {
@@ -1742,6 +1792,60 @@ export default function VendasClient({
           </div>
         )}
 
+        {/* Cadastro rápido de produto no estoque */}
+        {cadastrandoProd && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setCadastrandoProd(false)}>
+            <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-white">Cadastrar produto no estoque</h3>
+              <p className="text-xs text-zinc-500 mt-1 mb-4">Salva no estoque e já entra nesta venda (1 unidade).</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Nome</label>
+                  <input value={prodNome} onChange={e => setProdNome(e.target.value)} autoFocus className={INPUT} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Marca</label>
+                    <input list="vc-marcas-estoque" value={prodMarca} onChange={e => setProdMarca(e.target.value)} placeholder="Ex: Aramis" className={INPUT} />
+                    <datalist id="vc-marcas-estoque">
+                      {[...new Set(estoqueItems.map(i => i.marca).filter(Boolean))].map(m => <option key={m as string} value={m as string} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Categoria</label>
+                    <select value={prodCategoria} onChange={e => setProdCategoria(e.target.value)} className={INPUT}>
+                      <option value="">—</option>
+                      {['camiseta','polo','camisa','regata','blusa','calca','bermuda','tenis','chinelo','cueca','meia','bone','acessorios'].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Preço venda</label>
+                    <input value={prodPrecoVenda} onChange={e => setProdPrecoVenda(e.target.value)} inputMode="decimal" placeholder="0,00" className={INPUT} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Preço custo</label>
+                    <input value={prodPrecoCusto} onChange={e => setProdPrecoCusto(e.target.value)} inputMode="decimal" placeholder="opcional" className={INPUT} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Qtd estoque</label>
+                    <input value={prodQtd} onChange={e => setProdQtd(e.target.value)} inputMode="numeric" className={INPUT} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Tamanho <span className="text-zinc-600">(opcional)</span></label>
+                  <input value={prodTamanho} onChange={e => setProdTamanho(e.target.value)} placeholder="Ex: G, 42" className={INPUT} />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-5">
+                <button onClick={() => setCadastrandoProd(false)} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded-lg py-2.5 transition">Cancelar</button>
+                <button onClick={cadastrarProdutoRapido} disabled={salvandoProd} className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#B98C46] disabled:opacity-60 text-[#16151A] rounded-lg py-2.5 transition">{salvandoProd ? 'Salvando…' : 'Salvar e vender'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Search */}
         <div className="mb-5">
           <div className="relative w-full sm:w-72">
@@ -2184,7 +2288,20 @@ export default function VendasClient({
                         <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 shrink-0 flex items-center justify-center text-[#E0B36A] text-lg">+</div>
                         <div className="flex-1 min-w-0">
                           <p className="text-zinc-200 text-sm truncate">Adicionar &ldquo;{productSearch}&rdquo;</p>
-                          <p className="text-xs text-zinc-500">produto fora do estoque (digita o preço)</p>
+                          <p className="text-xs text-zinc-500">só nesta venda (fora do estoque, digita o preço)</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={abrirCadastroProduto}
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2.5 border-t border-zinc-700/60"
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 shrink-0 flex items-center justify-center text-[#00D4AA]">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-zinc-200 text-sm truncate">Cadastrar &ldquo;{productSearch}&rdquo; no estoque</p>
+                          <p className="text-xs text-zinc-500">salva o produto pra reusar nas próximas vendas</p>
                         </div>
                       </button>
                     </div>
