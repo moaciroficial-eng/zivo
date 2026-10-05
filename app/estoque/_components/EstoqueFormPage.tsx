@@ -231,6 +231,7 @@ export default function EstoqueFormPage({
   const [activeTab, setActiveTab] = useState<'principal' | 'tributos'>('principal')
   const [marcasMap, setMarcasMap] = useState<Map<string, number>>(new Map())
   const [marcasTamanhos, setMarcasTamanhos] = useState<Map<string, string[]>>(new Map())  // extras por marca
+  const [marcasConhecidas, setMarcasConhecidas] = useState<string[]>([])  // grafias canônicas (evita marca duplicada)
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [fotoId, setFotoId] = useState<string | null>(null)
   const [fotoStoragePath, setFotoStoragePath] = useState<string | null>(null)
@@ -251,6 +252,18 @@ export default function EstoqueFormPage({
         setMarcasMap(new Map(data.map(m => [m.nome.toLowerCase().trim(), m.markup])))
         setMarcasTamanhos(new Map(data.map(m => [m.nome.toLowerCase().trim(), (m.tamanhos as string[] | null) ?? []])))
       }
+    })
+    /* Marcas já existentes (registro + estoque) pra encaixar a grafia e não
+       criar duplicata ("aramis" vs "Aramis"). */
+    Promise.all([
+      supabase.from('marcas').select('nome'),
+      supabase.from('estoque').select('marca').eq('user_id', user.id).not('marca', 'is', null),
+    ]).then(([r1, r2]) => {
+      const nomes = [
+        ...((r1.data ?? []).map(m => (m.nome as string))),
+        ...((r2.data ?? []).map(m => (m.marca as string))),
+      ].map(s => (s ?? '').trim()).filter(Boolean)
+      setMarcasConhecidas([...new Set(nomes)])
     })
     if (hasScanParams) showToast('Etiqueta escaneada com sucesso!')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -562,9 +575,15 @@ export default function EstoqueFormPage({
       ? [{ tamanho: 'UN', qtd: Number(form.qtd_outros) || 0 }]
       : form.tamanhos
 
+    /* Encaixa a marca na grafia já existente (ignora maiúscula/espaço) */
+    const marcaTrim = form.marca.trim()
+    const marcaFinal = marcaTrim
+      ? (marcasConhecidas.find(m => m.toLowerCase() === marcaTrim.toLowerCase()) ?? marcaTrim)
+      : null
+
     const payload = {
       nome: form.nome.trim(),
-      marca: form.marca.trim() || null,
+      marca: marcaFinal,
       codigo_produto: form.codigo_produto.trim() || null,
       cor: form.cor.trim() || null,
       genero: form.genero || null,

@@ -715,10 +715,15 @@ export default function VendasClient({
     const tam = prodTamanho.trim()
     const qtd = Math.max(1, parseInt(prodQtd) || 1)
     setSalvandoProd(true)
+    /* Encaixa a marca na grafia já existente (ignora maiúscula/espaço) pra não
+       criar marca duplicada tipo "aramis" vs "Aramis". */
+    const marcasExistentes = [...new Set(estoqueItems.map(i => i.marca).filter(Boolean))] as string[]
+    const marcaTrim = prodMarca.trim()
+    const marcaFinal = marcaTrim ? (marcasExistentes.find(m => m.toLowerCase() === marcaTrim.toLowerCase()) ?? marcaTrim) : null
     const { data, error } = await supabase.from('estoque').insert({
       user_id: user.id,
       nome,
-      marca: prodMarca.trim() || null,
+      marca: marcaFinal,
       categoria: prodCategoria || null,
       preco_venda: pv,
       preco_custo: pc,
