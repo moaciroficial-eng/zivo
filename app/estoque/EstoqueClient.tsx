@@ -118,6 +118,7 @@ export default function EstoqueClient({
   const [deleting, setDeleting] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [catFiltro, setCatFiltro] = useState<Categoria>('todos')
+  const [tamFiltro, setTamFiltro] = useState('')   // filtro por tamanho (conferência)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const [showNFeModal, setShowNFeModal] = useState(false)
@@ -197,11 +198,28 @@ export default function EstoqueClient({
 
   /* ── Derived ── */
 
+  /* Tamanhos disponíveis no contexto atual (categoria + busca), pra popular
+     o filtro de tamanho. Ordena P<M<G<GG… e números crescentes. */
+  const ORDEM_TAM = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG', 'EG', 'EGG', '3G', '4G', '5G']
+  function rankTam(t: string): number {
+    const up = t.toUpperCase()
+    const i = ORDEM_TAM.indexOf(up)
+    if (i >= 0) return i
+    const n = parseInt(up.replace(/\D/g, ''), 10)
+    return Number.isFinite(n) ? 100 + n : 999
+  }
+  const tamanhosDisponiveis = [...new Set(
+    produtos
+      .filter(p => (catFiltro === 'todos' || p.categoria === catFiltro))
+      .flatMap(p => p.tamanhos.filter(t => t.qtd > 0).map(t => t.tamanho.toUpperCase()))
+  )].sort((a, b) => rankTam(a) - rankTam(b) || a.localeCompare(b))
+
   const filtered = produtos.filter(p => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase()) ||
       (p.marca ?? '').toLowerCase().includes(search.toLowerCase())
     const matchCat = catFiltro === 'todos' || p.categoria === catFiltro
-    return matchSearch && matchCat
+    const matchTam = !tamFiltro || p.tamanhos.some(t => t.tamanho.toUpperCase() === tamFiltro && t.qtd > 0)
+    return matchSearch && matchCat && matchTam
   })
 
   const totalPecas  = produtos.reduce((s, p) => s + totalQtd(p.tamanhos), 0)
@@ -361,6 +379,17 @@ export default function EstoqueClient({
               className="w-full sm:w-64 bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 transition"
             />
           </div>
+          {tamanhosDisponiveis.length > 0 && (
+            <select
+              value={tamFiltro}
+              onChange={e => setTamFiltro(e.target.value)}
+              title="Filtrar por tamanho"
+              className={`bg-zinc-900 border rounded-xl px-3 py-2 text-sm outline-none focus:border-[#C79A54] transition cursor-pointer [color-scheme:dark] ${tamFiltro ? 'border-[#C79A54] text-[#E0B36A]' : 'border-zinc-800 text-zinc-300'}`}
+            >
+              <option value="">Todos os tamanhos</option>
+              {tamanhosDisponiveis.map(t => <option key={t} value={t}>Tam. {t}</option>)}
+            </select>
+          )}
           {lowStockCount > 0 && (
             <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2 ml-auto">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"/>
@@ -380,7 +409,7 @@ export default function EstoqueClient({
             {search || catFiltro !== 'todos' ? (
               <>
                 <p className="font-medium text-zinc-300">Nenhum resultado encontrado</p>
-                <button onClick={() => { setSearch(''); setCatFiltro('todos') }} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">Limpar filtros</button>
+                <button onClick={() => { setSearch(''); setCatFiltro('todos'); setTamFiltro('') }} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">Limpar filtros</button>
               </>
             ) : (
               <>

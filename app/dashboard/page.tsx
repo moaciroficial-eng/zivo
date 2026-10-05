@@ -51,7 +51,7 @@ export default async function DashboardPage() {
 
   const totalReceita = (todasVendas ?? []).reduce((s, v) => s + Number(v.valor), 0)
   const vendidoMes   = (vendasMes   ?? []).reduce((s, v) => s + Number(v.valor), 0)
-  const totalVendas  = todasVendas?.length ?? 0
+  const totalVendas  = vendasMes?.length ?? 0   // contagem de vendas DO MÊS (não o total histórico)
 
   // Mapa de custo por nome do produto (nome exibido no formulário de venda)
   const custoPorNome: Record<string, number> = {}

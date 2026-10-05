@@ -7,6 +7,7 @@ import MetaModal from './MetaModal'
 import SaudeFinanceiraModal, { type SaudeDados } from './SaudeFinanceiraModal'
 import AiChat from '@/app/components/AiChat'
 import SalesChart from '@/app/components/SalesChart'
+import WhatsAppStatusCard from '@/app/components/WhatsAppStatusCard'
 
 /* ── Types ────────────────────────────────────────────────────── */
 
@@ -728,18 +729,10 @@ export default function DashboardClient({
             <p className="text-2xl font-bold mt-1 text-[#C79A54]">{valoresVisiveis ? fmtNum(vendidoMes) : HIDDEN_LABEL}</p>
           </Link>
           <Link href="/vendas" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas</p>
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">Vendas do Mês</p>
             <p className="text-3xl font-bold mt-1">{valoresVisiveis ? totalVendas : HIDDEN_LABEL}</p>
           </Link>
-          <Link href="/whatsapp" className="bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700 rounded-2xl p-5 transition group flex flex-col justify-between">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-zinc-400 transition">WhatsApp</p>
-            <div className="flex items-end justify-between mt-1">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-              <span className="text-xs text-zinc-500 group-hover:text-zinc-400 transition">Abrir chat →</span>
-            </div>
-          </Link>
+          <WhatsAppStatusCard />
           <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-2xl p-5 flex flex-col justify-between">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Meta {getMesLabel(mes)}</p>
             {meta ? (
