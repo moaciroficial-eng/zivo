@@ -520,6 +520,9 @@ export default function VendasClient({
   const [novoCliNome, setNovoCliNome] = useState('')
   const [novoCliTel, setNovoCliTel] = useState('')
   const [salvandoCli, setSalvandoCli] = useState(false)
+  /* Remover crediário */
+  const [confirmDelCr, setConfirmDelCr] = useState<string | null>(null)
+  const [deletingCr, setDeletingCr] = useState<string | null>(null)
   /* Fiscal (cupom NFC-e) */
   const [notas, setNotas] = useState<Record<string, NotaFiscal>>(notasFiscais)
   const [emitindoCupom, setEmitindoCupom] = useState<string | null>(null)
@@ -1231,6 +1234,17 @@ export default function VendasClient({
     if (emitirCupomNaVenda && fiscalAtivo && data) emitirCupom(data as Venda)
   }
 
+  async function handleDeleteCrediario(crId: string) {
+    setDeletingCr(crId)
+    await supabase.from('parcelas_crediario').delete().eq('crediario_id', crId)
+    const { error } = await supabase.from('crediario').delete().eq('id', crId)
+    if (!error) {
+      setCrediarios(cs => cs.filter(c => c.id !== crId))
+      showToast('Crediário removido.')
+    } else showToast(error.message, 'error')
+    setDeletingCr(null); setConfirmDelCr(null)
+  }
+
   async function handleMarcarPago(crediarioId: string, parcelaId: string, formaPagamento: string) {
     const today = new Date().toISOString().split('T')[0]
     const cr = crediarios.find(c => c.id === crediarioId)
@@ -1371,9 +1385,26 @@ export default function VendasClient({
   async function handleDelete(id: string) {
     setDeleting(id)
     const vendaExcluida = vendas.find(v => v.id === id)
+
+    /* Captura os dependentes ANTES de apagar a venda (caso o vínculo seja
+       zerado ao excluir): crediário da venda e lançamentos de haver. */
+    const { data: crs } = await supabase.from('crediario').select('id').eq('venda_id', id)
+    const crIds = (crs ?? []).map(c => c.id as string)
+
     const { error } = await supabase.from('vendas').delete().eq('id', id)
     if (!error) {
       setVendas(vs => vs.filter(v => v.id !== id))
+
+      /* Apaga o crediário (e as parcelas) daquela venda — senão fica solto */
+      if (crIds.length) {
+        await supabase.from('parcelas_crediario').delete().in('crediario_id', crIds)
+        await supabase.from('crediario').delete().in('id', crIds)
+        setCrediarios(cs => cs.filter(c => !crIds.includes(c.id)))
+      }
+      /* Reverte lançamentos de haver/crédito (troco guardado / uso de saldo)
+         desta venda — o trigger do banco recalcula o saldo do cliente. */
+      await supabase.from('cliente_creditos').delete().eq('venda_id', id)
+
       /* Devolve os itens da venda excluída pro estoque */
       await ajustarEstoque((vendaExcluida?.produtos ?? []) as Produto[], 1)
       showToast('Venda removida.')
@@ -1897,9 +1928,20 @@ export default function VendasClient({
                             </p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-amber-400">{formatBRL(restante)}</p>
-                          <p className="text-xs text-zinc-500">a receber</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-amber-400">{formatBRL(restante)}</p>
+                            <p className="text-xs text-zinc-500">a receber</p>
+                          </div>
+                          {confirmDelCr === cr.id ? (
+                            <span className="flex items-center gap-1">
+                              <span className="text-xs text-zinc-400 whitespace-nowrap">Remover?</span>
+                              <button onClick={() => handleDeleteCrediario(cr.id)} disabled={deletingCr === cr.id} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer disabled:opacity-50"><IconCheck /></button>
+                              <button onClick={() => setConfirmDelCr(null)} className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition cursor-pointer"><IconX size={14}/></button>
+                            </span>
+                          ) : (
+                            <button onClick={() => setConfirmDelCr(cr.id)} title="Remover crediário" className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"><IconTrash /></button>
+                          )}
                         </div>
                       </div>
                       <div className="divide-y divide-zinc-800/60">
