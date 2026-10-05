@@ -486,7 +486,7 @@ function TrocaModal({ estoqueItems, fotoMap, clientes, saving, onClose, onConfir
 export default function VendasClient({
   user,
   initialVendas,
-  clientes,
+  clientes: clientesProp,
   estoqueItems,
   caixaAtual,
   historicoCaixas,
@@ -514,6 +514,12 @@ export default function VendasClient({
   // Modo funcionária: desconto máximo permitido numa venda
   const descontoMaxPct = modo === 'funcionaria' ? 60 : 100
   const [vendas, setVendas] = useState(initialVendas)
+  const [clientes, setClientes] = useState(clientesProp)
+  /* Cadastro rápido de cliente na venda */
+  const [cadastrandoCli, setCadastrandoCli] = useState(false)
+  const [novoCliNome, setNovoCliNome] = useState('')
+  const [novoCliTel, setNovoCliTel] = useState('')
+  const [salvandoCli, setSalvandoCli] = useState(false)
   /* Fiscal (cupom NFC-e) */
   const [notas, setNotas] = useState<Record<string, NotaFiscal>>(notasFiscais)
   const [emitindoCupom, setEmitindoCupom] = useState<string | null>(null)
@@ -593,6 +599,33 @@ export default function VendasClient({
     setObsCliente(obsOverrides[c.id] ?? c.observacoes ?? '')
   }
 
+  /* Abre o cadastro rápido com o nome que já foi digitado */
+  function abrirCadastroCliente() {
+    setNovoCliNome(form.clienteSearch.trim())
+    setNovoCliTel('')
+    setClienteDropdown(false)
+    setCadastrandoCli(true)
+  }
+
+  /* Cadastra o cliente na hora (salva em clientes) e já seleciona na venda */
+  async function cadastrarClienteRapido() {
+    const nome = novoCliNome.trim()
+    if (!nome) { showToast('Informe o nome do cliente.', 'error'); return }
+    setSalvandoCli(true)
+    const tel = novoCliTel.replace(/\D/g, '')
+    const { data, error } = await supabase
+      .from('clientes')
+      .insert({ user_id: user.id, nome, telefone: tel || null })
+      .select('id, nome, telefone, dependentes, saldo_credito, observacoes')
+      .single()
+    setSalvandoCli(false)
+    if (error || !data) { showToast(error?.message ?? 'Erro ao cadastrar cliente.', 'error'); return }
+    setClientes(cs => [data as ClienteOption, ...cs])
+    selectCliente(data as ClienteOption)
+    setCadastrandoCli(false)
+    showToast('Cliente cadastrado!')
+  }
+
   /* Salva a observação do cliente (na venda). Aceita o texto explícito
      (o chip passa o valor novo, sem esperar o estado atualizar). Guarda
      um override local pra não reler o valor velho do prop na sessão. */
@@ -631,6 +664,20 @@ export default function VendasClient({
     setForm(f => ({
       ...f,
       produtos: [...f.produtos, { estoqueId: item.id, nome, tamanho: item._tamanho ?? '', qtd: '1', precoUnitario: preco, desconto: '0', precoCusto: custo }],
+    }))
+    setProductSearch('')
+    setProductDropdown(false)
+    setTimeout(() => productSearchRef.current?.focus(), 0)
+  }
+
+  /* Adiciona um produto digitado à mão (não está no estoque) — ex.: venda de
+     peça antiga que nunca foi cadastrada. Não mexe no estoque; preço é digitado. */
+  function addProdutoLivre() {
+    const nome = productSearch.trim()
+    if (!nome) return
+    setForm(f => ({
+      ...f,
+      produtos: [...f.produtos, { estoqueId: '', nome, tamanho: '', qtd: '1', precoUnitario: '', desconto: '0', precoCusto: '' }],
     }))
     setProductSearch('')
     setProductDropdown(false)
@@ -1646,6 +1693,24 @@ export default function VendasClient({
           />
         )}
 
+        {/* Cadastro rápido de cliente */}
+        {cadastrandoCli && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setCadastrandoCli(false)}>
+            <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-white">Cadastrar cliente</h3>
+              <p className="text-xs text-zinc-500 mt-1 mb-4">Salva na sua lista de clientes e já entra nesta venda.</p>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">Nome</label>
+              <input value={novoCliNome} onChange={e => setNovoCliNome(e.target.value)} autoFocus className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#C79A54] mb-3" />
+              <label className="block text-xs font-medium text-zinc-400 mb-1">Telefone (WhatsApp) <span className="text-zinc-600">opcional</span></label>
+              <input value={novoCliTel} onChange={e => setNovoCliTel(e.target.value)} inputMode="numeric" placeholder="(62) 99999-9999" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-[#C79A54]" />
+              <div className="flex gap-2 mt-5">
+                <button onClick={() => setCadastrandoCli(false)} className="flex-1 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded-lg py-2.5 transition">Cancelar</button>
+                <button onClick={cadastrarClienteRapido} disabled={salvandoCli} className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#B98C46] disabled:opacity-60 text-[#16151A] rounded-lg py-2.5 transition">{salvandoCli ? 'Salvando…' : 'Salvar e usar'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Search */}
         <div className="mb-5">
           <div className="relative w-full sm:w-72">
@@ -2067,9 +2132,19 @@ export default function VendasClient({
                             </div>
                           </button>
                         ))
-                      ) : (
-                        <p className="px-3 py-2.5 text-xs text-zinc-500">Nenhum produto encontrado</p>
-                      )}
+                      ) : null}
+                      {/* Adicionar produto fora do estoque (texto livre) */}
+                      <button
+                        type="button"
+                        onMouseDown={addProdutoLivre}
+                        className={`w-full text-left px-3 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2.5 ${produtosFiltrados.length > 0 ? 'border-t border-zinc-700/60' : ''}`}
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 shrink-0 flex items-center justify-center text-[#E0B36A] text-lg">+</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-zinc-200 text-sm truncate">Adicionar &ldquo;{productSearch}&rdquo;</p>
+                          <p className="text-xs text-zinc-500">produto fora do estoque (digita o preço)</p>
+                        </div>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2183,14 +2258,17 @@ export default function VendasClient({
                   )}
                   {clienteDropdown && form.clienteSearch.length >= 1 && (
                     <div className="absolute z-10 top-full mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
-                      {clientesFiltrados.length > 0 ? clientesFiltrados.map(c => (
+                      {clientesFiltrados.length > 0 && clientesFiltrados.map(c => (
                         <button key={c.id} type="button" onMouseDown={() => selectCliente(c)} className="w-full text-left px-4 py-2.5 text-sm text-zinc-200 hover:bg-[#C79A54]/20 hover:text-[#16151A] transition flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-xs font-bold shrink-0">{c.nome.charAt(0).toUpperCase()}</span>
                           {c.nome}
                         </button>
-                      )) : (
-                        <p className="px-4 py-2.5 text-sm text-zinc-500">Nenhum cliente encontrado</p>
-                      )}
+                      ))}
+                      {/* Cadastrar novo cliente na hora */}
+                      <button type="button" onMouseDown={abrirCadastroCliente} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2 ${clientesFiltrados.length > 0 ? 'border-t border-zinc-700/60' : ''}`}>
+                        <span className="w-6 h-6 rounded-full bg-[#C79A54]/20 text-[#E0B36A] flex items-center justify-center text-sm font-bold shrink-0">+</span>
+                        <span className="text-zinc-200">Cadastrar &ldquo;{form.clienteSearch}&rdquo;</span>
+                      </button>
                     </div>
                   )}
                 </div>
