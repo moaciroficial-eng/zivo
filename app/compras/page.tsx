@@ -20,7 +20,21 @@ export default async function ComprasPage() {
     supabase.from('estoque').select('manga').eq('user_id', user.id).eq('categoria', 'camisa'),
   ])
 
-  const marcas = [...new Set((rows ?? []).map(r => r.marca as string).filter(Boolean))].sort()
+  /* Unifica marcas escritas de formas diferentes (espaço/maiúscula): agrupa
+     por nome normalizado e mostra a grafia mais usada — evita duplicata no
+     dropdown (ex.: "Aramis", "aramis ", "ARAMIS" viram uma só). */
+  const grupos = new Map<string, Map<string, number>>()
+  for (const r of (rows ?? [])) {
+    const raw = ((r.marca as string) ?? '').trim()
+    if (!raw) continue
+    const key = raw.toLowerCase()
+    const g = grupos.get(key) ?? new Map<string, number>()
+    g.set(raw, (g.get(raw) ?? 0) + 1)
+    grupos.set(key, g)
+  }
+  const marcas = [...grupos.values()]
+    .map(spellings => [...spellings.entries()].sort((a, b) => b[1] - a[1])[0][0])
+    .sort((a, b) => a.localeCompare(b, 'pt'))
 
   type ClienteRow = { genero: string | null; data_nascimento: string | null; tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null }
 
