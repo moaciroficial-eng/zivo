@@ -341,9 +341,10 @@ JSON APENAS:
     })
 
   const res = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 400,
-    system: systemPrompt,
+    /* Cache do contexto (regras + estoque) — leitura repetida custa ~10% */
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: `CLIENTE: ${nomeCliente}\nMENSAGEM: "${mensagem}"` }],
   })
 
@@ -372,7 +373,7 @@ JSON APENAS:
       /* Passagem de bastão: confirma que tem e que o vendedor já manda as fotos.
          Gerada COM o histórico na frente da IA (Sonnet) pra soar natural. */
       const resVendedor = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 160,
         system: `Você é o atendimento da loja de roupas ${nomeLoja} no WhatsApp. Fale como um vendedor brasileiro experiente: caloroso, natural e direto, sem melação, no máximo 1 emoji. Se já conversaram, não se reapresente.
 SITUAÇÃO: o cliente quer ver o produto e a loja TEM em estoque${contextoMarca}. Agora é a etapa das FOTOS — e quem manda as fotos é o vendedor humano da loja, que JÁ foi avisado. Sua fala é a passagem de bastão: confirma que tem e que já vão te enviar as fotos pra ver, de forma natural no contexto da conversa.
@@ -396,7 +397,7 @@ ${historico || 'Início da conversa'}`,
     } else {
       /* Não tem no estoque — resposta natural, com o histórico na frente */
       const resVendedor = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 120,
         system: `Você é o atendimento da loja de roupas ${nomeLoja} no WhatsApp. Tom natural e simpático, sem exagero, no máximo 1 emoji. Se já conversaram, não se reapresente.
 SITUAÇÃO: o cliente perguntou por um produto que a loja NÃO tem em estoque agora. Diga isso com gentileza e se ofereça pra ajudar com outra coisa/algo parecido — natural, no contexto da conversa. NÃO fale preço/pagamento/desconto. Sem listas, sem markdown. Só o texto da mensagem.
