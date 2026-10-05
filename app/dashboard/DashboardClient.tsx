@@ -93,14 +93,13 @@ function fmtNum(n: number) { return fmt.format(n) }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
-function isPlanStale(meta: MetaRow, vendidoMes: number): boolean {
+/* Só considera "sem plano de hoje" (gera automático no máximo 1x/dia).
+   NÃO regera a cada venda — isso dispara Sonnet toda hora e queima a API.
+   Pra atualizar após vender, o dono usa o botão manual. */
+function semPlanoHoje(meta: MetaRow): boolean {
   if (!meta.plano || !meta.plano_gerado_em) return true
-  // Recalcula se o plano foi gerado em outro dia
   const geradoEm = new Date(meta.plano_gerado_em).toISOString().split('T')[0]
-  const hoje = new Date().toISOString().split('T')[0]
-  if (geradoEm !== hoje) return true
-  // Recalcula se qualquer venda foi registrada desde a última geração
-  return (meta.plano_vendido_base ?? 0) !== vendidoMes
+  return geradoEm !== new Date().toISOString().split('T')[0]
 }
 
 function getMesLabel(mes: string) {
@@ -609,21 +608,12 @@ export default function DashboardClient({
   }, [mes, vendidoMes])
 
   useEffect(() => {
-    if (meta && isPlanStale(meta, vendidoMes)) generatePlan()
+    // Gera o plano automaticamente no máximo 1x por dia (na 1ª abertura).
+    // Depois de vender, o plano fica marcado como desatualizado e o dono
+    // atualiza pelo botão — evita disparar Sonnet a cada venda/foco.
+    if (meta && semPlanoHoje(meta)) generatePlan()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Recalcula quando o usuário volta à aba após registrar uma venda
-  useEffect(() => {
-    function onVisible() {
-      if (document.visibilityState === 'visible' && meta && isPlanStale(meta, vendidoMes)) {
-        generatePlan()
-      }
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, vendidoMes])
 
   async function handleSaveMeta(valor: number) {
     const res = await fetch('/api/salvar-meta', {
