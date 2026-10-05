@@ -119,6 +119,8 @@ export default function EstoqueClient({
   const [search, setSearch] = useState('')
   const [catFiltro, setCatFiltro] = useState<Categoria>('todos')
   const [tamFiltro, setTamFiltro] = useState('')   // filtro por tamanho (conferência)
+  const [marcasSel, setMarcasSel] = useState<Set<string>>(new Set())  // filtro por marca (múltiplas)
+  const [marcasOpen, setMarcasOpen] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const [showNFeModal, setShowNFeModal] = useState(false)
@@ -214,12 +216,20 @@ export default function EstoqueClient({
       .flatMap(p => p.tamanhos.filter(t => t.qtd > 0).map(t => t.tamanho.toUpperCase()))
   )].sort((a, b) => rankTam(a) - rankTam(b) || a.localeCompare(b))
 
+  /* Marcas disponíveis no contexto (categoria) pra o seletor múltiplo */
+  const marcasDisponiveis = [...new Set(
+    produtos
+      .filter(p => (catFiltro === 'todos' || p.categoria === catFiltro))
+      .map(p => p.marca).filter(Boolean) as string[]
+  )].sort((a, b) => a.localeCompare(b, 'pt'))
+
   const filtered = produtos.filter(p => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase()) ||
       (p.marca ?? '').toLowerCase().includes(search.toLowerCase())
     const matchCat = catFiltro === 'todos' || p.categoria === catFiltro
     const matchTam = !tamFiltro || p.tamanhos.some(t => t.tamanho.toUpperCase() === tamFiltro && t.qtd > 0)
-    return matchSearch && matchCat && matchTam
+    const matchMarca = marcasSel.size === 0 || (p.marca != null && marcasSel.has(p.marca))
+    return matchSearch && matchCat && matchTam && matchMarca
   })
 
   const totalPecas  = produtos.reduce((s, p) => s + totalQtd(p.tamanhos), 0)
@@ -373,7 +383,7 @@ export default function EstoqueClient({
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"><IconSearch /></span>
             <input
               type="text"
-              placeholder="Buscar produto ou marca..."
+              placeholder="Buscar produto..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full sm:w-64 bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 transition"
@@ -389,6 +399,42 @@ export default function EstoqueClient({
               <option value="">Todos os tamanhos</option>
               {tamanhosDisponiveis.map(t => <option key={t} value={t}>Tam. {t}</option>)}
             </select>
+          )}
+          {marcasDisponiveis.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setMarcasOpen(o => !o)}
+                className={`flex items-center gap-1.5 bg-zinc-900 border rounded-xl px-3 py-2 text-sm transition cursor-pointer ${marcasSel.size ? 'border-[#C79A54] text-[#E0B36A]' : 'border-zinc-800 text-zinc-300 hover:border-zinc-600'}`}
+              >
+                {marcasSel.size ? `Marcas (${marcasSel.size})` : 'Marcas'}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform ${marcasOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {marcasOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMarcasOpen(false)} />
+                  <div className="absolute z-20 top-full mt-1 left-0 w-56 max-h-72 overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-xl p-1 shadow-2xl">
+                    {marcasSel.size > 0 && (
+                      <button onClick={() => setMarcasSel(new Set())} className="w-full text-left px-2.5 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition">Limpar marcas</button>
+                    )}
+                    {marcasDisponiveis.map(m => {
+                      const on = marcasSel.has(m)
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => setMarcasSel(prev => { const s = new Set(prev); if (s.has(m)) s.delete(m); else s.add(m); return s })}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800 text-sm text-left transition"
+                        >
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-[#C79A54] border-[#C79A54]' : 'border-zinc-600'}`}>
+                            {on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 18 4 13"/></svg>}
+                          </span>
+                          <span className={`truncate ${on ? 'text-white' : 'text-zinc-300'}`}>{m}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           {lowStockCount > 0 && (
             <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2 ml-auto">
@@ -409,7 +455,7 @@ export default function EstoqueClient({
             {search || catFiltro !== 'todos' ? (
               <>
                 <p className="font-medium text-zinc-300">Nenhum resultado encontrado</p>
-                <button onClick={() => { setSearch(''); setCatFiltro('todos'); setTamFiltro('') }} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">Limpar filtros</button>
+                <button onClick={() => { setSearch(''); setCatFiltro('todos'); setTamFiltro(''); setMarcasSel(new Set()) }} className="text-sm text-[#C79A54] hover:text-[#E0B36A] transition">Limpar filtros</button>
               </>
             ) : (
               <>

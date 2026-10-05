@@ -37,11 +37,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const [{ data: estoque }, { data: fotos }] = await Promise.all([
+  const [{ data: estoque }, { data: fotos }, { data: enviadas }] = await Promise.all([
     admin.from('estoque').select('id, nome, marca, cor, categoria, preco_venda, tamanhos, genero, status')
       .eq('user_id', user.id).not('status', 'eq', 'vendido'),
     admin.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
+    // fotos JÁ ENVIADAS pra ESSE contato (pra não mandar de novo)
+    contatoId
+      ? admin.from('whatsapp_mensagens').select('raw').eq('contato_id', contatoId).eq('direcao', 'enviada').eq('tipo', 'imagem')
+      : Promise.resolve({ data: [] as { raw: unknown }[] }),
   ])
+
+  // URLs de imagem já enviadas nesse contato
+  const urlsEnviadas = new Set<string>()
+  for (const m of (enviadas ?? []) as { raw: { image?: { imageUrl?: string } } | null }[]) {
+    const u = m.raw?.image?.imageUrl
+    if (u) urlsEnviadas.add(u)
+  }
 
   // estoque_id → url da foto
   const fotoDe = new Map<string, string>()
@@ -71,8 +82,10 @@ export async function POST(request: NextRequest) {
       return { e, tams, tamanhosDisp, serve, casa: casaTexto && casaTamanho }
     })
     .filter(x => x.casa && x.tamanhosDisp.length > 0)
-    .sort((a, b) => Number(b.serve) - Number(a.serve))
-    .slice(0, 30)
+    .map(x => ({ ...x, jaEnviada: urlsEnviadas.has(fotoDe.get(x.e.id)!) }))
+    // não enviadas primeiro; depois as que servem no cliente
+    .sort((a, b) => Number(a.jaEnviada) - Number(b.jaEnviada) || Number(b.serve) - Number(a.serve))
+    .slice(0, 40)
     .map(x => ({
       estoque_id: x.e.id,
       nome: x.e.nome,
@@ -82,6 +95,7 @@ export async function POST(request: NextRequest) {
       foto_url: fotoDe.get(x.e.id)!,
       tamanhos: x.tamanhosDisp,
       serve: x.serve,
+      ja_enviada: x.jaEnviada,
     }))
 
   return NextResponse.json({ ok: true, itens, temCliente: tamsCliente.some(Boolean) })

@@ -41,6 +41,7 @@ type ProdutoFoto = {
   foto_url: string
   tamanhos: string[]
   serve: boolean
+  ja_enviada?: boolean
 }
 
 /* Formata número brasileiro — retorna null se não for número real */
@@ -1083,7 +1084,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
             <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="font-bold">Enviar foto de produto</h3>
-                <p className="text-xs text-zinc-500 mt-0.5">Do estoque — as que servem no tamanho do cliente aparecem primeiro</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Busque por marca/tamanho (ex.: &ldquo;polo M aramis&rdquo;). As já enviadas pro cliente ficam marcadas.</p>
               </div>
               <button onClick={() => setShowFotoPicker(false)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1095,7 +1096,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 autoFocus
                 value={fotoBusca}
                 onChange={e => setFotoBusca(e.target.value)}
-                placeholder="Buscar produto (nome, marca, cor)..."
+                placeholder="Ex: polo M aramis"
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
               />
             </div>
@@ -1115,8 +1116,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                         onClick={() => setFotoSel(prev => { const s = new Set(prev); s.has(it.estoque_id) ? s.delete(it.estoque_id) : s.add(it.estoque_id); return s })}
                         className={`relative text-left rounded-xl overflow-hidden border transition ${sel ? 'border-[#C79A54] ring-2 ring-[#C79A54]/40' : 'border-zinc-800 hover:border-zinc-600'}`}
                       >
-                        <div className="aspect-square bg-zinc-800">
-                          <img src={it.foto_url} alt="" className="w-full h-full object-cover" />
+                        <div className="aspect-square bg-zinc-800 relative">
+                          <img src={it.foto_url} alt="" className={`w-full h-full object-cover ${it.ja_enviada ? 'opacity-40' : ''}`} />
+                          {it.ja_enviada && (
+                            <span className="absolute inset-x-0 bottom-0 bg-black/75 text-[10px] font-semibold text-emerald-300 text-center py-0.5">já enviada ✓</span>
+                          )}
                         </div>
                         {sel && (
                           <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#C79A54] flex items-center justify-center">
