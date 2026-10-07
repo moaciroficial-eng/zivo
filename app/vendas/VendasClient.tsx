@@ -595,6 +595,7 @@ export default function VendasClient({
   const [obsCliente, setObsCliente] = useState('')
   const [obsOverrides, setObsOverrides] = useState<Record<string, string>>({})
   const [pagandoParcela, setPagandoParcela] = useState<{ crediarioId: string; parcelaId: string } | null>(null)
+  const [valorPagarParcela, setValorPagarParcela] = useState('')   // valor que o cliente vai pagar (editável)
   const [clienteDependentes, setClienteDependentes] = useState<ClienteDependente[]>([])
   const [selectedDepId, setSelectedDepId] = useState<string>('')
 
@@ -1300,24 +1301,46 @@ export default function VendasClient({
     setDeletingCr(null); setConfirmDelCr(null)
   }
 
-  async function handleMarcarPago(crediarioId: string, parcelaId: string, formaPagamento: string) {
+  async function handleMarcarPago(crediarioId: string, parcelaId: string, formaPagamento: string, valorPago?: number) {
     const today = new Date().toISOString().split('T')[0]
     const cr = crediarios.find(c => c.id === crediarioId)
     const parcela = cr?.parcelas_crediario.find(p => p.id === parcelaId)
     if (!cr || !parcela) return
     setPagandoParcela(null)
 
-    const { error } = await supabase
-      .from('parcelas_crediario')
-      .update({ pago: true, data_pagamento: today })
-      .eq('id', parcelaId)
-    if (error) { showToast(error.message, 'error'); return }
+    /* Valor efetivamente pago (editável). Distribui a partir da parcela clicada
+       e, se sobrar, nas próximas em aberto. Parcela paga parcial = o valor
+       restante dela diminui (fica o que falta). */
+    const valor = valorPago && valorPago > 0 ? valorPago : parcela.valor
+    const ordenadas = [...cr.parcelas_crediario].sort((a, b) => a.numero - b.numero)
+    const fila = [parcela, ...ordenadas.filter(p => !p.pago && p.id !== parcelaId)]
+
+    type Upd = { id: string; pago: boolean; data_pagamento: string | null; valor: number }
+    const updates: Upd[] = []
+    let restante = valor
+    for (const p of fila) {
+      if (restante <= 0.009) break
+      if (restante >= p.valor - 0.009) {
+        updates.push({ id: p.id, pago: true, data_pagamento: today, valor: p.valor })
+        restante -= p.valor
+      } else {
+        updates.push({ id: p.id, pago: false, data_pagamento: null, valor: Math.round((p.valor - restante) * 100) / 100 })
+        restante = 0
+      }
+    }
+    const aplicado = Math.round((valor - restante) * 100) / 100  // o que entrou na dívida (ignora troco se pagou a mais)
+
+    for (const u of updates) {
+      const { error } = await supabase.from('parcelas_crediario')
+        .update({ pago: u.pago, data_pagamento: u.data_pagamento, valor: u.valor }).eq('id', u.id)
+      if (error) { showToast(error.message, 'error'); return }
+    }
 
     const { data: novaVenda } = await supabase.from('vendas').insert({
       user_id: user.id,
       cliente_id: cr.cliente_id,
       cliente_nome: cr.cliente_nome,
-      valor: parcela.valor,
+      valor: aplicado,
       data_venda: today,
       forma_pagamento: formaPagamento,
       caixa_id: caixa?.id ?? null,
@@ -1325,9 +1348,11 @@ export default function VendasClient({
     }).select().single()
     if (novaVenda) setVendas(vs => [novaVenda, ...vs])
 
-    const updatedParcelas = cr.parcelas_crediario.map(p =>
-      p.id === parcelaId ? { ...p, pago: true, data_pagamento: today } : p
-    )
+    const updById = new Map(updates.map(u => [u.id, u]))
+    const updatedParcelas = cr.parcelas_crediario.map(p => {
+      const u = updById.get(p.id)
+      return u ? { ...p, pago: u.pago, data_pagamento: u.data_pagamento, valor: u.valor } : p
+    })
     const allPaid = updatedParcelas.every(p => p.pago)
     if (allPaid) {
       await supabase.from('crediario').update({ status: 'quitado' }).eq('id', crediarioId)
@@ -1337,7 +1362,7 @@ export default function VendasClient({
         c.id === crediarioId ? { ...c, parcelas_crediario: updatedParcelas } : c
       ))
     }
-    showToast('Parcela recebida e lançada no faturamento.')
+    showToast(`Recebido ${formatBRL(aplicado)} e lançado no faturamento.`)
   }
 
   /* ── Save edit ── */
@@ -2078,7 +2103,7 @@ export default function VendasClient({
                                 </div>
                                 {!p.pago && !abrindo && (
                                   <button
-                                    onClick={() => setPagandoParcela({ crediarioId: cr.id, parcelaId: p.id })}
+                                    onClick={() => { setPagandoParcela({ crediarioId: cr.id, parcelaId: p.id }); setValorPagarParcela(String(p.valor)) }}
                                     className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 transition cursor-pointer shrink-0"
                                   >
                                     Pagar
@@ -2100,12 +2125,25 @@ export default function VendasClient({
                               </div>
                               {abrindo && (
                                 <div className="px-5 pb-3">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <label className="text-xs text-zinc-500 shrink-0">Valor pago</label>
+                                    <div className="relative">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-zinc-500">R$</span>
+                                      <input
+                                        value={valorPagarParcela}
+                                        onChange={e => setValorPagarParcela(e.target.value)}
+                                        inputMode="decimal"
+                                        className="w-28 bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-2 py-1.5 text-sm text-white outline-none focus:border-emerald-500 [color-scheme:dark]"
+                                      />
+                                    </div>
+                                    <span className="text-[11px] text-zinc-600">parcela: {formatBRL(p.valor)}</span>
+                                  </div>
                                   <p className="text-xs text-zinc-500 mb-2">Como o cliente vai pagar?</p>
                                   <div className="grid grid-cols-4 gap-2">
                                     {(['pix','dinheiro','debito','credito'] as const).map(m => (
                                       <button
                                         key={m}
-                                        onClick={() => handleMarcarPago(cr.id, p.id, m)}
+                                        onClick={() => handleMarcarPago(cr.id, p.id, m, parseFloat(valorPagarParcela.replace(',', '.')) || p.valor)}
                                         className="flex flex-col items-center gap-1 py-2 rounded-lg border border-zinc-700 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition cursor-pointer text-xs font-medium capitalize"
                                       >
                                         {m === 'pix' && <IconZap size={16} />}
