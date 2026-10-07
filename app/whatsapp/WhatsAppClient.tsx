@@ -134,6 +134,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [fotoBusca, setFotoBusca] = useState('')
   const [fotoItens, setFotoItens] = useState<ProdutoFoto[]>([])
   const [fotoSel, setFotoSel] = useState<Map<string, ProdutoFoto>>(new Map())  // guarda o produto inteiro p/ persistir entre buscas
+  const [fotoProgresso, setFotoProgresso] = useState<{ feitas: number; total: number } | null>(null)
   const [fotoLoading, setFotoLoading] = useState(false)
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
@@ -594,13 +595,26 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     if (escolhidas.length === 0) return
     setEnviandoFoto(true)
     setShowFotoPicker(false)
-    for (const it of escolhidas) {
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+    const total = escolhidas.length
+    let ok = 0
+    for (let i = 0; i < total; i++) {
+      const it = escolhidas[i]
+      setFotoProgresso({ feitas: i, total })
       const legenda = [it.nome, it.marca].filter(Boolean).join(' ')
         + (it.preco_venda ? ` — R$${Number(it.preco_venda).toFixed(0)}` : '')
-      await enviarImagemUrl(it.foto_url, legenda)
+      let enviado = await enviarImagemUrl(it.foto_url, legenda)
+      if (!enviado) { await sleep(1200); enviado = await enviarImagemUrl(it.foto_url, legenda) }  // 1 retry
+      if (enviado) ok++
+      if (i < total - 1) await sleep(700)   // espaça pra não tomar throttle da Meta
     }
+    setFotoProgresso(null)
     setEnviandoFoto(false)
     setFotoSel(new Map())
+    if (ok < total) {
+      setSendError(`Enviei ${ok} de ${total} fotos — a Meta limita rajada. Reenvie as que faltaram.`)
+      setTimeout(() => setSendError(null), 9000)
+    }
   }
 
   function openContato(id: string) {
@@ -1160,6 +1174,14 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Progresso do envio em lote de fotos */}
+      {fotoProgresso && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-[#141317] border border-[#C79A54]/40 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2.5">
+          <span className="w-4 h-4 border-2 border-[#C79A54] border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-[#F4EFE7]">Enviando fotos… {fotoProgresso.feitas}/{fotoProgresso.total}</span>
         </div>
       )}
 
