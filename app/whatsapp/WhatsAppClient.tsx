@@ -133,7 +133,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [showFotoPicker, setShowFotoPicker] = useState(false)
   const [fotoBusca, setFotoBusca] = useState('')
   const [fotoItens, setFotoItens] = useState<ProdutoFoto[]>([])
-  const [fotoSel, setFotoSel] = useState<Set<string>>(new Set())
+  const [fotoSel, setFotoSel] = useState<Map<string, ProdutoFoto>>(new Map())  // guarda o produto inteiro p/ persistir entre buscas
   const [fotoLoading, setFotoLoading] = useState(false)
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
@@ -567,7 +567,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* ── Seletor de produtos do estoque (com foto) ── */
   async function abrirPickerFotos() {
     setShowFotoPicker(true)
-    setFotoSel(new Set())
+    setFotoSel(new Map())
     setFotoBusca('')
     await carregarProdutosFoto('')
   }
@@ -590,7 +590,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   }
 
   async function enviarFotosSelecionadas() {
-    const escolhidas = fotoItens.filter(i => fotoSel.has(i.estoque_id))
+    const escolhidas = [...fotoSel.values()]   // todos os selecionados (mesmo de buscas anteriores)
     if (escolhidas.length === 0) return
     setEnviandoFoto(true)
     setShowFotoPicker(false)
@@ -600,7 +600,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       await enviarImagemUrl(it.foto_url, legenda)
     }
     setEnviandoFoto(false)
-    setFotoSel(new Set())
+    setFotoSel(new Map())
   }
 
   function openContato(id: string) {
@@ -1113,7 +1113,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     return (
                       <button
                         key={it.estoque_id}
-                        onClick={() => setFotoSel(prev => { const s = new Set(prev); s.has(it.estoque_id) ? s.delete(it.estoque_id) : s.add(it.estoque_id); return s })}
+                        onClick={() => setFotoSel(prev => { const s = new Map(prev); if (s.has(it.estoque_id)) s.delete(it.estoque_id); else s.set(it.estoque_id, it); return s })}
                         className={`relative text-left rounded-xl overflow-hidden border transition ${sel ? 'border-[#C79A54] ring-2 ring-[#C79A54]/40' : 'border-zinc-800 hover:border-zinc-600'}`}
                       >
                         <div className="aspect-square bg-zinc-800 relative">
