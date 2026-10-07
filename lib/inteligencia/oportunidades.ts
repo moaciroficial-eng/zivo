@@ -157,10 +157,50 @@ function jaComprou(comprados: Set<string> | undefined, prod: EstoqueRow): boolea
   return comprados.has(`id:${prod.id}`) || (!!prod.nome && comprados.has(`n:${chaveProd(prod.nome)}`))
 }
 
+/* ── APRENDIZADO: peso por tipo de oportunidade ──────────────────
+   Cruza o log de oportunidades geradas com as vendas reais pra descobrir
+   QUAL tipo converte mais NESTA loja, e devolve um multiplicador do score
+   por tipo (suavização bayesiana, limitado a 0.6–1.6 pra não oscilar). */
+const TIPOS_OP = ['fa_marca', 'reativacao', 'girar_desconto', 'novidade', 'match'] as const
+function calcularPesosTipo(
+  logs: { tipo: string | null; cliente_id: string | null; produto_id: string | null; marca: string | null; criado_em: string }[],
+  comprasPorCli: Map<string, { produtos: { estoque_id?: string }[]; t: number }[]>,
+  marcaPorId: Map<string, string>,
+): Record<string, number> {
+  const env: Record<string, number> = {}, conv: Record<string, number> = {}
+  for (const t of TIPOS_OP) { env[t] = 0; conv[t] = 0 }
+  const JAN = 14 * 86400000
+  for (const l of logs) {
+    const tipo = l.tipo ?? ''
+    if (!(tipo in env) || !l.cliente_id) continue
+    env[tipo]++
+    const t0 = new Date(l.criado_em).getTime()
+    const compras = comprasPorCli.get(l.cliente_id) ?? []
+    const converteu = compras.some(c => {
+      if (c.t <= t0 || c.t > t0 + JAN) return false
+      return c.produtos.some(p =>
+        (p.estoque_id && p.estoque_id === l.produto_id) ||
+        (!!l.marca && !!p.estoque_id && marcaPorId.get(p.estoque_id) === l.marca))
+    })
+    if (converteu) conv[tipo]++
+  }
+  const totalEnv = Object.values(env).reduce((a, b) => a + b, 0)
+  const totalConv = Object.values(conv).reduce((a, b) => a + b, 0)
+  const pesos: Record<string, number> = {}
+  if (totalEnv < 20 || totalConv === 0) return pesos  // dado insuficiente → não reponderao (tudo 1)
+  const global = totalConv / totalEnv
+  const K = 8
+  for (const t of TIPOS_OP) {
+    const rate = (conv[t] + K * global) / (env[t] + K)
+    pesos[t] = Math.max(0.6, Math.min(1.6, rate / global))
+  }
+  return pesos
+}
+
 /* Carrega o contexto compartilhado (perfis + índices). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function carregarContexto(admin: any, userId: string, excluirDias: number) {
-  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: acoes }] = await Promise.all([
+  const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: acoes }, { data: oplog }] = await Promise.all([
     admin.from('vendas').select('id, cliente_id, cliente_nome, valor, data_venda, produtos, forma_pagamento, created_at')
       .eq('user_id', userId).order('data_venda', { ascending: true }).limit(4000),
     admin.from('clientes').select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
@@ -169,6 +209,8 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
       .eq('user_id', userId).limit(5000),
     admin.from('inteligencia_acoes').select('cliente_id, enviada_em')
       .eq('user_id', userId).gte('enviada_em', new Date(Date.now() - excluirDias * 86400000).toISOString()),
+    admin.from('oportunidades_log').select('tipo, cliente_id, produto_id, marca, criado_em')
+      .eq('user_id', userId).gte('criado_em', new Date(Date.now() - 120 * 86400000).toISOString()),
   ])
   const perfis = calcularPerfis(vendas ?? [], clientes ?? [], estoque ?? [])
   const infoCliente = new Map<string, ClienteRow>()
@@ -189,16 +231,33 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
     }
   }
 
+  /* Índices pro aprendizado: marca de cada produto e compras (com data) por cliente */
+  const marcaPorId = new Map<string, string>()
+  for (const e of (estoque ?? []) as EstoqueRow[]) if (e.marca) marcaPorId.set(e.id, e.marca)
+
+  const comprasPorCli = new Map<string, { produtos: { estoque_id?: string }[]; t: number }[]>()
+  for (const v of (vendas ?? []) as { cliente_id: string | null; produtos: unknown; data_venda: string | null; created_at: string | null }[]) {
+    if (!v.cliente_id) continue
+    const lista = comprasPorCli.get(v.cliente_id) ?? []
+    lista.push({
+      produtos: (Array.isArray(v.produtos) ? v.produtos : []) as { estoque_id?: string }[],
+      t: new Date(v.created_at ?? v.data_venda ?? 0).getTime(),
+    })
+    comprasPorCli.set(v.cliente_id, lista)
+  }
+
+  const pesosTipo = calcularPesosTipo((oplog ?? []), comprasPorCli, marcaPorId)
+
   const produtos = (estoque ?? []).filter((e: EstoqueRow) =>
     e.status !== 'vendido' && Array.isArray(e.tamanhos) && e.tamanhos.some(t => (Number(t.qtd) || 0) > 0)
   ) as EstoqueRow[]
-  return { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente }
+  return { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente, pesosTipo }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function gerarOportunidades(admin: any, userId: string, opts: { limite?: number; excluirContatadosDias?: number } = {}): Promise<Oportunidade[]> {
   const limite = opts.limite ?? 30
-  const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente } = await carregarContexto(admin, userId, opts.excluirContatadosDias ?? 5)
+  const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente, pesosTipo } = await carregarContexto(admin, userId, opts.excluirContatadosDias ?? 5)
 
   const melhorPorCliente = new Map<string, Oportunidade>()
   for (const prod of produtos) {
@@ -209,6 +268,7 @@ export async function gerarOportunidades(admin: any, userId: string, opts: { lim
       if (!cli) continue
       const op = avaliarMatch(prod, perfil, cli)
       if (!op) continue
+      op.score = Math.round(op.score * (pesosTipo[op.tipo] ?? 1))   // aprendizado: reponderao por tipo
       const atual = melhorPorCliente.get(perfil.clienteId)
       if (!atual || op.score > atual.score) melhorPorCliente.set(perfil.clienteId, op)
     }
@@ -220,7 +280,7 @@ export async function gerarOportunidades(admin: any, userId: string, opts: { lim
    scoreMin menor (18) — mostra também matches medianos, o dono decide. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function clientesParaProduto(admin: any, userId: string, produtoId: string): Promise<Oportunidade[]> {
-  const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente } = await carregarContexto(admin, userId, 3)
+  const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente, pesosTipo } = await carregarContexto(admin, userId, 3)
   const prod = produtos.find(p => p.id === produtoId)
   if (!prod) return []
   const out: Oportunidade[] = []
@@ -230,7 +290,7 @@ export async function clientesParaProduto(admin: any, userId: string, produtoId:
     const cli = infoCliente.get(perfil.clienteId)
     if (!cli) continue
     const op = avaliarMatch(prod, perfil, cli, 18)
-    if (op) out.push(op)
+    if (op) { op.score = Math.round(op.score * (pesosTipo[op.tipo] ?? 1)); out.push(op) }
   }
   return out.sort((a, b) => b.score - a.score).slice(0, 25)
 }

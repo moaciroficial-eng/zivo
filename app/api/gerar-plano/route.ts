@@ -149,6 +149,20 @@ export async function POST(request: NextRequest) {
      afinidade + temperatura + perfil-promo, com score). Substitui o
      cruzamento fraco que gerava "produto aleatório pra pessoa aleatória". ── */
   const oportunidades = await gerarOportunidades(supabase, user.id, { limite: 20 }).catch(() => [])
+
+  /* Snapshot das oportunidades de hoje — base do APRENDIZADO (o motor mede,
+     cruzando com vendas, qual tipo converte mais e reponderao o score). Um
+     por dia: apaga o de hoje antes de gravar, pra não contar em dobro. */
+  try {
+    const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0)
+    await supabase.from('oportunidades_log').delete().eq('user_id', user.id).gte('criado_em', hoje0.toISOString())
+    if (oportunidades.length) {
+      await supabase.from('oportunidades_log').insert(oportunidades.slice(0, 20).map(o => ({
+        user_id: user.id, cliente_id: o.clienteId, produto_id: o.produtoId, marca: o.marca, tipo: o.tipo, score: o.score,
+      })))
+    }
+  } catch { /* não bloqueia o plano */ }
+
   const cruzamentos = oportunidades.map(o =>
     `• [id_cliente:${o.clienteId}] ${o.clienteNome} → [id_produto:${o.produtoId}] ${o.produtoNome}${o.marca ? ` (${o.marca})` : ''} R$${Number(o.preco ?? 0).toFixed(0)} | ${o.motivo}${o.nota_dono ? ` | NOTA DONO: ${o.nota_dono}` : ''}`
   )
