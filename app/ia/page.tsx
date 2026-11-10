@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import IAClient from './IAClient'
 import { gerarOportunidades } from '@/lib/inteligencia/oportunidades'
-import { construirCopyOportunidades } from '@/lib/inteligencia/copy'
+import { construirCopyOportunidadesComIA } from '@/lib/inteligencia/copy'
 
 export default async function IAPage() {
   const supabase = await createClient()
@@ -19,8 +19,9 @@ export default async function IAPage() {
   ])
 
   /* Feed de oportunidades do MOTOR, já com copy pronta e editável (helper
-     compartilhado com o bloco "Quem chamar hoje" do Painel) */
-  const oportunidades = construirCopyOportunidades(oportunidadesRaw)
+     compartilhado com o bloco "Quem chamar hoje" do Painel). Usa o nome
+     amigável (IA, cacheado por produto) quando disponível. */
+  const oportunidades = await construirCopyOportunidadesComIA(supabase, oportunidadesRaw)
 
   return <IAClient sugestoes={sugestoes ?? []} agentes={agentes ?? []} logs={logs ?? []} oportunidades={oportunidades} userId={user.id} />
 }

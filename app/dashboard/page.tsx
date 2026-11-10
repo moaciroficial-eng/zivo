@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import DashboardClient from './DashboardClient'
 import { gerarOportunidades } from '@/lib/inteligencia/oportunidades'
-import { construirCopyOportunidades } from '@/lib/inteligencia/copy'
+import { construirCopyOportunidadesComIA } from '@/lib/inteligencia/copy'
 
 export const metadata: Metadata = { title: 'Dashboard — Terny' }
 
@@ -108,7 +108,7 @@ export default async function DashboardPage() {
       .limit(30),
     gerarOportunidades(supabase, user.id, { limite: 5 }).catch(() => []),
   ])
-  const oportunidadesHoje = construirCopyOportunidades(oportunidadesRaw)
+  const oportunidadesHoje = await construirCopyOportunidadesComIA(supabase, oportunidadesRaw)
 
   const paraResponder = (escalacoesRaw ?? []).map(e => {
     const c = (Array.isArray(e.contato) ? e.contato[0] : e.contato) as { id: string; nome: string | null; phone: string | null } | null

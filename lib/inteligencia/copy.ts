@@ -1,5 +1,6 @@
 import type { Oportunidade } from '@/lib/inteligencia/oportunidades'
 import { limparNomeProduto } from '@/lib/inteligencia/oportunidades'
+import { garantirNomesAmigaveis } from '@/lib/inteligencia/nome-amigavel'
 
 /* ══════════════════════════════════════════════════════════════
    COPY DAS OPORTUNIDADES — gera a mensagem pronta (editável) a partir
@@ -45,9 +46,9 @@ function sorteia<T>(lista: T[]): T {
   return lista[Math.floor(Math.random() * lista.length)]
 }
 
-export function construirCopyOportunidade(o: Oportunidade): OportunidadeFeed {
+export function construirCopyOportunidade(o: Oportunidade, nomeAmigavel?: string): OportunidadeFeed {
   const primeiro = o.clienteNome.split(' ')[0]
-  const nomeLimpo = limparNomeProduto(o.produtoNome, o.marca)
+  const nomeLimpo = nomeAmigavel || limparNomeProduto(o.produtoNome, o.marca)
   const marcaTxt = o.marca ? ` da ${o.marca}` : ''
 
   const abertura = sorteia(ABERTURAS)(primeiro)
@@ -62,5 +63,16 @@ export function construirCopyOportunidade(o: Oportunidade): OportunidadeFeed {
 }
 
 export function construirCopyOportunidades(lista: Oportunidade[]): OportunidadeFeed[] {
-  return lista.map(construirCopyOportunidade)
+  return lista.map(o => construirCopyOportunidade(o))
+}
+
+/* Versão com nome amigável (IA) — gera/lê o nome_amigavel de cada produto
+   envolvido (uma vez só, cacheado em estoque.nome_amigavel) antes de montar
+   a copy. Se a geração falhar pra algum item, cai no limparNomeProduto. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function construirCopyOportunidadesComIA(admin: any, lista: Oportunidade[]): Promise<OportunidadeFeed[]> {
+  if (!lista.length) return []
+  const produtos = lista.map(o => ({ id: o.produtoId, nome: o.produtoNome, marca: o.marca }))
+  const nomesAmigaveis = await garantirNomesAmigaveis(admin, produtos).catch(() => new Map<string, string>())
+  return lista.map(o => construirCopyOportunidade(o, nomesAmigaveis.get(o.produtoId)))
 }
