@@ -31,6 +31,7 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   formatDetection: { telephone: false },
+  other: { google: "notranslate" },
 };
 
 export default function RootLayout({
@@ -40,10 +41,10 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-[#09090b]">
+      <body className="notranslate min-h-full bg-[#09090b]" translate="no">
         <AppShell>{children}</AppShell>
         <PWA />
       </body>
