@@ -1,12 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import IAClient from './IAClient'
-import { gerarOportunidades, limparNomeProduto } from '@/lib/inteligencia/oportunidades'
-
-function saudacaoBR(): string {
-  const h = Number(new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hour12: false, timeZone: 'America/Sao_Paulo' }).format(new Date()))
-  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
-}
+import { gerarOportunidades } from '@/lib/inteligencia/oportunidades'
+import { construirCopyOportunidades } from '@/lib/inteligencia/copy'
 
 export default async function IAPage() {
   const supabase = await createClient()
@@ -22,18 +18,9 @@ export default async function IAPage() {
     gerarOportunidades(supabase, user.id, { limite: 40 }).catch(() => []),
   ])
 
-  /* Feed de oportunidades do MOTOR, já com copy pronta e editável */
-  const saud = saudacaoBR()
-  const oportunidades = oportunidadesRaw.map(o => {
-    const primeiro = o.clienteNome.split(' ')[0]
-    const nomeLimpo = limparNomeProduto(o.produtoNome, o.marca)
-    const marcaTxt = o.marca ? ` da ${o.marca}` : ''
-    return {
-      clienteId: o.clienteId, clienteNome: o.clienteNome, telefone: o.telefone,
-      produtoNome: nomeLimpo, marca: o.marca, tamanho: o.tamanho, motivo: o.motivo, tipo: o.tipo,
-      copy: `${saud} ${primeiro}! Chegou ${nomeLimpo}${marcaTxt} aqui na loja no ${o.tamanho} e achei muito a sua cara. Passa pra ver ou me fala que te mando as fotos!`,
-    }
-  })
+  /* Feed de oportunidades do MOTOR, já com copy pronta e editável (helper
+     compartilhado com o bloco "Quem chamar hoje" do Painel) */
+  const oportunidades = construirCopyOportunidades(oportunidadesRaw)
 
   return <IAClient sugestoes={sugestoes ?? []} agentes={agentes ?? []} logs={logs ?? []} oportunidades={oportunidades} userId={user.id} />
 }

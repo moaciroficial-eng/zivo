@@ -8,6 +8,7 @@ import SaudeFinanceiraModal, { type SaudeDados } from './SaudeFinanceiraModal'
 import AiChat from '@/app/components/AiChat'
 import SalesChart from '@/app/components/SalesChart'
 import WhatsAppStatusCard from '@/app/components/WhatsAppStatusCard'
+import type { OportunidadeFeed } from '@/lib/inteligencia/copy'
 
 /* ── Types ────────────────────────────────────────────────────── */
 
@@ -79,6 +80,7 @@ type Props = {
   setup?: SetupEstado
   modo?: 'dono' | 'funcionaria'
   paraResponder?: ItemResponder[]
+  oportunidadesHoje?: OportunidadeFeed[]
 }
 
 export type ItemResponder = { id: string; pergunta: string; quando: string; contatoId: string | null; nome: string }
@@ -564,8 +566,94 @@ function ParaResponder({ itens }: { itens: ItemResponder[] }) {
   )
 }
 
+/* "Quem chamar hoje" — as melhores oportunidades do motor, direto no Painel
+   (sem precisar abrir a aba escondida de IA). Edita e envia pelo Terny com
+   o mesmo endpoint do feed de Oportunidades (/api/plano/contatar). */
+function QuemChamarHoje({ itens }: { itens: OportunidadeFeed[] }) {
+  const [lista, setLista] = useState(itens)
+  const [abertoId, setAbertoId] = useState<string | null>(null)
+  const [msgs, setMsgs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(itens.map(o => [o.clienteId, o.copy])))
+  const [enviando, setEnviando] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  if (lista.length === 0) return null
+
+  async function enviar(o: OportunidadeFeed) {
+    const msg = msgs[o.clienteId] ?? o.copy
+    if (!msg.trim() || enviando) return
+    setEnviando(o.clienteId); setErro(null)
+    try {
+      const res = await fetch('/api/plano/contatar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: o.clienteId, nome: o.clienteNome, telefone: o.telefone, mensagem: msg }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
+      setLista(l => l.filter(x => x.clienteId !== o.clienteId))
+    } catch { setErro('Erro de conexão.') } finally { setEnviando(null) }
+  }
+
+  return (
+    <div className="mb-6 bg-zinc-900/80 border border-zinc-800/60 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">💡</span>
+          <h2 className="font-bold text-white">Quem chamar hoje</h2>
+          <span className="text-xs font-bold bg-[#C79A54]/20 text-[#E0B36A] px-2 py-0.5 rounded-full">{lista.length}</span>
+        </div>
+        <Link href="/ia" className="text-xs text-zinc-500 hover:text-zinc-300 transition shrink-0">Ver todas →</Link>
+      </div>
+      <p className="text-xs text-zinc-500 mb-3">Produto certo × pessoa certa, calculado pelo Terny — envie em 1 clique.</p>
+      <div className="flex flex-col gap-2">
+        {lista.map(o => {
+          const aberto = abertoId === o.clienteId
+          return (
+            <div key={o.clienteId} className="bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">
+                    {o.clienteNome} <span className="text-zinc-500 font-normal">→ {o.produtoNome}{o.marca ? ` (${o.marca})` : ''} {o.tamanho}</span>
+                  </p>
+                  <p className="text-xs text-zinc-500 truncate">{o.motivo}</p>
+                </div>
+                <button
+                  onClick={() => setAbertoId(aberto ? null : o.clienteId)}
+                  className="shrink-0 text-xs font-semibold text-zinc-300 border border-zinc-700 hover:border-zinc-500 rounded-lg px-3 py-1.5 transition cursor-pointer"
+                >
+                  {aberto ? 'Fechar' : 'Ver mensagem'}
+                </button>
+              </div>
+              {aberto && (
+                <div className="mt-2.5">
+                  <textarea
+                    value={msgs[o.clienteId] ?? o.copy}
+                    onChange={e => setMsgs(m => ({ ...m, [o.clienteId]: e.target.value }))}
+                    rows={3}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-200 resize-y focus:outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                  />
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => enviar(o)}
+                      disabled={enviando === o.clienteId || !(msgs[o.clienteId] ?? o.copy).trim()}
+                      className="text-xs font-semibold text-[#16151A] bg-[#C79A54] hover:bg-[#B98C46] disabled:opacity-50 rounded-lg px-3 py-1.5 transition cursor-pointer"
+                    >
+                      {enviando === o.clienteId ? 'Enviando...' : '📤 Enviar pelo Terny'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
+    </div>
+  )
+}
+
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono', paraResponder = [],
+  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono', paraResponder = [], oportunidadesHoje = [],
 }: Props) {
   const restrito = modo === 'funcionaria'   // modo funcionária: oculta todo valor financeiro
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
@@ -752,6 +840,8 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        {oportunidadesHoje.length > 0 && <QuemChamarHoje itens={oportunidadesHoje} />}
 
         {/* Lucro do mês */}
         {lucroMes !== null && (

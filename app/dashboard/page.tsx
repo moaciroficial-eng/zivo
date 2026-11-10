@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import DashboardClient from './DashboardClient'
+import { gerarOportunidades } from '@/lib/inteligencia/oportunidades'
+import { construirCopyOportunidades } from '@/lib/inteligencia/copy'
 
 export const metadata: Metadata = { title: 'Dashboard — Terny' }
 
@@ -93,14 +95,20 @@ export default async function DashboardPage() {
   const modo = await getModo()
   const restrito = modo === 'funcionaria'
 
-  /* Clientes para responder — o que a IA escalou pro dono (fotos, pagamento…) */
-  const { data: escalacoesRaw } = await supabase
-    .from('atendimento_escalacoes')
-    .select('id, pergunta, created_at, updated_at, contato:whatsapp_contatos(id, nome, phone)')
-    .eq('user_id', user.id)
-    .eq('status', 'pendente')
-    .order('updated_at', { ascending: false })
-    .limit(30)
+  /* Clientes para responder — o que a IA escalou pro dono (fotos, pagamento…)
+     + as 5 melhores oportunidades do dia (mesmo motor/copy do /ia — "Quem
+     chamar hoje", pra não precisar abrir a aba escondida pra ver). */
+  const [{ data: escalacoesRaw }, oportunidadesRaw] = await Promise.all([
+    supabase
+      .from('atendimento_escalacoes')
+      .select('id, pergunta, created_at, updated_at, contato:whatsapp_contatos(id, nome, phone)')
+      .eq('user_id', user.id)
+      .eq('status', 'pendente')
+      .order('updated_at', { ascending: false })
+      .limit(30),
+    gerarOportunidades(supabase, user.id, { limite: 5 }).catch(() => []),
+  ])
+  const oportunidadesHoje = construirCopyOportunidades(oportunidadesRaw)
 
   const paraResponder = (escalacoesRaw ?? []).map(e => {
     const c = (Array.isArray(e.contato) ? e.contato[0] : e.contato) as { id: string; nome: string | null; phone: string | null } | null
@@ -127,6 +135,7 @@ export default async function DashboardPage() {
       vendasPorDia={vendasPorDia}
       setup={setup}
       modo={modo}
+      oportunidadesHoje={oportunidadesHoje}
     />
   )
 }
