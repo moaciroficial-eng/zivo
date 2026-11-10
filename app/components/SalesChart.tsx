@@ -40,22 +40,10 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
     return PAD.top + chartH - (val / maxVal) * chartH
   }
 
-  // Smooth bezier path
-  const points = days.map(d => ({ x: xPos(d.day), y: yPos(d.valor) }))
-  function smoothPath(pts: { x: number; y: number }[]) {
-    if (pts.length < 2) return ''
-    let d = `M ${pts[0].x} ${pts[0].y}`
-    for (let i = 1; i < pts.length; i++) {
-      const prev = pts[i - 1]
-      const curr = pts[i]
-      const cpx = (prev.x + curr.x) / 2
-      d += ` C ${cpx} ${prev.y} ${cpx} ${curr.y} ${curr.x} ${curr.y}`
-    }
-    return d
-  }
-
-  const linePath = smoothPath(points)
-  const fillPath = `${linePath} L ${points[points.length - 1].x} ${PAD.top + chartH} L ${points[0].x} ${PAD.top + chartH} Z`
+  /* Barras por dia (sem venda = sem barra — a curva suavizada antes dava a
+     impressão de vendas acontecendo entre dias que ficaram zerados). */
+  const slotW = chartW / daysInMonth
+  const barW = Math.max(2, slotW * 0.6)
 
   // Y axis labels
   const yLabels = [0, 0.5, 1].map(pct => ({
@@ -67,7 +55,6 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
   const xTicks = days.filter(d => d.day === 1 || d.day % 7 === 0 || d.day === daysInMonth)
 
   const gradId = 'salesGrad'
-  const gradFillId = 'salesFill'
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-6">
@@ -79,13 +66,9 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
           onMouseLeave={() => setTooltip(null)}
         >
           <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#C79A54" />
-              <stop offset="100%" stopColor="#6366f1" />
-            </linearGradient>
-            <linearGradient id={gradFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C79A54" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#C79A54" stopOpacity="0" />
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#E0B36A" />
+              <stop offset="100%" stopColor="#A67C3D" />
             </linearGradient>
           </defs>
 
@@ -95,16 +78,25 @@ export default function SalesChart({ data, mes }: { data: DayData[]; mes: string
               stroke="#27272a" strokeWidth="1" strokeDasharray={i === 0 ? '0' : '4 4'} />
           ))}
 
-          {/* Fill */}
-          <path d={fillPath} fill={`url(#${gradFillId})`} />
-
-          {/* Line */}
-          <path d={linePath} fill="none" stroke={`url(#${gradId})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Today marker */}
-          {byDay[today] !== undefined && (
-            <circle cx={xPos(today)} cy={yPos(byDay[today] ?? 0)} r="4" fill="#C79A54" stroke="#09090b" strokeWidth="2" />
-          )}
+          {/* Barras — uma por dia, zero quando não houve venda (sem a curva
+              suavizada de antes, que dava impressão de venda em dia vazio) */}
+          {days.map(d => {
+            if (d.valor <= 0) return null
+            const y = yPos(d.valor)
+            const isToday = d.day === today
+            return (
+              <rect
+                key={d.day}
+                x={xPos(d.day) - barW / 2}
+                y={y}
+                width={barW}
+                height={Math.max(0, PAD.top + chartH - y)}
+                rx={Math.min(2, barW / 2)}
+                fill={isToday ? '#C79A54' : `url(#${gradId})`}
+                opacity={isToday ? 1 : 0.85}
+              />
+            )
+          })}
 
           {/* Y axis labels */}
           {yLabels.map(({ val, y }, i) => (
