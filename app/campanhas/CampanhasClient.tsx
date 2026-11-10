@@ -122,6 +122,21 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, pensando])
 
+  /* Chegada do Levantar Caixa ("Criar campanha com essas peças") — entrega
+     um texto pronto descrevendo os produtos escolhidos e já inicia a
+     conversa com a consultora, sem o dono precisar digitar de novo. */
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('terny:campanha-prefill')
+      if (!raw) return
+      sessionStorage.removeItem('terny:campanha-prefill')
+      const dados = JSON.parse(raw) as { texto?: string; produtoIds?: string[] }
+      if (dados.produtoIds?.length) setProdutoIds(prev => [...new Set([...prev, ...dados.produtoIds!])])
+      if (dados.texto) enviar(dados.texto)
+    } catch { /* prefill inválido — ignora, segue normal */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   /* ─── histórico / resultado ─── */
   async function abrirDetalhe(id: string) {
     setCarregandoDet(true); setDetalhe(null)

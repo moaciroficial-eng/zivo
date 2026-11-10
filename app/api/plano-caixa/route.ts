@@ -129,13 +129,28 @@ export async function POST(request: NextRequest) {
   const idade = (x: Linha) => x.manual ? Math.max(x.dias, 200) : x.dias
   linhas.sort((a, b) => (idade(b) * b.qtd) - (idade(a) * a.qtd))
 
+  /* Para perto da meta — antes ia até 80 linhas sem olhar pro valor, e um
+     pedido de R$10.000 virava quase o dobro. Acumula na ordem (mais parado
+     primeiro) até bater 120% da meta; o dono ainda pode dispensar linha a
+     linha na tela se quiser ficar mais justo. */
+  const TETO_PCT_META = 1.2
+  const tetoValor = meta > 0 ? meta * TETO_PCT_META : Infinity
+  const selecionadas: Linha[] = []
+  let acumulado = 0
+  for (const l of linhas) {
+    if (acumulado >= tetoValor) break
+    selecionadas.push(l)
+    acumulado += l.valor
+  }
+
   return NextResponse.json({
     ok: true,
     meta,
     resumo: {
       valor_estoque_elegivel: Math.round(elegiveis.reduce((s, p) => s + Number(p.preco_venda) * (p.tamanhos ?? []).reduce((a, t) => a + (Number(t.qtd) || 0), 0), 0)),
       tamanhos_protegidos: tamanhosProtegidos,
+      valor_plano: Math.round(acumulado),
     },
-    itens: linhas.slice(0, 80),
+    itens: selecionadas.slice(0, 80),
   })
 }
