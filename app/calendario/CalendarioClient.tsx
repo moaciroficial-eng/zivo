@@ -98,6 +98,14 @@ function getEventsForDay(date: string, eventos: Evento[], clientes: ClienteInfo[
   const [, m, day] = date.split('-').map(Number)
   const list: DayEvent[] = []
 
+  /* Data comercial vai PRIMEIRO de propósito — a lista do dia corta em 2
+     (desktop) / 4 (mobile) com "+N"; se ela entrasse depois de aniversário
+     e evento manual, ficava escondida atrás do "+N" num dia cheio (ex.:
+     25/dez com vários aniversários escondendo o Natal). */
+  datasComerciais.filter(d => d.dataISO === date).forEach(d =>
+    list.push({ id: `com-${d.nome}-${date}`, type: 'comercial', label: d.nome })
+  )
+
   eventos.filter(e => e.data === date).forEach(e =>
     list.push({ id: e.id, type: 'evento', label: e.nome, descricao: e.descricao, eventoRef: e })
   )
@@ -109,10 +117,6 @@ function getEventsForDay(date: string, eventos: Evento[], clientes: ClienteInfo[
 
   clientes.filter(c => c.dia_pagamento === day).forEach(c =>
     list.push({ id: `pay-${c.id}`, type: 'pagamento', label: c.nome })
-  )
-
-  datasComerciais.filter(d => d.dataISO === date).forEach(d =>
-    list.push({ id: `com-${d.nome}-${date}`, type: 'comercial', label: d.nome })
   )
   return list
 }
