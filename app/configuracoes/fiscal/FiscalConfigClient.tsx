@@ -45,6 +45,8 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
   const [regime, setRegime] = useState(cfg?.fiscal_regime ?? 'simples')
   const [csc, setCsc] = useState(cfg?.fiscal_csc ?? '')
   const [cscId, setCscId] = useState(cfg?.fiscal_csc_id ?? '')
+  const [mostrarCsc, setMostrarCsc] = useState(false)
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [ambiente, setAmbiente] = useState(cfg?.fiscal_ambiente ?? 'homologacao')
 
   const [cep, setCep] = useState(cfg?.fiscal_cep ?? '')
@@ -254,7 +256,12 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
           <div className="grid grid-cols-[1fr_120px] gap-3">
             <div>
               <label className={labelClass}>CSC (Código de Segurança do Contribuinte)</label>
-              <input className={inputClass} value={csc} onChange={e => setCsc(e.target.value)} placeholder="Token do CSC" />
+              <div className="relative">
+                <input type={mostrarCsc ? 'text' : 'password'} className={`${inputClass} pr-16`} value={csc} onChange={e => setCsc(e.target.value)} placeholder="Token do CSC" />
+                <button type="button" onClick={() => setMostrarCsc(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-zinc-500 hover:text-zinc-300 transition cursor-pointer">
+                  {mostrarCsc ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
             </div>
             <div>
               <label className={labelClass}>ID do CSC</label>
@@ -324,7 +331,12 @@ export default function FiscalConfigClient({ user, cfg, temSenha }: { user: { id
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Senha do certificado</label>
-              <input type="password" className={inputClass} value={senha} onChange={e => setSenha(e.target.value)} placeholder={temSenha ? '•••••• (já salva)' : 'Senha do .pfx'} />
+              <div className="relative">
+                <input type={mostrarSenha ? 'text' : 'password'} className={`${inputClass} pr-16`} value={senha} onChange={e => setSenha(e.target.value)} placeholder={temSenha ? '•••••• (já salva)' : 'Senha do .pfx'} />
+                <button type="button" onClick={() => setMostrarSenha(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-zinc-500 hover:text-zinc-300 transition cursor-pointer">
+                  {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
               {temSenha && <p className="text-xs text-zinc-600 mt-1">Deixe em branco pra manter a senha atual.</p>}
             </div>
             <div>
