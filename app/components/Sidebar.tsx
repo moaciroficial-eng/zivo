@@ -199,7 +199,7 @@ function NavItem({ href, label, icon, badge, onClick }: {
       href={href}
       onClick={onClick}
       title={label}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group ${
+      className={`flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
         active
           ? 'bg-[#C79A54]/12 text-[#E0B36A] shadow-[inset_0_0_0_1px_rgba(199,154,84,0.22)]'
           : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
@@ -278,11 +278,11 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+      {/* Navigation — espaçamento compacto pra caber sem rolar em notebook (~800px de altura) */}
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
         {NAV.map(({ section, items }) => (
           <div key={section}>
-            <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest px-3 mb-1.5 select-none">
+            <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest px-3 mb-1 select-none">
               {section}
             </p>
             <div className="space-y-0.5">
