@@ -254,12 +254,21 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
   return { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente, pesosTipo }
 }
 
+/* Máximo de clientes diferentes que podem receber a MESMA peça no mesmo dia
+   — sem isso, a peça com maior score domina e "todo mundo recebe a mesma
+   sugestão". Quando a peça já bateu o teto, o cliente usa seu 2º candidato
+   (outra peça); se os dois já estiverem tomados, fica sem oferta hoje —
+   melhor nenhuma sugestão do que repetir a mesma pra todo mundo. */
+const MAX_CLIENTES_POR_PRODUTO = 3
+const CANDIDATOS_POR_CLIENTE = 2
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function gerarOportunidades(admin: any, userId: string, opts: { limite?: number; excluirContatadosDias?: number } = {}): Promise<Oportunidade[]> {
   const limite = opts.limite ?? 30
   const { perfis, infoCliente, contatadoRecente, produtos, compradosPorCliente, pesosTipo } = await carregarContexto(admin, userId, opts.excluirContatadosDias ?? 5)
 
-  const melhorPorCliente = new Map<string, Oportunidade>()
+  /* 1) Até 2 melhores candidatos por cliente (não só o 1º) */
+  const candidatosPorCliente = new Map<string, Oportunidade[]>()
   for (const prod of produtos) {
     for (const perfil of perfis) {
       if (contatadoRecente.has(perfil.clienteId)) continue
@@ -269,11 +278,30 @@ export async function gerarOportunidades(admin: any, userId: string, opts: { lim
       const op = avaliarMatch(prod, perfil, cli)
       if (!op) continue
       op.score = Math.round(op.score * (pesosTipo[op.tipo] ?? 1))   // aprendizado: reponderao por tipo
-      const atual = melhorPorCliente.get(perfil.clienteId)
-      if (!atual || op.score > atual.score) melhorPorCliente.set(perfil.clienteId, op)
+
+      const lista = candidatosPorCliente.get(perfil.clienteId) ?? []
+      lista.push(op)
+      lista.sort((a, b) => b.score - a.score)
+      if (lista.length > CANDIDATOS_POR_CLIENTE) lista.length = CANDIDATOS_POR_CLIENTE
+      candidatosPorCliente.set(perfil.clienteId, lista)
     }
   }
-  return [...melhorPorCliente.values()].sort((a, b) => b.score - a.score).slice(0, limite)
+
+  /* 2) Distribui respeitando o teto por produto: percorre TODOS os candidatos
+     (1ºs e 2ºs de todo mundo) em ordem de score — cada cliente fica com o
+     melhor candidato ainda disponível (produto não lotado) na vez dele. */
+  const todosCandidatos = [...candidatosPorCliente.values()].flat().sort((a, b) => b.score - a.score)
+  const contagemPorProduto = new Map<string, number>()
+  const escolhidoPorCliente = new Map<string, Oportunidade>()
+  for (const op of todosCandidatos) {
+    if (escolhidoPorCliente.has(op.clienteId)) continue          // cliente já ficou com um candidato melhor
+    const n = contagemPorProduto.get(op.produtoId) ?? 0
+    if (n >= MAX_CLIENTES_POR_PRODUTO) continue                   // peça já no teto — tenta o próximo candidato
+    escolhidoPorCliente.set(op.clienteId, op)
+    contagemPorProduto.set(op.produtoId, n + 1)
+  }
+
+  return [...escolhidoPorCliente.values()].sort((a, b) => b.score - a.score).slice(0, limite)
 }
 
 /* Todos os clientes que casam com UM produto (visão do produto, sem dedup).
