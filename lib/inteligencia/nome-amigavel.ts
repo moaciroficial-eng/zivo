@@ -14,10 +14,10 @@ async function gerarNomeAmigavel(nome: string, marca: string | null): Promise<st
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 40,
-    system: 'Você transforma nomes de produtos de catálogo de loja de roupas/calçados num jeito natural de falar em português do Brasil — bem curto, como um vendedor diria numa conversa de WhatsApp. Tire código de referência, detalhe técnico de construção (frisos, costuras) e qualificador de cor redundante (ex: "intenso", "liso"). Traduza nome de cor em inglês/técnico pro termo comum em português (ex: bordeaux -> bordô, off white -> branco). Responda APENAS com o nome curto (2 a 4 palavras), tudo minúsculo, sem pontuação, sem aspas, sem explicação.',
+    system: 'Você transforma nomes de produtos de catálogo de loja de roupas/calçados num jeito natural de falar em português do Brasil — bem curto, como um vendedor diria numa conversa de WhatsApp. Tire código de referência, detalhe técnico de construção (frisos, costuras) e qualificador de cor redundante (ex: "intenso", "liso"). Traduza nome de cor em inglês/técnico pro termo comum em português (ex: bordeaux -> bordô, off white -> branco). NUNCA inclua o nome da marca no resultado — ela já é mostrada separada, à parte. Responda APENAS com o nome curto (2 a 4 palavras), tudo minúsculo, sem pontuação, sem aspas, sem a marca, sem explicação.',
     messages: [{
       role: 'user',
-      content: `Nome do cadastro: "${nome}"${marca ? ` | marca: ${marca}` : ''}\nExemplos: "POLO BÁSICA 4 FRISOS BORDEAUX INTENSO 117" -> polo bordô | "TENIS CASUAL OFF WHITE REF 2201" -> tênis branco\nTransforme:`,
+      content: `Nome do cadastro: "${nome}"${marca ? ` | marca: ${marca} (NÃO inclua esta palavra no resultado)` : ''}\nExemplos: "POLO BÁSICA 4 FRISOS BORDEAUX INTENSO 117" (marca: Aramis) -> polo bordô | "TENIS CASUAL OFF WHITE REF 2201" (marca: Nike) -> tênis branco\nTransforme:`,
     }],
   })
   const text = msg.content[0]?.type === 'text' ? msg.content[0].text : ''

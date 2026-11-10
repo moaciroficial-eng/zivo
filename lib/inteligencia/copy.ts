@@ -23,6 +23,17 @@ function saudacaoBR(): string {
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
 }
 
+/* Tira o nome da marca de dentro do nome_amigavel quando ele já aparece lá
+   (a IA às vezes repete, ex.: "camiseta aramis" com marca "Aramis") — senão
+   a frase sai "camiseta aramis da Aramis". */
+function semMarcaRepetida(nome: string, marca: string | null): string {
+  if (!marca) return nome
+  const marcaLow = marca.toLowerCase().trim()
+  if (!marcaLow) return nome
+  const re = new RegExp(`\\b${marcaLow.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+  return nome.replace(re, '').replace(/\s+/g, ' ').trim() || nome
+}
+
 /* Cada função recebe o primeiro nome e devolve a 1ª frase (abertura +
    gancho). Variadas de propósito — a escolha é aleatória a cada geração. */
 const ABERTURAS: ((nome: string) => string)[] = [
@@ -48,7 +59,8 @@ function sorteia<T>(lista: T[]): T {
 
 export function construirCopyOportunidade(o: Oportunidade, nomeAmigavel?: string): OportunidadeFeed {
   const primeiro = o.clienteNome.split(' ')[0]
-  const nomeLimpo = nomeAmigavel || limparNomeProduto(o.produtoNome, o.marca)
+  const nomeBase = nomeAmigavel || limparNomeProduto(o.produtoNome, o.marca)
+  const nomeLimpo = semMarcaRepetida(nomeBase, o.marca)
   const marcaTxt = o.marca ? ` da ${o.marca}` : ''
 
   const abertura = sorteia(ABERTURAS)(primeiro)
