@@ -788,6 +788,19 @@ export default function DashboardClient({
     <div className="min-h-screen bg-[#080B10] text-white">
       <div className="max-w-5xl mx-auto px-6 py-8">
 
+        {/* O nome da loja alimenta a IA em TODAS as mensagens — sem ele, a
+            copy sai genérica em todo lugar, não só nesta tela. Por isso tem
+            um aviso próprio aqui, além de aparecer no checklist abaixo. */}
+        {setup && !setup.loja && (
+          <Link href="/configuracoes/loja" className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 hover:bg-amber-500/15 transition">
+            <span className="text-lg shrink-0">⚠️</span>
+            <span className="flex-1">
+              <b>Complete os dados da loja</b> — o nome ainda está em branco e a IA usa ele em toda mensagem que manda.
+            </span>
+            <span className="shrink-0 font-semibold">Completar →</span>
+          </Link>
+        )}
+
         {setup && <PrimeirosPassos setup={setup} />}
 
         <div className="mb-6 flex items-center justify-between gap-3">
