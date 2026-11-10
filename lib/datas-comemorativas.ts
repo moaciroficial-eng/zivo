@@ -33,6 +33,19 @@ function dataDoAno(regra: Regra, year: number): Date {
   return new Date(year, regra.mes - 1, ultimoDia.getDate() - back)
 }
 
+/* Todas as datas comemorativas DE UM ANO específico (não filtra por "daqui
+   a N dias" — serve pra marcar no grid do Calendário, que navega mês a mês
+   livremente, não só os próximos dias). */
+export function datasComemorativasDoAno(year: number): { nome: string; dataISO: string }[] {
+  return DATAS_COMEMORATIVAS.map(d => {
+    const alvo = dataDoAno(d.regra, year)
+    return {
+      nome: d.nome,
+      dataISO: `${alvo.getFullYear()}-${String(alvo.getMonth() + 1).padStart(2, '0')}-${String(alvo.getDate()).padStart(2, '0')}`,
+    }
+  })
+}
+
 export type DataProxima = { nome: string; dias: number; data: string; dataISO: string; ano: number }
 
 /* Próximas datas dentro de `dentroDeDias` (default 60), ordenadas pela mais perto.

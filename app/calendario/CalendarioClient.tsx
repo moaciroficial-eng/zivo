@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { datasComemorativasDoAno } from '@/lib/datas-comemorativas'
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -24,7 +25,7 @@ type ClienteInfo = {
 
 type DayEvent = {
   id: string
-  type: 'evento' | 'aniversario' | 'pagamento'
+  type: 'evento' | 'aniversario' | 'pagamento' | 'comercial'
   label: string
   descricao?: string | null
   eventoRef?: Evento
@@ -44,16 +45,19 @@ const DOT: Record<DayEvent['type'], string> = {
   evento:      'bg-[#C79A54]',
   aniversario: 'bg-rose-500',
   pagamento:   'bg-amber-500',
+  comercial:   'bg-sky-500',
 }
 const BADGE: Record<DayEvent['type'], string> = {
   evento:      'bg-[#C79A54]/15 text-[#E0B36A] border-[#C79A54]/25',
   aniversario: 'bg-rose-500/15 text-rose-300 border-rose-500/25',
   pagamento:   'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  comercial:   'bg-sky-500/15 text-sky-300 border-sky-500/25',
 }
 const TYPE_LABEL: Record<DayEvent['type'], string> = {
   evento:      'Evento',
   aniversario: 'Aniversário',
   pagamento:   'Pagamento',
+  comercial:   'Data comercial',
 }
 
 const INPUT = 'w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-lg px-4 py-2.5 text-sm outline-none transition focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 [color-scheme:dark]'
@@ -90,7 +94,7 @@ function buildGrid(year: number, month: number): CalCell[] {
   return cells
 }
 
-function getEventsForDay(date: string, eventos: Evento[], clientes: ClienteInfo[]): DayEvent[] {
+function getEventsForDay(date: string, eventos: Evento[], clientes: ClienteInfo[], datasComerciais: { nome: string; dataISO: string }[] = []): DayEvent[] {
   const [, m, day] = date.split('-').map(Number)
   const list: DayEvent[] = []
 
@@ -105,6 +109,10 @@ function getEventsForDay(date: string, eventos: Evento[], clientes: ClienteInfo[
 
   clientes.filter(c => c.dia_pagamento === day).forEach(c =>
     list.push({ id: `pay-${c.id}`, type: 'pagamento', label: c.nome })
+  )
+
+  datasComerciais.filter(d => d.dataISO === date).forEach(d =>
+    list.push({ id: `com-${d.nome}-${date}`, type: 'comercial', label: d.nome })
   )
   return list
 }
@@ -170,6 +178,10 @@ export default function CalendarioClient({
   const month = currentDate.getMonth()
   const todayStr = new Date().toISOString().split('T')[0]
   const grid = buildGrid(year, month)
+
+  /* Datas comerciais (Black Friday, Natal, Dia das Mães...) do ano exibido
+     + vizinhos, pra cobrir os dias de spillover no início/fim do grid. */
+  const datasComerciais = [year - 1, year, year + 1].flatMap(datasComemorativasDoAno)
 
   /* ── Month nav ── */
 
@@ -245,12 +257,25 @@ export default function CalendarioClient({
   /* ── Derived ── */
 
   const selectedDayEvents = selectedDate
-    ? getEventsForDay(selectedDate, eventos, clientes)
+    ? getEventsForDay(selectedDate, eventos, clientes, datasComerciais)
     : []
 
-  const upcomingEventos = eventos
-    .filter(e => e.data >= todayStr)
-    .slice(0, 8)
+  /* Próximos eventos — manual (sem limite de data, como já era) + aniversário
+     e data comercial dos próximos 7 dias (antes só olhava a tabela de
+     eventos manuais, então uma semana cheia de aniversário aparecia vazia). */
+  type Upcoming = { key: string; date: string; type: DayEvent['type']; label: string }
+  const upcoming7 = Array.from({ length: 8 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() + i)
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  })
+  const upcomingEventos: Upcoming[] = [
+    ...eventos.filter(e => e.data >= todayStr).map(e => ({ key: e.id, date: e.data, type: 'evento' as const, label: e.nome })),
+    ...upcoming7.flatMap(date =>
+      getEventsForDay(date, [], clientes, datasComerciais)
+        .filter(e => e.type === 'aniversario' || e.type === 'comercial')
+        .map(e => ({ key: e.id, date, type: e.type, label: e.label }))
+    ),
+  ].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8)
 
   /* ── Render ─────────────────────────────────────────────── */
 
@@ -312,7 +337,7 @@ export default function CalendarioClient({
               {grid.map((cell, i) => {
                 const isToday    = cell.date === todayStr
                 const isSelected = cell.date === selectedDate
-                const evts       = getEventsForDay(cell.date, eventos, clientes)
+                const evts       = getEventsForDay(cell.date, eventos, clientes, datasComerciais)
                 const rowBorder  = i % 7 === 0 && i > 0 ? 'border-t border-zinc-800/50' : ''
 
                 return (
@@ -439,14 +464,14 @@ export default function CalendarioClient({
                     <div className="flex flex-col gap-2">
                       {upcomingEventos.map(e => (
                         <button
-                          key={e.id}
-                          onClick={() => { setSelectedDate(e.data); setCurrentDate(new Date(e.data + 'T12:00:00')) }}
+                          key={e.key}
+                          onClick={() => { setSelectedDate(e.date); setCurrentDate(new Date(e.date + 'T12:00:00')) }}
                           className="flex items-start gap-3 p-3 bg-zinc-800/70 hover:bg-zinc-800 rounded-xl text-left transition cursor-pointer group/item w-full"
                         >
-                          <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${DOT['evento']}`}/>
+                          <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${DOT[e.type]}`}/>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{e.nome}</p>
-                            <p className="text-xs text-zinc-500 mt-0.5">{formatShortDate(e.data)}</p>
+                            <p className="text-sm font-medium truncate">{e.label}</p>
+                            <p className="text-xs text-zinc-500 mt-0.5">{formatShortDate(e.date)}{e.type !== 'evento' ? ` · ${TYPE_LABEL[e.type]}` : ''}</p>
                           </div>
                         </button>
                       ))}
@@ -464,6 +489,7 @@ export default function CalendarioClient({
                   ['evento',      'Evento manual'],
                   ['aniversario', 'Aniversário de cliente'],
                   ['pagamento',   'Dia de pagamento'],
+                  ['comercial',   'Data comercial (Black Friday, Natal...)'],
                 ] as [DayEvent['type'], string][]).map(([type, label]) => (
                   <div key={type} className="flex items-center gap-2.5">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${DOT[type]}`}/>
