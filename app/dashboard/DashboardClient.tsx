@@ -790,22 +790,32 @@ export default function DashboardClient({
 
         {setup && <PrimeirosPassos setup={setup} />}
 
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          {!restrito && (
-            <button
-              onClick={() => setValoresVisiveisRaw(v => {
-                const next = !v
-                localStorage.setItem('zivo:valoresVisiveis', next ? '1' : '0')
-                return next
-              })}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
-              title={valoresVisiveis ? 'Ocultar valores' : 'Mostrar valores'}
+          <div className="flex items-center gap-2">
+            {!restrito && (
+              <button
+                onClick={() => setValoresVisiveisRaw(v => {
+                  const next = !v
+                  localStorage.setItem('zivo:valoresVisiveis', next ? '1' : '0')
+                  return next
+                })}
+                className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
+                title={valoresVisiveis ? 'Ocultar valores' : 'Mostrar valores'}
+              >
+                {valoresVisiveis ? <IconEyeOff /> : <IconEye />}
+                {valoresVisiveis ? 'Ocultar' : 'Mostrar'}
+              </button>
+            )}
+            {/* Atalho de 1 toque — sem isso, precisava entrar em Vendas pra
+                só então achar o botão de Nova Venda. */}
+            <Link
+              href="/vendas?nova=1"
+              className="flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-[#C79A54] to-[#A67C3D] hover:from-[#C79A54] hover:to-[#A67C3D] text-[#16151A] rounded-lg px-3 py-1.5 transition shadow-lg shadow-[#C79A54]/20"
             >
-              {valoresVisiveis ? <IconEyeOff /> : <IconEye />}
-              {valoresVisiveis ? 'Ocultar' : 'Mostrar'}
-            </button>
-          )}
+              + Nova Venda
+            </Link>
+          </div>
         </div>
 
         {paraResponder.length > 0 && <ParaResponder itens={paraResponder} />}

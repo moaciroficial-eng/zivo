@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BarcodeScanner, { type ScanLabelResult } from '@/app/components/BarcodeScanner'
@@ -994,6 +994,14 @@ export default function VendasClient({
     resetPayment(); setDescontoVendaTipo('%'); setDescontoVendaValor('')
     setDrawer(true)
   }
+
+  /* Atalho de 1 toque vindo de fora (ex.: Painel) — abre direto o Nova
+     Venda sem precisar entrar em Vendas e só então achar o botão. Lê via
+     window.location (não useSearchParams) pra não exigir Suspense aqui. */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('nova') === '1') openNew()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function openEdit(v: Venda) {
     setEditing(v)
