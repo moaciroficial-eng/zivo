@@ -228,14 +228,18 @@ const IconHistory = () => (
   </svg>
 )
 
+type ComprasCliente = { ultima_compra: string | null; total_gasto: number }
+
 export default function ClientesClient({
   user,
   initialClientes,
   lojaConfig,
+  comprasPorCliente = {},
 }: {
   user: { id: string; email: string }
   initialClientes: Cliente[]
   lojaConfig: { vende_tenis: boolean | null; vende_feminino: boolean | null } | null
+  comprasPorCliente?: Record<string, ComprasCliente>
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -250,6 +254,10 @@ export default function ClientesClient({
   const [deleting, setDeleting] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
   const [search, setSearch] = useState('')
+  const [ordenarPor, setOrdenarPor] = useState<'ultima_compra' | 'total_gasto' | null>(null)
+  const [ordemAsc, setOrdemAsc] = useState(false)
+  type FiltroRapido = 'sumidos' | 'aniversariantes' | 'sem_tamanho'
+  const [filtrosRapidos, setFiltrosRapidos] = useState<Set<FiltroRapido>>(new Set())
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const [historicoVendas, setHistoricoVendas] = useState<HistoricoVenda[]>([])
@@ -554,11 +562,56 @@ export default function ClientesClient({
     e.target.value = ''
   }
 
-  const filtered = clientes.filter(c =>
-    c.nome.toLowerCase().includes(search.toLowerCase()) ||
-    (c.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (c.telefone ?? '').includes(search)
-  )
+  const hojeStr = new Date().toISOString().split('T')[0]
+  const mesAtual = new Date().getMonth() + 1
+  const semTamanho = (c: Cliente) => !c.tamanho_camiseta && !c.tamanho_calca && !c.tamanho_tenis
+  const diasSemComprar = (c: Cliente) => {
+    const ultima = comprasPorCliente[c.id]?.ultima_compra
+    if (!ultima) return null
+    return Math.floor((new Date(hojeStr).getTime() - new Date(ultima).getTime()) / 86400000)
+  }
+
+  const filtered = clientes
+    .filter(c =>
+      c.nome.toLowerCase().includes(search.toLowerCase()) ||
+      (c.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.telefone ?? '').includes(search)
+    )
+    .filter(c => {
+      if (filtrosRapidos.has('sumidos')) {
+        const d = diasSemComprar(c)
+        if (d === null || d < 60) return false
+      }
+      if (filtrosRapidos.has('aniversariantes')) {
+        if (!c.data_nascimento) return false
+        const mesNasc = Number(c.data_nascimento.split('-')[1])
+        if (mesNasc !== mesAtual) return false
+      }
+      if (filtrosRapidos.has('sem_tamanho') && !semTamanho(c)) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (!ordenarPor) return 0
+      const va = ordenarPor === 'total_gasto' ? (comprasPorCliente[a.id]?.total_gasto ?? 0) : (comprasPorCliente[a.id]?.ultima_compra ?? '')
+      const vb = ordenarPor === 'total_gasto' ? (comprasPorCliente[b.id]?.total_gasto ?? 0) : (comprasPorCliente[b.id]?.ultima_compra ?? '')
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0
+      return ordemAsc ? cmp : -cmp
+    })
+
+  function toggleFiltroRapido(f: FiltroRapido) {
+    setFiltrosRapidos(prev => { const s = new Set(prev); if (s.has(f)) s.delete(f); else s.add(f); return s })
+  }
+  function alternarOrdenacao(campo: 'ultima_compra' | 'total_gasto') {
+    if (ordenarPor === campo) setOrdemAsc(a => !a)
+    else { setOrdenarPor(campo); setOrdemAsc(false) }
+  }
+  function formatarDiasAtras(dataISO: string | null): string {
+    if (!dataISO) return '—'
+    const dias = Math.floor((new Date(hojeStr).getTime() - new Date(dataISO).getTime()) / 86400000)
+    if (dias === 0) return 'Hoje'
+    if (dias === 1) return 'Ontem'
+    return `há ${dias}d`
+  }
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
@@ -633,6 +686,27 @@ export default function ClientesClient({
               className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-[#C79A54] focus:ring-2 focus:ring-[#C79A54]/20 transition"
             />
           </div>
+
+          {/* Filtros rápidos */}
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            {([
+              ['sumidos', '😴 Sumidos há +60 dias'],
+              ['aniversariantes', '🎂 Aniversariantes do mês'],
+              ['sem_tamanho', '📏 Sem tamanho cadastrado'],
+            ] as [FiltroRapido, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => toggleFiltroRapido(key)}
+                className={`text-xs font-medium rounded-full px-3 py-1.5 border transition cursor-pointer ${
+                  filtrosRapidos.has(key)
+                    ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Table / Empty state */}
@@ -677,6 +751,16 @@ export default function ClientesClient({
                     <th className="text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Tamanhos</th>
                     <th className="text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Nascimento</th>
                     <th className="text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Dia Pag.</th>
+                    <th className="px-4 py-3">
+                      <button onClick={() => alternarOrdenacao('ultima_compra')} className="flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition cursor-pointer whitespace-nowrap">
+                        Última compra {ordenarPor === 'ultima_compra' && (ordemAsc ? '↑' : '↓')}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3">
+                      <button onClick={() => alternarOrdenacao('total_gasto')} className="flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition cursor-pointer whitespace-nowrap">
+                        Total gasto {ordenarPor === 'total_gasto' && (ordemAsc ? '↑' : '↓')}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 w-24" />
                   </tr>
                 </thead>
@@ -712,13 +796,31 @@ export default function ClientesClient({
                               Tên {c.tamanho_tenis}
                             </span>
                           )}
-                          {!c.tamanho_camiseta && !c.tamanho_calca && !c.tamanho_tenis && (
-                            <span className="text-zinc-700">—</span>
+                          {semTamanho(c) && (
+                            <button
+                              onClick={() => openEdit(c)}
+                              title="Clique pra completar os tamanhos"
+                              className="flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded px-1.5 py-0.5 hover:bg-amber-500/20 transition cursor-pointer whitespace-nowrap"
+                            >
+                              ⚠️ sem tamanho
+                            </button>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{c.data_nascimento ? formatDate(c.data_nascimento) : <span className="text-zinc-700">—</span>}</td>
                       <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{c.dia_pagamento ? `Dia ${c.dia_pagamento}` : <span className="text-zinc-700">—</span>}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {comprasPorCliente[c.id]?.ultima_compra ? (
+                          <span className={(diasSemComprar(c) ?? 0) >= 60 ? 'text-amber-400' : 'text-zinc-400'}>
+                            {formatarDiasAtras(comprasPorCliente[c.id].ultima_compra)}
+                          </span>
+                        ) : <span className="text-zinc-700">Nunca comprou</span>}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-300 font-medium whitespace-nowrap">
+                        {comprasPorCliente[c.id]?.total_gasto
+                          ? comprasPorCliente[c.id].total_gasto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          : <span className="text-zinc-700">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1 h-6">
                           {confirmDelete === c.id ? (
