@@ -324,9 +324,21 @@ export async function clientesParaProduto(admin: any, userId: string, produtoId:
 }
 
 /* Nome do produto limpo pra copy (tira códigos entre parênteses e tamanho no fim) */
+/* Limpeza determinística (sem IA, sem custo) — tira o que claramente não
+   deveria aparecer numa mensagem falada: códigos de referência (em
+   qualquer posição, não só no fim), abreviações de composição ("C/ xxx")
+   e o tamanho repetido no final. Deixa em minúsculo (a frase que usa isso
+   já capitaliza o início sozinha). Não traduz cor nem resume a descrição —
+   isso fica pro nome_amigavel (camada com IA, ver lib/inteligencia/nome-amigavel.ts). */
 export function limparNomeProduto(nome: string, marca?: string | null): string {
-  let n = String(nome || '').replace(/\([^)]*\)/g, ' ')
-  n = n.replace(/\b(PP|P|M|G|GG|XG|XGG|XGGG|U|UN|\d{2})\b\s*$/i, '')
-  n = n.replace(/\bC\/\s*\w+/gi, '').replace(/\s+/g, ' ').trim()
+  let n = String(nome || '')
+    .normalize('NFC')
+    .replace(/\([^)]*\)/g, ' ')              // códigos entre parênteses
+    .replace(/\bC\/\s*\w+/gi, ' ')           // "C/ algodão" etc.
+    .replace(/\b\d{2,}\b/g, ' ')             // números de referência (2+ dígitos), em qualquer posição
+    .replace(/\b(PP|P|M|G|GG|XG|XGG|XGGG|U|UN)\b\s*$/i, '')  // tamanho em letra, só no final
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
   return n || (marca ? `peça ${marca}` : 'peça nova')
 }

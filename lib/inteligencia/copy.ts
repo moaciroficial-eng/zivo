@@ -5,6 +5,11 @@ import { limparNomeProduto } from '@/lib/inteligencia/oportunidades'
    COPY DAS OPORTUNIDADES — gera a mensagem pronta (editável) a partir
    de uma Oportunidade do motor. Usado tanto no feed de /ia quanto no
    bloco "Quem chamar hoje" do Painel — um só lugar, mesmo texto.
+
+   Tom de vendedor de loja do interior: curto, próximo, sem exagero.
+   No máximo 2 frases + 1 pergunta — e a abertura varia (não é sempre
+   "Bom dia, Fulano!"), senão fica cara de robô mandando a mesma coisa
+   pra todo mundo.
    ══════════════════════════════════════════════════════════════ */
 
 export type OportunidadeFeed = {
@@ -17,15 +22,42 @@ function saudacaoBR(): string {
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
 }
 
+/* Cada função recebe o primeiro nome e devolve a 1ª frase (abertura +
+   gancho). Variadas de propósito — a escolha é aleatória a cada geração. */
+const ABERTURAS: ((nome: string) => string)[] = [
+  (nome) => `${saudacaoBR()}, ${nome}! Chegou uma peça aqui que tem a sua cara.`,
+  (nome) => `${nome}, oi! Separei uma coisa pra você.`,
+  (nome) => `${saudacaoBR()}, ${nome}! Acabou de chegar uma peça e lembrei de você na hora.`,
+  (nome) => `${nome}! Chegou novidade aqui na loja com a sua cara.`,
+  (nome) => `Oi, ${nome}! Vi uma peça nova e pensei em você.`,
+  (nome) => `${saudacaoBR()}, ${nome}, tudo bem? Chegou algo que acho que você vai curtir.`,
+]
+
+const PERGUNTAS = [
+  'Quer que eu te mande as fotos?',
+  'Posso te mandar foto?',
+  'Passa pra ver ou prefere que eu mande foto?',
+  'Bora dar uma olhada?',
+  'Te mando foto pra você ver?',
+]
+
+function sorteia<T>(lista: T[]): T {
+  return lista[Math.floor(Math.random() * lista.length)]
+}
+
 export function construirCopyOportunidade(o: Oportunidade): OportunidadeFeed {
-  const saud = saudacaoBR()
   const primeiro = o.clienteNome.split(' ')[0]
   const nomeLimpo = limparNomeProduto(o.produtoNome, o.marca)
   const marcaTxt = o.marca ? ` da ${o.marca}` : ''
+
+  const abertura = sorteia(ABERTURAS)(primeiro)
+  const oferta = `É ${nomeLimpo}${marcaTxt}, no seu tamanho ${o.tamanho}.`
+  const pergunta = sorteia(PERGUNTAS)
+
   return {
     clienteId: o.clienteId, clienteNome: o.clienteNome, telefone: o.telefone,
     produtoNome: nomeLimpo, marca: o.marca, tamanho: o.tamanho, motivo: o.motivo, tipo: o.tipo,
-    copy: `${saud} ${primeiro}! Chegou ${nomeLimpo}${marcaTxt} aqui na loja no ${o.tamanho} e achei muito a sua cara. Passa pra ver ou me fala que te mando as fotos!`,
+    copy: `${abertura} ${oferta} ${pergunta}`,
   }
 }
 

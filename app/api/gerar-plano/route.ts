@@ -302,7 +302,7 @@ SOBRE CLIENTES (REGRA DURA — nada de aleatório):
 - Use o cliente_id e o produto_id exatos que vieram no par (o produto do contato deve ser o produto casado com aquele cliente).
 - Distribua as oportunidades ao longo dos dias, as de maior prioridade primeiro. Se houver poucas, tem dia sem cliente pra contatar — tudo bem, melhor NENHUM contato que um contato aleatório.
 - Se um par tiver "NOTA DONO", respeite-a acima de tudo (é a verdade real do dono).
-- mensagem_whatsapp: natural, cite o produto casado e o motivo real (ex: "chegou Aramis do seu tamanho", "faz tempo que não te vejo e chegou uma peça com a sua cara").
+- mensagem_whatsapp: tom de vendedor de loja do interior — curto, próximo, sem exagero. Máximo 2 frases + 1 pergunta no final (ex: "posso te mandar foto?"). Cite o produto casado e o motivo real, mas SEM citar código/número de referência do produto nem repetir a descrição toda do cadastro — fale como quem está conversando, não lendo etiqueta (ex: "chegou uma peça da Aramis no seu tamanho", "faz tempo que não te vejo e chegou algo com a sua cara"). Varie a abertura de cliente pra cliente — não comece todas com a mesma saudação.
 - Máximo 1 cliente por dia.
 ${regraFinanceira}
 
