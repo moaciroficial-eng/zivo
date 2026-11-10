@@ -45,6 +45,16 @@ const ABERTURAS: ((nome: string) => string)[] = [
   (nome) => `${saudacaoBR()}, ${nome}, tudo bem? Chegou algo que acho que você vai curtir.`,
 ]
 
+/* Cliente sumido há dias (tipo "reativacao") — reencontro, nunca "chegou
+   novidade" (ele não some por falta de peça nova, some porque faz tempo
+   que não aparece — o tom tem que reconhecer isso). */
+const ABERTURAS_REATIVACAO: ((nome: string) => string)[] = [
+  (nome) => `${nome}, faz tempo que você não aparece por aqui, hein!`,
+  (nome) => `${saudacaoBR()}, ${nome}! Tava com saudade de te ver por aqui.`,
+  (nome) => `${nome}, sumiu! Tava pensando em você.`,
+  (nome) => `Oi, ${nome}! Faz um tempinho que a gente não se fala.`,
+]
+
 const PERGUNTAS = [
   'Quer que eu te mande as fotos?',
   'Posso te mandar foto?',
@@ -63,7 +73,7 @@ export function construirCopyOportunidade(o: Oportunidade, nomeAmigavel?: string
   const nomeLimpo = semMarcaRepetida(nomeBase, o.marca)
   const marcaTxt = o.marca ? ` da ${o.marca}` : ''
 
-  const abertura = sorteia(ABERTURAS)(primeiro)
+  const abertura = o.tipo === 'reativacao' ? sorteia(ABERTURAS_REATIVACAO)(primeiro) : sorteia(ABERTURAS)(primeiro)
   const oferta = `É ${nomeLimpo}${marcaTxt}, no seu tamanho ${o.tamanho}.`
   const pergunta = sorteia(PERGUNTAS)
 
