@@ -26,6 +26,7 @@ export default function TemplatesClient() {
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [resultados, setResultados] = useState<ResultadoEnvio[] | null>(null)
+  const [reenviando, setReenviando] = useState<string | null>(null)
 
   async function carregar() {
     setCarregando(true)
@@ -57,6 +58,26 @@ export default function TemplatesClient() {
       setErro('Falha ao enviar o pacote inicial.')
     } finally {
       setEnviando(false)
+      carregar()
+    }
+  }
+
+  async function reenviar(name: string) {
+    setReenviando(name)
+    setErro(null)
+    try {
+      const res = await fetch('/api/whatsapp/templates/reenviar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (!data.ok) setErro(data.erro || `Falha ao reenviar ${name}.`)
+      else setResultados([data.resultado])
+    } catch {
+      setErro(`Falha ao reenviar ${name}.`)
+    } finally {
+      setReenviando(null)
       carregar()
     }
   }
@@ -117,7 +138,19 @@ export default function TemplatesClient() {
                     <p className="text-xs text-red-400/80 mt-0.5">{t.rejected_reason}</p>
                   )}
                 </div>
-                <StatusBadge status={t.status} />
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusBadge status={t.status} />
+                  {t.status === 'REJECTED' && (
+                    <button
+                      type="button"
+                      onClick={() => reenviar(t.name)}
+                      disabled={reenviando === t.name}
+                      className="px-2.5 py-1 bg-zinc-700/60 hover:bg-zinc-700 disabled:opacity-50 text-xs text-zinc-200 rounded-lg transition"
+                    >
+                      {reenviando === t.name ? 'Reenviando…' : 'Reenviar'}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

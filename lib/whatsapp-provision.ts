@@ -93,6 +93,21 @@ export async function criarTemplate(wabaId: string, token: string, def: any): Pr
   return { ok: true, id: data?.id }
 }
 
+/* Apaga TODAS as variantes de idioma de um template pelo nome -- usado pra
+   corrigir um rejeitado (edita o texto e reenvia com o mesmo nome; a Meta
+   não deixa criar de novo com o nome já ocupado por um rejeitado). */
+export async function apagarTemplate(wabaId: string, token: string, name: string): Promise<{ ok: boolean; motivo?: string }> {
+  const res = await fetch(`${GRAPH}/${META_API_VERSION}/${wabaId}/message_templates?name=${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (res.ok) return { ok: true }
+  const txt = await res.text()
+  // não existia -- não é falha real pra quem só quer garantir que não existe mais
+  if (/does not exist|not found/i.test(txt)) return { ok: true }
+  return { ok: false, motivo: `(${res.status}) ${txt.slice(0, 200)}` }
+}
+
 export type StatusTemplate = { name: string; status?: string; category?: string; rejected_reason?: string }
 
 /* Consulta status (aprovado/pendente/rejeitado) + motivo da rejeição, se
