@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const anthropic = new Anthropic()
+const anthropic = new Anthropic({ maxRetries: 1 })
 
 /* ══════════════════════════════════════════════════════════════
    NOME AMIGÁVEL — "nome falado" do produto, gerado por IA UMA VEZ só
@@ -11,6 +11,9 @@ const anthropic = new Anthropic()
    ══════════════════════════════════════════════════════════════ */
 
 async function gerarNomeAmigavel(nome: string, marca: string | null): Promise<string> {
+  // timeout curto -- essa chamada roda no caminho de carregamento do Painel/
+  // IA; sem limite, um engasgo de rede/API trava a página esperando (era a
+  // causa do /dashboard "congelar" às vezes depois de importar produto novo).
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 40,
@@ -19,7 +22,7 @@ async function gerarNomeAmigavel(nome: string, marca: string | null): Promise<st
       role: 'user',
       content: `Nome do cadastro: "${nome}"${marca ? ` | marca: ${marca} (NÃO inclua esta palavra no resultado)` : ''}\nExemplos: "POLO BÁSICA 4 FRISOS BORDEAUX INTENSO 117" (marca: Aramis) -> polo bordô | "TENIS CASUAL OFF WHITE REF 2201" (marca: Nike) -> tênis branco\nTransforme:`,
     }],
-  })
+  }, { timeout: 4000 })
   const text = msg.content[0]?.type === 'text' ? msg.content[0].text : ''
   const limpo = text.trim().toLowerCase().replace(/^["'“”]+|["'“”]+$/g, '').replace(/[.!]+$/, '')
   return limpo.slice(0, 60) || nome.toLowerCase()

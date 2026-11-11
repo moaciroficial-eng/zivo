@@ -4,9 +4,20 @@ import { createClient } from '@/lib/supabase/server'
 import { getModo } from '@/lib/modo'
 import DashboardClient from './DashboardClient'
 import { gerarOportunidades } from '@/lib/inteligencia/oportunidades'
-import { construirCopyOportunidadesComIA } from '@/lib/inteligencia/copy'
+import { construirCopyOportunidadesComIA, construirCopyOportunidades } from '@/lib/inteligencia/copy'
 
 export const metadata: Metadata = { title: 'Dashboard — Terny' }
+
+// teto de segurança pro bloco de oportunidades do Painel: nunca espera além
+// disso, mesmo que a geração de nome amigável (IA) ou a consulta engasguem —
+// cai no fallback em vez de travar a página inteira (era a causa do
+// /dashboard "congelar" às vezes).
+function comTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms)
+    p.then(v => { clearTimeout(t); resolve(v) }).catch(() => { clearTimeout(t); resolve(fallback) })
+  })
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -106,9 +117,13 @@ export default async function DashboardPage() {
       .eq('status', 'pendente')
       .order('updated_at', { ascending: false })
       .limit(30),
-    gerarOportunidades(supabase, user.id, { limite: 5 }).catch(() => []),
+    comTimeout(gerarOportunidades(supabase, user.id, { limite: 5 }), 3000, []),
   ])
-  const oportunidadesHoje = await construirCopyOportunidadesComIA(supabase, oportunidadesRaw)
+  const oportunidadesHoje = await comTimeout(
+    construirCopyOportunidadesComIA(supabase, oportunidadesRaw),
+    3000,
+    construirCopyOportunidades(oportunidadesRaw),
+  )
 
   const paraResponder = (escalacoesRaw ?? []).map(e => {
     const c = (Array.isArray(e.contato) ? e.contato[0] : e.contato) as { id: string; nome: string | null; phone: string | null } | null
