@@ -81,6 +81,36 @@ export async function listarTemplates(wabaId: string, token: string): Promise<Te
   return out
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function criarTemplate(wabaId: string, token: string, def: any): Promise<{ ok: boolean; id?: string; motivo?: string }> {
+  const res = await fetch(`${GRAPH}/${META_API_VERSION}/${wabaId}/message_templates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name: def.name, language: def.language, category: def.category, components: def.components }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { ok: false, motivo: data?.error?.message || `(${res.status}) ${JSON.stringify(data).slice(0, 300)}` }
+  return { ok: true, id: data?.id }
+}
+
+export type StatusTemplate = { name: string; status?: string; category?: string; rejected_reason?: string }
+
+/* Consulta status (aprovado/pendente/rejeitado) + motivo da rejeição, se
+   houver — usa `fields=` explícito porque a listagem default não traz
+   rejected_reason. */
+export async function consultarStatusTemplates(wabaId: string, token: string): Promise<StatusTemplate[]> {
+  const out: StatusTemplate[] = []
+  let url: string | null = `${GRAPH}/${META_API_VERSION}/${wabaId}/message_templates?fields=name,status,category,rejected_reason&limit=100`
+  while (url) {
+    const res: Response = await fetch(url, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) throw new Error(`Falha ao consultar status (${res.status}): ${(await res.text()).slice(0, 200)}`)
+    const data = await res.json()
+    for (const t of (data?.data ?? [])) out.push(t as StatusTemplate)
+    url = data?.paging?.next ?? null
+  }
+  return out
+}
+
 export type ClonarResultado = { name: string; ok: boolean; motivo?: string; jaExistia?: boolean }
 
 /* Clona os templates da WABA-fonte (a sua, já aprovada) pra WABA nova.
