@@ -55,6 +55,25 @@ const ABERTURAS_REATIVACAO: ((nome: string) => string)[] = [
   (nome) => `Oi, ${nome}! Faz um tempinho que a gente não se fala.`,
 ]
 
+/* O "meio" da mensagem (produto + tamanho) — também varia, senão toda
+   mensagem repete a mesma estrutura "É X, no seu tamanho Y" e só a
+   abertura muda, o que ainda soa de robô. */
+const OFERTAS: ((nome: string, marcaTxt: string, tamanho: string) => string)[] = [
+  (nome, marcaTxt, tam) => `É ${nome}${marcaTxt}, no seu tamanho ${tam}.`,
+  (nome, marcaTxt, tam) => `Peguei ${nome}${marcaTxt} aqui no ${tam}, bem a sua cara.`,
+  (nome, marcaTxt, tam) => `Tem ${nome}${marcaTxt} disponível no seu tamanho, o ${tam}.`,
+  (nome, marcaTxt, tam) => `Separei ${nome}${marcaTxt} pra você, no ${tam}.`,
+  (nome, marcaTxt, tam) => `Chegou ${nome}${marcaTxt} e tem no seu tamanho (${tam}).`,
+]
+
+/* Reencontro (reativação) — oferta própria, menciona o reencontro em vez
+   de só o produto puro. */
+const OFERTAS_REATIVACAO: ((nome: string, marcaTxt: string, tamanho: string) => string)[] = [
+  (nome, marcaTxt, tam) => `Chegou ${nome}${marcaTxt} no seu tamanho (${tam}) e lembrei de você.`,
+  (nome, marcaTxt, tam) => `Separei ${nome}${marcaTxt}, no ${tam}, pra quando você passar aqui de novo.`,
+  (nome, marcaTxt, tam) => `Tem ${nome}${marcaTxt} no seu tamanho, o ${tam} — boa desculpa pra aparecer.`,
+]
+
 const PERGUNTAS = [
   'Quer que eu te mande as fotos?',
   'Posso te mandar foto?',
@@ -73,8 +92,9 @@ export function construirCopyOportunidade(o: Oportunidade, nomeAmigavel?: string
   const nomeLimpo = semMarcaRepetida(nomeBase, o.marca)
   const marcaTxt = o.marca ? ` da ${o.marca}` : ''
 
-  const abertura = o.tipo === 'reativacao' ? sorteia(ABERTURAS_REATIVACAO)(primeiro) : sorteia(ABERTURAS)(primeiro)
-  const oferta = `É ${nomeLimpo}${marcaTxt}, no seu tamanho ${o.tamanho}.`
+  const reativ = o.tipo === 'reativacao'
+  const abertura = reativ ? sorteia(ABERTURAS_REATIVACAO)(primeiro) : sorteia(ABERTURAS)(primeiro)
+  const oferta = reativ ? sorteia(OFERTAS_REATIVACAO)(nomeLimpo, marcaTxt, o.tamanho) : sorteia(OFERTAS)(nomeLimpo, marcaTxt, o.tamanho)
   const pergunta = sorteia(PERGUNTAS)
 
   return {
