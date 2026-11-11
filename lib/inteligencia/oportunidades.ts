@@ -126,22 +126,35 @@ function avaliarMatch(prod: EstoqueRow, perfil: PerfilCliente, cli: ClienteRow, 
   const faMarca = marcaLow && top && top.marca.toLowerCase() === marcaLow && top.pct >= 60 && top.n >= 3
   const gostaMarca = marcaLow && perfil.marcasTop?.some(m => m.marca.toLowerCase() === marcaLow)
   const obsMarca = marcaLow && obs.includes(marcaLow)
-  if (faMarca) { score += 55; tipo = 'fa_marca'; motivos.push(`fã de ${prod.marca}`) }
+  if (faMarca) { score += 55; motivos.push(`fã de ${prod.marca}`) }
   else if (gostaMarca) { score += 28; motivos.push(`curte ${prod.marca}`) }
   else if (obsMarca) { score += 24; motivos.push(`nota do dono cita ${prod.marca}`) }
 
-  if (perfil.temperatura === 'frio' && perfil.qtdCompras >= 1 && perfil.diasSemComprar >= 20) {
-    score += 32; if (tipo === 'match') tipo = 'reativacao'; motivos.push(`sumido há ${perfil.diasSemComprar}d`)
-  } else if (perfil.temperatura === 'quente') { score += 12 }
+  const reativacao = perfil.temperatura === 'frio' && perfil.qtdCompras >= 1 && perfil.diasSemComprar >= 20
+  if (reativacao) { score += 32; motivos.push(`sumido há ${perfil.diasSemComprar}d`) }
+  else if (perfil.temperatura === 'quente') { score += 12 }
   else if (perfil.temperatura === 'morno') { score += 16 }
 
-  if (parado && perfil.perfilPromo) { score += 26; tipo = 'girar_desconto'; motivos.push('só compra em promo') }
+  const girarDesconto = parado && perfil.perfilPromo
+  if (girarDesconto) { score += 26; motivos.push('só compra em promo') }
   else if (parado) { score += 6 }
 
-  if (novidade && perfil.cacaNovidades) { score += 14; if (tipo === 'match') tipo = 'novidade'; motivos.push('gosta de novidade') }
+  const ehNovidade = novidade && perfil.cacaNovidades
+  if (ehNovidade) { score += 14; motivos.push('gosta de novidade') }
   if (perfil.ticketMedio && prod.preco_venda && prod.preco_venda <= perfil.ticketMedio * 1.6) score += 8
 
   if (score < scoreMin) return null
+
+  /* O tipo decide a MENSAGEM (reencontro, desconto...) por relevância da
+     abordagem, não pela ordem em que o score foi somado: sumido há muito
+     tempo pesa mais que ser fã de marca pra escolher a mensagem, senão o
+     reencontro nunca aparece pra quem também tem marca favorita (caso real:
+     cliente sumido há 108 dias e fã da marca recebia "chegou novidade da
+     marca" em vez de reencontro). */
+  if (reativacao) tipo = 'reativacao'
+  else if (girarDesconto) tipo = 'girar_desconto'
+  else if (faMarca) tipo = 'fa_marca'
+  else if (ehNovidade) tipo = 'novidade'
 
   return {
     clienteId: perfil.clienteId, clienteNome: perfil.nome, telefone: cli.telefone,
