@@ -39,14 +39,14 @@ function semMarcaRepetida(nome: string, marca: string | null): string {
    (camiseta, blusa, calça, bermuda, sandália...); o resto, masculino
    (tênis, vestido, chinelo, boné...). Não cobre toda palavra da língua,
    mas cobre bem o vocabulário de loja de roupa/calçado. */
-function artigo(nome: string): string {
+export function artigo(nome: string): string {
   const primeira = nome.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   return /a$/.test(primeira) ? 'uma' : 'um'
 }
 
 /* Artigo definido (o/a) das datas comemorativas — são nome próprio, não dá
    pra adivinhar pela heurística acima. */
-const ARTIGO_DATA: Record<string, string> = {
+export const ARTIGO_DATA: Record<string, string> = {
   'Black Friday': 'a', Natal: 'o', 'Ano Novo': 'o',
   'Dia das Mães': 'o', 'Dia dos Namorados': 'o', 'Dia dos Pais': 'o', 'Dia das Crianças': 'o',
 }
@@ -196,4 +196,35 @@ export async function construirCopyOportunidadesComIA(admin: any, lista: Oportun
   const produtos = lista.map(o => ({ id: o.produtoId, nome: o.produtoNome, marca: o.marca }))
   const nomesAmigaveis = await garantirNomesAmigaveis(admin, produtos).catch(() => new Map<string, string>())
   return lista.map(o => construirCopyOportunidade(o, nomesAmigaveis.get(o.produtoId)))
+}
+
+/* Mapeia o tipo da oportunidade pro template novo (aprovado pela Meta) e já
+   monta as variáveis na ordem certa -- usado em /api/plano/contatar pra
+   preferir um template especifico (reencontro, novidade, presente) em vez
+   do generico "novidade_loja", quando a janela de 24h estiver fechada e o
+   template novo já estiver aprovado. Null quando não há um pra esse tipo
+   (match, fa_marca, girar_desconto continuam no generico). */
+export function templateNovoParaOportunidade(
+  primeiroNome: string,
+  o: { tipo: string; produtoNome: string; marca: string | null; tamanho: string; motivo: string },
+): { name: string; vars: string[] } | null {
+  const marcaTxt = o.marca ? ` da ${o.marca}` : ''
+  const produto = `${artigo(o.produtoNome)} ${o.produtoNome}${marcaTxt}`
+
+  if (o.tipo === 'reativacao') return { name: 'reencontro_cliente', vars: [primeiroNome, produto, o.tamanho] }
+
+  if (o.tipo === 'novidade') {
+    const nomeTemplate = Math.random() < 0.5 ? 'novidade_cliente' : 'novidade_cliente_2'
+    return { name: nomeTemplate, vars: [primeiroNome, produto, o.tamanho] }
+  }
+
+  if (o.tipo === 'presente') {
+    const dataMatch = o.motivo.match(/·\s*(.+?)\s+em\s+\d+\s+dias?$/)
+    const dataNome = dataMatch?.[1]
+    if (!dataNome) return null
+    const dataArt = `${ARTIGO_DATA[dataNome] ?? 'o'} ${dataNome}`
+    return { name: 'presente_data', vars: [primeiroNome, dataArt, produto] }
+  }
+
+  return null
 }

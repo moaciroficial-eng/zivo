@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
+import { statusAprovadoTemplates } from '@/lib/whatsapp-provision'
 
 export const maxDuration = 120
 
@@ -14,6 +15,16 @@ const MAX_POR_DISPARO = 50
 function saudacaoBR(): string {
   const h = Number(new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hour12: false, timeZone: 'America/Sao_Paulo' }).format(new Date()))
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
+/* Campanha de Black Friday tem template específico aprovado -- lista VIP
+   (convite pra entrar antes) ou abertura (já começou). Fora disso, cai no
+   genérico novidade_loja de sempre. */
+function templateCampanhaBlackFriday(dataEvento: string | null | undefined, titulo: string, objetivo: string): string | null {
+  if (dataEvento !== 'Black Friday') return null
+  const texto = `${titulo} ${objetivo}`.toLowerCase()
+  if (/vip|lista|antes de todo mundo|primeira m[ãa]o/.test(texto)) return 'black_lista_vip'
+  return 'black_abertura'
 }
 
 /* Teaser 1 linha pro {{3}} do template (Meta não aceita quebra) */
@@ -90,6 +101,20 @@ export async function POST(request: NextRequest) {
   let porTemplate = 0, porTexto = 0, falhas = 0
   const enviadosCli: string[] = []   // clientes que receberam (pra agendar os lembretes)
 
+  /* Campanha de Black Friday (abertura ou lista VIP) tem template próprio
+     aprovado -- prefere ele (quando já aprovado) em vez do genérico. Não
+     varia por cliente, calcula uma vez só antes do loop. */
+  let templateBlackFriday: string | null = null
+  {
+    const wabaId = process.env.META_WABA_ID
+    const token = process.env.META_ACCESS_TOKEN?.replace(/^﻿/, '').trim()
+    const candidato = templateCampanhaBlackFriday(data_evento, titulo ?? '', objetivo ?? '')
+    if (wabaId && token && candidato) {
+      const status = await statusAprovadoTemplates(wabaId, token).catch(() => new Map<string, string>())
+      if (status.get(candidato) === 'APPROVED') templateBlackFriday = candidato
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const cli of (clientes ?? []) as any[]) {
     const primeiroNome = (cli.nome as string | null)?.split(' ')[0] || 'você'
@@ -111,8 +136,8 @@ export async function POST(request: NextRequest) {
       contatoId,
       phone,
       texto: textoPersonalizado,
-      templateName: 'novidade_loja',
-      templateVars: [primeiroNome, nomeLoja, teaser(textoPersonalizado)],
+      templateName: templateBlackFriday ?? 'novidade_loja',
+      templateVars: templateBlackFriday ? [primeiroNome] : [primeiroNome, nomeLoja, teaser(textoPersonalizado)],
       fotoUrl: foto_url ?? null,
       templateFotoName: 'oferta_com_foto',
       creds: loja?.creds,

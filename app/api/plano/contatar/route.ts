@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { enviarOferta } from '@/lib/agentes/envio'
 import { getLoja } from '@/lib/loja'
 import { normalizarTelefoneBR } from '@/lib/whatsapp'
+import { templateNovoParaOportunidade } from '@/lib/inteligencia/copy'
+import { statusAprovadoTemplates } from '@/lib/whatsapp-provision'
 
 /* Envia a oferta de um contato do PLANO DIÁRIO pelo Terny (não abre WhatsApp
    externo): window-aware (quente=texto, frio=template), grava no chat e conta
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false }, { status: 401 })
 
-  const { clienteId, nome, telefone, mensagem, foto_url } = await request.json()
+  const { clienteId, nome, telefone, mensagem, foto_url, tipo, produtoNome, marca, tamanho, motivo } = await request.json()
   if (!mensagem || (!clienteId && !telefone)) return NextResponse.json({ ok: false, erro: 'faltam dados' }, { status: 400 })
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -59,10 +61,27 @@ export async function POST(request: NextRequest) {
   const primeiroNome = (contato.nome ?? nome ?? 'você').split(' ')[0]
   const texto = String(mensagem).replace(/\{saudacao\}/gi, saudacaoBR()).replace(/\{nome\}/gi, primeiroNome)
 
+  /* Prefere o template novo (reencontro/novidade/presente) quando a
+     oportunidade tem tipo compatível e ele já está aprovado na Meta --
+     enquanto "Em análise", cai no genérico novidade_loja de sempre. */
+  let templateName = 'novidade_loja'
+  let templateVars = [primeiroNome, nomeLoja, teaser(texto)]
+  if (tipo && produtoNome && tamanho) {
+    const wabaId = process.env.META_WABA_ID
+    const token = process.env.META_ACCESS_TOKEN?.replace(/^﻿/, '').trim()
+    if (wabaId && token) {
+      const preferido = templateNovoParaOportunidade(primeiroNome, { tipo, produtoNome, marca: marca ?? null, tamanho, motivo: motivo ?? '' })
+      if (preferido) {
+        const status = await statusAprovadoTemplates(wabaId, token).catch(() => new Map<string, string>())
+        if (status.get(preferido.name) === 'APPROVED') { templateName = preferido.name; templateVars = preferido.vars }
+      }
+    }
+  }
+
   const r = await enviarOferta(admin, {
     userId: user.id, contatoId: contato.id, phone: contato.phone,
-    texto, templateName: 'novidade_loja',
-    templateVars: [primeiroNome, nomeLoja, teaser(texto)],
+    texto, templateName,
+    templateVars,
     fotoUrl: foto_url ?? null, templateFotoName: 'oferta_com_foto',
     creds: loja?.creds,
   })

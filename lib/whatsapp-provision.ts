@@ -110,6 +110,22 @@ export async function apagarTemplate(wabaId: string, token: string, name: string
 
 export type StatusTemplate = { name: string; status?: string; category?: string; rejected_reason?: string }
 
+/* Cache em memória (por instância serverless) do status dos templates --
+   aprovação não muda a cada segundo, não vale bater na Graph API em todo
+   envio. Usado pra decidir, no momento do envio, se já pode preferir um
+   template novo ou se ainda precisa cair no genérico (enquanto "Em análise"). */
+let _statusCache: { at: number; mapa: Map<string, string> } | null = null
+const STATUS_CACHE_MS = 2 * 60 * 1000
+
+export async function statusAprovadoTemplates(wabaId: string, token: string): Promise<Map<string, string>> {
+  const agora = Date.now()
+  if (_statusCache && agora - _statusCache.at < STATUS_CACHE_MS) return _statusCache.mapa
+  const lista = await consultarStatusTemplates(wabaId, token).catch(() => [] as StatusTemplate[])
+  const mapa = new Map(lista.map(t => [t.name, t.status ?? '']))
+  _statusCache = { at: agora, mapa }
+  return mapa
+}
+
 /* Consulta status (aprovado/pendente/rejeitado) + motivo da rejeição, se
    houver — usa `fields=` explícito porque a listagem default não traz
    rejected_reason. */

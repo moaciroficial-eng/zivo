@@ -812,7 +812,10 @@ function OportunidadeCard({ o, onResolvido }: { o: OportunidadeFeed; onResolvido
     try {
       const res = await fetch('/api/plano/contatar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId: o.clienteId, nome: o.clienteNome, telefone: o.telefone, mensagem: msg, foto_url: fotoUrl }),
+        body: JSON.stringify({
+          clienteId: o.clienteId, nome: o.clienteNome, telefone: o.telefone, mensagem: msg, foto_url: fotoUrl,
+          tipo: o.tipo, produtoNome: o.produtoNome, marca: o.marca, tamanho: o.tamanho, motivo: o.motivo,
+        }),
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro ?? 'Falha ao enviar.'); return }
