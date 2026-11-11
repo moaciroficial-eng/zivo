@@ -74,6 +74,23 @@ const OFERTAS_REATIVACAO: ((nome: string, marcaTxt: string, tamanho: string) => 
   (nome, marcaTxt, tam) => `Tem ${nome}${marcaTxt} no seu tamanho, o ${tam} — boa desculpa pra aparecer.`,
 ]
 
+/* Presente — quem compra pra outra pessoa (marido/namorado/esposa/filhos),
+   nunca "separei pra você": a peça é pro presenteado, não pro cliente. */
+const ABERTURAS_PRESENTE: ((nome: string) => string)[] = [
+  (nome) => `${saudacaoBR()}, ${nome}!`,
+  (nome) => `Oi, ${nome}!`,
+  (nome) => `${nome}, oi!`,
+]
+const REL_PRESENTE: Record<string, string> = {
+  marido: 'seu marido', namorado: 'seu namorado', namorada: 'sua namorada',
+  esposa: 'sua esposa', filhos: 'seus filhos', presente: 'alguém especial',
+}
+const OFERTAS_PRESENTE: ((nome: string, marcaTxt: string, quem: string) => string)[] = [
+  (nome, marcaTxt, quem) => `Vi ${nome}${marcaTxt} que é a cara de ${quem}.`,
+  (nome, marcaTxt, quem) => `Olhei ${nome}${marcaTxt} aqui e lembrei de ${quem} na hora.`,
+  (nome, marcaTxt, quem) => `Chegou ${nome}${marcaTxt} que tem tudo a ver com ${quem}.`,
+]
+
 const PERGUNTAS = [
   'Quer que eu te mande as fotos?',
   'Posso te mandar foto?',
@@ -93,8 +110,12 @@ export function construirCopyOportunidade(o: Oportunidade, nomeAmigavel?: string
   const marcaTxt = o.marca ? ` da ${o.marca}` : ''
 
   const reativ = o.tipo === 'reativacao'
-  const abertura = reativ ? sorteia(ABERTURAS_REATIVACAO)(primeiro) : sorteia(ABERTURAS)(primeiro)
-  const oferta = reativ ? sorteia(OFERTAS_REATIVACAO)(nomeLimpo, marcaTxt, o.tamanho) : sorteia(OFERTAS)(nomeLimpo, marcaTxt, o.tamanho)
+  const presente = o.tipo === 'presente'
+  const quem = presente ? (REL_PRESENTE[o.compraPara ?? 'presente'] ?? REL_PRESENTE.presente) : ''
+  const abertura = presente ? sorteia(ABERTURAS_PRESENTE)(primeiro)
+    : reativ ? sorteia(ABERTURAS_REATIVACAO)(primeiro) : sorteia(ABERTURAS)(primeiro)
+  const oferta = presente ? sorteia(OFERTAS_PRESENTE)(nomeLimpo, marcaTxt, quem)
+    : reativ ? sorteia(OFERTAS_REATIVACAO)(nomeLimpo, marcaTxt, o.tamanho) : sorteia(OFERTAS)(nomeLimpo, marcaTxt, o.tamanho)
   const pergunta = sorteia(PERGUNTAS)
 
   return {

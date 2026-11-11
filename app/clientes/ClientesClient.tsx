@@ -30,6 +30,7 @@ export type Cliente = {
   data_nascimento: string | null
   dia_pagamento: number | null
   observacoes: string | null
+  compra_para: 'si_mesmo' | 'namorado' | 'namorada' | 'marido' | 'esposa' | 'filhos' | 'presente' | null
   dependentes: Dependente[] | null
   saldo_credito?: number | null
   created_at: string
@@ -47,6 +48,7 @@ type FormState = {
   data_nascimento: string
   dia_pagamento: string
   observacoes: string
+  compra_para: string
 }
 
 type ProdutoHistorico = {
@@ -86,7 +88,7 @@ type HistoricoCrediario = {
 const EMPTY: FormState = {
   nome: '', telefone: '', email: '', cpf: '', genero: '',
   tamanho_camiseta: '', tamanho_calca: '', tamanho_tenis: '',
-  data_nascimento: '', dia_pagamento: '', observacoes: '',
+  data_nascimento: '', dia_pagamento: '', observacoes: '', compra_para: '',
 }
 
 const CAMISETAS  = ['P', 'M', 'G', 'GG', 'XGG']
@@ -346,6 +348,7 @@ export default function ClientesClient({
       data_nascimento: c.data_nascimento ?? '',
       dia_pagamento: c.dia_pagamento?.toString() ?? '',
       observacoes: c.observacoes ?? '',
+      compra_para: c.compra_para ?? '',
     })
     setDependentes(c.dependentes ?? [])
     setAddingDep(false); setEditingDepId(null)
@@ -483,6 +486,7 @@ export default function ClientesClient({
       data_nascimento: form.data_nascimento || null,
       dia_pagamento: form.dia_pagamento ? Number(form.dia_pagamento) : null,
       observacoes: form.observacoes || null,
+      compra_para: form.compra_para || null,
       dependentes: depsFinal,
     }
 
@@ -1476,6 +1480,20 @@ export default function ClientesClient({
                   rows={4}
                   className={`${INPUT} resize-none`}
                 />
+              </Field>
+
+              <Field label="Compra para">
+                <select value={form.compra_para} onChange={field('compra_para')} className={`${INPUT} appearance-none px-3`}>
+                  <option value="">Detecção automática (pelo histórico de presentes)</option>
+                  <option value="si_mesmo">Para si mesmo(a)</option>
+                  <option value="namorado">Namorado</option>
+                  <option value="namorada">Namorada</option>
+                  <option value="marido">Marido</option>
+                  <option value="esposa">Esposa</option>
+                  <option value="filhos">Filhos</option>
+                  <option value="presente">Presente em geral</option>
+                </select>
+                <p className="text-xs text-zinc-600 mt-1">Cliente que sempre compra pra outra pessoa não entra no &ldquo;Quem chamar hoje&rdquo; comum — aparece perto de datas de presente (Natal, Namorados, Dia das Crianças...).</p>
               </Field>
 
               {/* Dependentes */}

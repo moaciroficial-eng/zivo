@@ -1,5 +1,6 @@
 import { calcularPerfis, type PerfilCliente } from '@/lib/inteligencia/motor'
 import { clienteServeProduto } from '@/lib/tamanhos'
+import { proximasDatas } from '@/lib/datas-comemorativas'
 
 /* ══════════════════════════════════════════════════════════════
    MOTOR DE OPORTUNIDADES — o cérebro (produto certo × pessoa certa)
@@ -21,10 +22,11 @@ export type Oportunidade = {
   preco: number | null
   tamanho: string
   diasParado: number
-  tipo: 'fa_marca' | 'reativacao' | 'girar_desconto' | 'novidade' | 'match'
+  tipo: 'fa_marca' | 'reativacao' | 'girar_desconto' | 'novidade' | 'match' | 'presente'
   score: number
   motivo: string
   nota_dono: string | null
+  compraPara?: string | null
 }
 
 type Tam = { tamanho: string; qtd: number }
@@ -53,9 +55,14 @@ function produtoRejeitadoPorNota(observacoes: string | null, prod: EstoqueRow): 
   }
   return false
 }
+type DependenteRow = {
+  id: string; relacao: string; genero?: string | null
+  tamanho_camiseta?: string | null; tamanho_calca?: string | null; tamanho_tenis?: string | null
+}
 type ClienteRow = {
   id: string; nome: string; telefone: string | null; genero: string | null
   tamanho_camiseta: string | null; tamanho_calca: string | null; tamanho_tenis: string | null
+  compra_para?: string | null; dependentes?: DependenteRow[] | null
 }
 
 /* Parte do corpo da peça → define QUAL tamanho do cliente usar.
@@ -81,6 +88,9 @@ function generoOposto(produtoGen: string | null, clienteGen: string | null): boo
    fraca demais). scoreMin=0 pra visão do produto (mostra todos os que servem). */
 function avaliarMatch(prod: EstoqueRow, perfil: PerfilCliente, cli: ClienteRow, scoreMin = 30): Oportunidade | null {
   if (!cli.telefone) return null
+  // cliente que compra pra presente (não pra si) não entra no match comum --
+  // tem lógica própria (gerarOportunidadesPresente), perto da data certa
+  if (cli.compra_para && cli.compra_para !== 'si_mesmo') return null
   if (generoOposto(prod.genero, cli.genero)) return null
   if (produtoRejeitadoPorNota(perfil.observacoes, prod)) return null   // dono anotou que não curte
 
@@ -157,6 +167,63 @@ function jaComprou(comprados: Set<string> | undefined, prod: EstoqueRow): boolea
   return comprados.has(`id:${prod.id}`) || (!!prod.nome && comprados.has(`n:${chaveProd(prod.nome)}`))
 }
 
+/* ── COMPRA PARA PRESENTE ──────────────────────────────────────
+   Alguns clientes não compram pra si — compram sempre de presente (ex.:
+   mulher que só leva peça masculina pro marido). Esses não entram no match
+   comum (avaliarMatch já bloqueia); em vez disso, aparecem perto de uma data
+   de presente, com mensagem própria (ver gerarOportunidadesPresente). */
+
+/* Relação do dependente (cadastro hoje: marido/pai/filho/filha) → categoria
+   de compra_para. O que não mapeia (ex. "pai") cai no genérico "presente". */
+function relacaoParaCompraPara(relacao: string): string | null {
+  if (relacao === 'marido') return 'marido'
+  if (relacao === 'filho' || relacao === 'filha') return 'filhos'
+  return null
+}
+
+/* Detecta compra_para pelo histórico de vendas marcadas como presente — só
+   sugere quando o campo ainda está vazio (nunca sobrescreve escolha do dono)
+   e exige pelo menos 2 vendas-presente, pra não decidir numa coincidência só. */
+function detectarCompraPara(
+  cliente: ClienteRow,
+  vendasPresenteDoCliente: { para_dependente_id: string | null }[],
+): string | null {
+  if (cliente.compra_para) return null
+  if (vendasPresenteDoCliente.length < 2) return null
+
+  const depPorId = new Map((cliente.dependentes ?? []).map(d => [d.id, d.relacao]))
+  const contagem = new Map<string, number>()
+  for (const v of vendasPresenteDoCliente) {
+    const relacao = v.para_dependente_id ? depPorId.get(v.para_dependente_id) : undefined
+    const chave = (relacao && relacaoParaCompraPara(relacao)) || 'presente'
+    contagem.set(chave, (contagem.get(chave) ?? 0) + 1)
+  }
+  let melhor = 'presente', max = 0
+  for (const [k, n] of contagem) if (n > max) { max = n; melhor = k }
+  return melhor
+}
+
+/* Datas de presente relevantes por categoria — Natal e Black Friday valem
+   pra todo mundo; namorado(a)/marido/esposa ganham o Dia dos Namorados;
+   filhos ganham o Dia das Crianças. */
+const DATAS_POR_COMPRA_PARA: Record<string, string[]> = {
+  namorado: ['Dia dos Namorados', 'Natal', 'Black Friday'],
+  namorada: ['Dia dos Namorados', 'Natal', 'Black Friday'],
+  marido: ['Dia dos Namorados', 'Natal', 'Black Friday'],
+  esposa: ['Dia dos Namorados', 'Natal', 'Black Friday'],
+  filhos: ['Dia das Crianças', 'Natal', 'Black Friday'],
+  presente: ['Natal', 'Black Friday'],
+}
+
+/* Gênero provável de quem vai receber o presente — vem da própria categoria
+   (marido/namorado = recebe peça masculina), não do gênero do cliente. Pra
+   "filhos" não filtra (criança pode ser qualquer um, não sabe qual filho). */
+function generoPresenteadoDe(compraPara: string): 'M' | 'F' | null {
+  if (compraPara === 'marido' || compraPara === 'namorado') return 'M'
+  if (compraPara === 'esposa' || compraPara === 'namorada') return 'F'
+  return null
+}
+
 /* ── APRENDIZADO: peso por tipo de oportunidade ──────────────────
    Cruza o log de oportunidades geradas com as vendas reais pra descobrir
    QUAL tipo converte mais NESTA loja, e devolve um multiplicador do score
@@ -201,9 +268,9 @@ function calcularPesosTipo(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function carregarContexto(admin: any, userId: string, excluirDias: number) {
   const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: acoes }, { data: oplog }] = await Promise.all([
-    admin.from('vendas').select('id, cliente_id, cliente_nome, valor, data_venda, produtos, forma_pagamento, created_at')
+    admin.from('vendas').select('id, cliente_id, cliente_nome, valor, data_venda, produtos, forma_pagamento, created_at, presente, para_dependente_id')
       .eq('user_id', userId).order('data_venda', { ascending: true }).limit(4000),
-    admin.from('clientes').select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes')
+    admin.from('clientes').select('id, nome, telefone, genero, data_nascimento, tamanho_camiseta, tamanho_calca, tamanho_tenis, observacoes, compra_para, dependentes')
       .eq('user_id', userId).limit(3000),
     admin.from('estoque').select('id, nome, marca, cor, categoria, genero, tamanhos, preco_venda, created_at, status')
       .eq('user_id', userId).limit(5000),
@@ -215,6 +282,27 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
   const perfis = calcularPerfis(vendas ?? [], clientes ?? [], estoque ?? [])
   const infoCliente = new Map<string, ClienteRow>()
   for (const c of (clientes ?? []) as ClienteRow[]) infoCliente.set(c.id, c)
+
+  /* Detecta compra_para (uma vez só, igual ao nome_amigavel): só quando o
+     campo ainda está vazio, persiste e já usa na mesma passada. */
+  const vendasPresentePorCliente = new Map<string, { para_dependente_id: string | null }[]>()
+  for (const v of (vendas ?? []) as { cliente_id: string | null; presente?: boolean | null; para_dependente_id?: string | null }[]) {
+    if (!v.cliente_id || !v.presente) continue
+    const lista = vendasPresentePorCliente.get(v.cliente_id) ?? []
+    lista.push({ para_dependente_id: v.para_dependente_id ?? null })
+    vendasPresentePorCliente.set(v.cliente_id, lista)
+  }
+  const atualizacoesCompraPara: { id: string; compra_para: string }[] = []
+  for (const c of infoCliente.values()) {
+    const detectado = detectarCompraPara(c, vendasPresentePorCliente.get(c.id) ?? [])
+    if (detectado) { c.compra_para = detectado; atualizacoesCompraPara.push({ id: c.id, compra_para: detectado }) }
+  }
+  if (atualizacoesCompraPara.length) {
+    await Promise.all(atualizacoesCompraPara.map(u =>
+      admin.from('clientes').update({ compra_para: u.compra_para }).eq('id', u.id).catch(() => {})
+    ))
+  }
+
   const contatadoRecente = new Set<string>()
   for (const a of (acoes ?? []) as { cliente_id: string | null }[]) if (a.cliente_id) contatadoRecente.add(a.cliente_id)
 
@@ -301,7 +389,51 @@ export async function gerarOportunidades(admin: any, userId: string, opts: { lim
     contagemPorProduto.set(op.produtoId, n + 1)
   }
 
-  return [...escolhidoPorCliente.values()].sort((a, b) => b.score - a.score).slice(0, limite)
+  /* 3) Clientes que compram pra presente — não entraram no match comum
+     (avaliarMatch já bloqueia), aparecem aqui só perto de uma data de
+     presente relevante pra categoria deles. */
+  const datasProximas = proximasDatas(20)
+  const presenteCandidatos: Oportunidade[] = []
+  if (datasProximas.length) {
+    for (const perfil of perfis) {
+      const cli = infoCliente.get(perfil.clienteId)
+      if (!cli?.telefone || !cli.compra_para || cli.compra_para === 'si_mesmo') continue
+      if (contatadoRecente.has(perfil.clienteId)) continue
+
+      const datasRelevantes = DATAS_POR_COMPRA_PARA[cli.compra_para] ?? DATAS_POR_COMPRA_PARA.presente
+      const dataAlvo = datasProximas.find(d => datasRelevantes.includes(d.nome))
+      if (!dataAlvo) continue
+
+      const generoPresenteado = generoPresenteadoDe(cli.compra_para)
+      let melhor: Oportunidade | null = null
+      for (const prod of produtos) {
+        if (generoPresenteado && generoOposto(prod.genero, generoPresenteado)) continue
+        if (jaComprou(compradosPorCliente.get(perfil.clienteId), prod)) continue
+        const tamsProduto = (prod.tamanhos ?? []).filter(t => (Number(t.qtd) || 0) > 0)
+        if (!tamsProduto.length) continue
+        const score = prod.preco_venda && perfil.ticketMedio && prod.preco_venda <= perfil.ticketMedio * 1.6 ? 20 : 10
+        if (melhor && score <= melhor.score) continue
+        melhor = {
+          clienteId: perfil.clienteId, clienteNome: perfil.nome, telefone: cli.telefone,
+          produtoId: prod.id, produtoNome: prod.nome, marca: prod.marca, cor: prod.cor,
+          preco: prod.preco_venda, tamanho: String(tamsProduto[0].tamanho), diasParado: 0,
+          tipo: 'presente', score,
+          motivo: `compra pra presente · ${dataAlvo.nome} em ${dataAlvo.dias} dia${dataAlvo.dias === 1 ? '' : 's'}`,
+          nota_dono: perfil.observacoes || null,
+          compraPara: cli.compra_para,
+        }
+      }
+      if (melhor) presenteCandidatos.push(melhor)
+    }
+  }
+
+  /* Reserva algumas vagas pra presente -- o score dele (10-20) é baixo pra
+     poder comparar com o score do match comum (30-100+), então sem reserva
+     ele quase nunca apareceria mesmo com a data batendo na porta. */
+  const reservaPresente = Math.min(2, presenteCandidatos.length, limite)
+  const presenteEscolhidos = presenteCandidatos.sort((a, b) => b.score - a.score).slice(0, reservaPresente)
+  const normais = [...escolhidoPorCliente.values()].sort((a, b) => b.score - a.score).slice(0, limite - reservaPresente)
+  return [...presenteEscolhidos, ...normais].sort((a, b) => b.score - a.score)
 }
 
 /* Todos os clientes que casam com UM produto (visão do produto, sem dedup).
