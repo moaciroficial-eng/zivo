@@ -61,6 +61,11 @@ type EstoqueItem = {
 
 type EstoqueFlat = EstoqueItem & { _tamanho: string | null }
 
+// resultado da busca agrupado por produto (modelo) — os tamanhos com
+// estoque ficam juntos, escolhidos depois, em vez de repetir a linha
+// inteira uma vez por tamanho
+type ProdutoAgrupado = EstoqueItem & { _tamanhos: TamanhoQtd[] }
+
 type Filtro = 'hoje' | 'semana' | 'mes' | 'custom'
 
 type FormProduto = {
@@ -250,6 +255,29 @@ function pontuaToken(token: string, palavras: string[], haystack: string): numbe
     if (d <= tol) best = Math.max(best, 60 - d * 12)
   }
   return best
+}
+
+// quantas palavras iniciais dois nomes têm em comum (usado só pra saber o
+// que destacar quando dois produtos da busca são muito parecidos)
+function prefixoComumPalavras(a: string, b: string): number {
+  const wa = normBusca(a).split(' ').filter(Boolean)
+  const wb = normBusca(b).split(' ').filter(Boolean)
+  let i = 0
+  while (i < wa.length && i < wb.length && wa[i] === wb[i]) i++
+  return i
+}
+
+// maior nº de palavras iniciais que `nome` compartilha com QUALQUER outro
+// nome da lista visível — se for >= 2, a diferença real está mais pro fim
+// do nome (ex.: "camiseta friso verde claro" vs "...verde escuro") e vale
+// negritar o resto pra não depender de ler o nome inteiro truncado.
+function palavrasComunsComVizinho(nome: string, outros: string[]): number {
+  let max = 0
+  for (const o of outros) {
+    if (o === nome) continue
+    max = Math.max(max, prefixoComumPalavras(nome, o))
+  }
+  return max
 }
 
 /* ── Icons ──────────────────────────────────────────────────── */
@@ -804,7 +832,7 @@ export default function VendasClient({
   const haverUsado = Math.min(Math.max(parseFloat(usarHaver) || 0, 0), saldoHaverCliente, totalBruto)
   const totalFinal = Math.max(0, totalBruto - haverUsado)
 
-  const produtosFiltrados: EstoqueFlat[] = (() => {
+  const produtosAgrupados: ProdutoAgrupado[] = (() => {
     if (productSearch.length < 1) return []
     const tokens = normBusca(productSearch).split(/\s+/).filter(Boolean)
     if (tokens.length === 0) return []
@@ -824,15 +852,12 @@ export default function VendasClient({
       return { e, score }
     }).filter((x): x is { e: typeof estoqueItems[number]; score: number } => x != null)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 10)
+      .slice(0, 8)
 
-    const result: EstoqueFlat[] = []
-    for (const { e: item } of ranked) {
-      const sizes = (item.tamanhos ?? []).filter(t => t.qtd > 0)
-      if (sizes.length <= 1) result.push({ ...item, _tamanho: sizes[0]?.tamanho ?? null })
-      else for (const t of sizes) result.push({ ...item, _tamanho: t.tamanho })
-    }
-    return result.slice(0, 14)
+    // um grupo por produto (cada cadastro já é um "modelo" — cor é fixa nele,
+    // só o tamanho varia); isso evita repetir foto/nome/marca/código uma vez
+    // por tamanho e deixa cada produto visível só uma vez, completo
+    return ranked.map(({ e }) => ({ ...e, _tamanhos: (e.tamanhos ?? []).filter(t => t.qtd > 0) }))
   })()
 
   /* ── Toast ── */
@@ -2301,40 +2326,66 @@ export default function VendasClient({
                     </button>
                   </div>
                   {productDropdown && productSearch.length >= 1 && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden">
-                      {produtosFiltrados.length > 0 ? (
-                        produtosFiltrados.map(item => (
-                          <button
-                            key={item.id + (item._tamanho ?? '')}
-                            type="button"
-                            onMouseDown={() => addFromSearch(item)}
-                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2.5"
-                          >
-                            <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center">
-                              {fotoMap[item.id]
-                                ? <img src={fotoMap[item.id]} alt="" className="w-full h-full object-cover" />
-                                : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-zinc-600"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-zinc-200 text-sm truncate">{item.nome}</p>
-                              {(item.marca || item.cor) && (
-                                <p className="text-xs text-zinc-500 truncate">{[item.marca, item.cor].filter(Boolean).join(' · ')}</p>
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl overflow-hidden max-h-[70vh] overflow-y-auto">
+                      {produtosAgrupados.length > 0 ? (
+                        produtosAgrupados.map(prod => {
+                          const nomes = produtosAgrupados.map(p => p.nome)
+                          const comuns = palavrasComunsComVizinho(prod.nome, nomes)
+                          const palavrasNome = prod.nome.split(' ')
+                          const nomeComum = comuns >= 2 ? palavrasNome.slice(0, comuns).join(' ') + ' ' : ''
+                          const nomeDiferente = comuns >= 2 ? palavrasNome.slice(comuns).join(' ') : prod.nome
+                          const codigo = prod.codigo_produto || prod.codigo_barras
+                          const unica = prod._tamanhos.length <= 1
+                          return (
+                            <div key={prod.id} className="border-b border-zinc-700/60 last:border-b-0">
+                              <div
+                                onMouseDown={unica ? () => addFromSearch({ ...prod, _tamanho: prod._tamanhos[0]?.tamanho ?? null }) : undefined}
+                                className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 ${unica ? 'hover:bg-[#C79A54]/20 transition cursor-pointer' : ''}`}
+                              >
+                                <div className="w-11 h-11 rounded-lg bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0 flex items-center justify-center">
+                                  {fotoMap[prod.id]
+                                    ? <img src={fotoMap[prod.id]} alt="" className="w-full h-full object-cover" />
+                                    : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-zinc-600"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-zinc-200 text-sm leading-snug break-words">
+                                    {nomeComum}<span className="font-semibold text-[#E0B36A]">{nomeDiferente}</span>
+                                  </p>
+                                  <p className="text-xs text-zinc-500 mt-0.5 break-words">
+                                    {[prod.marca, prod.cor].filter(Boolean).join(' · ')}
+                                    {codigo && <span className="font-mono"> · ref {codigo}</span>}
+                                  </p>
+                                </div>
+                                {unica && prod.preco_venda != null && (
+                                  <span className="text-emerald-400 text-xs shrink-0 mt-0.5">{formatBRL(prod.preco_venda)}</span>
+                                )}
+                              </div>
+                              {!unica && (
+                                <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2.5 -mt-1">
+                                  {prod._tamanhos.map(t => (
+                                    <button
+                                      key={t.tamanho}
+                                      type="button"
+                                      onMouseDown={() => addFromSearch({ ...prod, _tamanho: t.tamanho })}
+                                      className="px-3 py-2 bg-[#C79A54]/15 hover:bg-[#C79A54]/30 border border-[#C79A54]/30 text-[#E0B36A] rounded-lg text-xs font-semibold transition"
+                                    >
+                                      {t.tamanho} <span className="text-zinc-500 font-normal">({t.qtd})</span>
+                                    </button>
+                                  ))}
+                                  {prod.preco_venda != null && (
+                                    <span className="ml-auto text-emerald-400 text-xs">{formatBRL(prod.preco_venda)}</span>
+                                  )}
+                                </div>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {item._tamanho && (
-                                <span className="px-1.5 py-0.5 bg-[#C79A54]/25 text-[#E0B36A] rounded text-xs font-semibold">{item._tamanho}</span>
-                              )}
-                              {item.preco_venda != null && <span className="text-emerald-400 text-xs">{formatBRL(item.preco_venda)}</span>}
-                            </div>
-                          </button>
-                        ))
+                          )
+                        })
                       ) : null}
                       {/* Adicionar produto fora do estoque (texto livre) */}
                       <button
                         type="button"
                         onMouseDown={addProdutoLivre}
-                        className={`w-full text-left px-3 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2.5 ${produtosFiltrados.length > 0 ? 'border-t border-zinc-700/60' : ''}`}
+                        className={`w-full text-left px-3 py-2.5 text-sm hover:bg-[#C79A54]/20 transition flex items-center gap-2.5 ${produtosAgrupados.length > 0 ? 'border-t border-zinc-700/60' : ''}`}
                       >
                         <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700 shrink-0 flex items-center justify-center text-[#E0B36A] text-lg">+</div>
                         <div className="flex-1 min-w-0">
