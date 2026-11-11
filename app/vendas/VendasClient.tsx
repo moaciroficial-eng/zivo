@@ -280,6 +280,56 @@ function palavrasComunsComVizinho(nome: string, outros: string[]): number {
   return max
 }
 
+// chave normalizada de produto ignorando tamanho/código (mesma lógica do
+// motor de oportunidades, duplicada aqui -- client component não pode
+// importar lib/inteligencia/oportunidades, que arrasta o SDK da Anthropic
+// pro bundle do navegador) -- junta linhas que o import separou por
+// tamanho (ex.: fornecedor que cadastra uma linha por tamanho)
+function chaveProd(nome: string): string {
+  return String(nome || '').toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b(pp|p|m|g|gg|xg|xgg|xggg|u|un|\d{1,3})\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+// maior prefixo (em caracteres) comum a todos os códigos de um grupo -- usado
+// quando o import criou uma referência por tamanho (ex.: CS.12.0591735-M,
+// CS.12.0591735-G) pra mostrar só a referência base do modelo
+function prefixoComumChars(strs: string[]): string {
+  if (!strs.length) return ''
+  let prefix = strs[0]
+  for (const s of strs.slice(1)) {
+    let i = 0
+    while (i < prefix.length && i < s.length && prefix[i] === s[i]) i++
+    prefix = prefix.slice(0, i)
+  }
+  return prefix.replace(/[\s\-._/]+$/, '')
+}
+
+// nomes de cor em inglês/termo técnico de catálogo -> termo comum em
+// português; só traduz o que a gente sabe de verdade (evita chute errado —
+// nome desconhecido aparece como veio do cadastro)
+const CORES_PT: Record<string, string> = {
+  agave: 'verde agave',
+  bordeaux: 'bordô',
+  bordo: 'bordô',
+  'off white': 'branco',
+  offwhite: 'branco',
+  navy: 'azul-marinho',
+  grey: 'cinza',
+  gray: 'cinza',
+  black: 'preto',
+  white: 'branco',
+  mustard: 'mostarda',
+  wine: 'vinho',
+  denim: 'jeans',
+}
+function corEmPortugues(cor: string | null): string | null {
+  if (!cor) return null
+  return CORES_PT[normBusca(cor)] ?? cor
+}
+
 /* ── Icons ──────────────────────────────────────────────────── */
 
 const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -854,10 +904,33 @@ export default function VendasClient({
       .sort((a, b) => b.score - a.score)
       .slice(0, 8)
 
-    // um grupo por produto (cada cadastro já é um "modelo" — cor é fixa nele,
-    // só o tamanho varia); isso evita repetir foto/nome/marca/código uma vez
-    // por tamanho e deixa cada produto visível só uma vez, completo
-    return ranked.map(({ e }) => ({ ...e, _tamanhos: (e.tamanhos ?? []).filter(t => t.qtd > 0) }))
+    // agrupa por modelo: normalmente já é 1 cadastro = 1 modelo (cor fixa,
+    // só o tamanho varia dentro de `tamanhos`), mas alguns fornecedores
+    // importados (ex.: Aramis) criam uma LINHA DE ESTOQUE por tamanho —
+    // junta essas linhas pela chave de nome (ignora tamanho/código) + marca,
+    // senão o mesmo modelo aparece repetido e sem o estoque somado
+    const grupos = new Map<string, typeof ranked[number]['e'][]>()
+    const ordem: string[] = []
+    for (const { e } of ranked) {
+      const chave = `${chaveProd(e.nome)}|${normBusca(e.marca ?? '')}`
+      const lista = grupos.get(chave)
+      if (lista) lista.push(e)
+      else { grupos.set(chave, [e]); ordem.push(chave) }
+    }
+
+    return ordem.map(chave => {
+      const itens = grupos.get(chave)!
+      const base = itens[0]
+      const tamanhos: TamanhoQtd[] = []
+      for (const it of itens) for (const t of (it.tamanhos ?? [])) if (t.qtd > 0) tamanhos.push(t)
+      const codigos = itens.map(it => it.codigo_produto).filter((c): c is string => !!c)
+      const codigoBase = itens.length > 1 ? (prefixoComumChars(codigos) || codigos[0] || null) : base.codigo_produto
+      // quando juntou mais de uma linha, o nome de cada uma tinha o próprio
+      // tamanho no final (ex.: "...118 G") -- tira, já que agora o tamanho é
+      // escolhido pelos chips, não faz sentido repetir um tamanho só no nome
+      const nome = itens.length > 1 ? (base.nome.replace(/\s+(PP|P|M|G|GG|XG|XGG|XGGG|U|UN)$/i, '').trim() || base.nome) : base.nome
+      return { ...base, nome, codigo_produto: codigoBase, _tamanhos: tamanhos }
+    })
   })()
 
   /* ── Toast ── */
@@ -2352,7 +2425,7 @@ export default function VendasClient({
                                     {nomeComum}<span className="font-semibold text-[#E0B36A]">{nomeDiferente}</span>
                                   </p>
                                   <p className="text-xs text-zinc-500 mt-0.5 break-words">
-                                    {[prod.marca, prod.cor].filter(Boolean).join(' · ')}
+                                    {[prod.marca, corEmPortugues(prod.cor)].filter(Boolean).join(' · ')}
                                     {codigo && <span className="font-mono"> · ref {codigo}</span>}
                                   </p>
                                 </div>
