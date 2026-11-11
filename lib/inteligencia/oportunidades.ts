@@ -298,9 +298,13 @@ async function carregarContexto(admin: any, userId: string, excluirDias: number)
     if (detectado) { c.compra_para = detectado; atualizacoesCompraPara.push({ id: c.id, compra_para: detectado }) }
   }
   if (atualizacoesCompraPara.length) {
-    await Promise.all(atualizacoesCompraPara.map(u =>
-      admin.from('clientes').update({ compra_para: u.compra_para }).eq('id', u.id).catch(() => {})
-    ))
+    // o builder do supabase-js só implementa .then (PromiseLike), não .catch --
+    // chamar .catch direto nele dá TypeError em runtime (foi o bug que zerou
+    // o Quem chamar hoje: a exceção estourava aqui e o fallback silencioso
+    // de fora devolvia lista vazia pra todo mundo, sem erro visível)
+    await Promise.all(atualizacoesCompraPara.map(async (u) => {
+      try { await admin.from('clientes').update({ compra_para: u.compra_para }).eq('id', u.id) } catch { /* segue sem detectar esse cliente */ }
+    }))
   }
 
   const contatadoRecente = new Set<string>()
