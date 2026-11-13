@@ -49,6 +49,17 @@ function fmtPrecoBRL(n: number): string {
   return `R$${n.toFixed(2).replace('.', ',')}`
 }
 
+/* Legenda padrão sugerida pra uma foto -- ponto de partida editável, não o
+   texto final (o dono revisa/ajusta cada uma antes de enviar). */
+function construirLegendaFoto(it: ProdutoFoto, descontoPct: number): string {
+  return [it.nome, it.marca].filter(Boolean).join(' ')
+    + (it.preco_venda
+        ? (descontoPct > 0 && descontoPct < 100
+            ? ` — de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(it.preco_venda * (1 - descontoPct / 100))} (-${descontoPct}%)`
+            : ` — ${fmtPrecoBRL(it.preco_venda)}`)
+        : '')
+}
+
 /* Formata número brasileiro — retorna null se não for número real */
 function fmtPhone(phone: string): string | null {
   if (/^55\d{10,11}$/.test(phone)) {
@@ -142,6 +153,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [fotoProgresso, setFotoProgresso] = useState<{ feitas: number; total: number } | null>(null)
   const [fotoLoading, setFotoLoading] = useState(false)
   const [descontoPct, setDescontoPct] = useState('')   // % aplicado na legenda de todas as fotos deste envio (ex.: Black Friday)
+  const [fotoStep, setFotoStep] = useState<'selecionar' | 'revisar'>('selecionar')
+  const [fotoLegendas, setFotoLegendas] = useState<Record<string, string>>({})   // texto editável por produto, antes de enviar
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -574,6 +587,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* ── Seletor de produtos do estoque (com foto) ── */
   async function abrirPickerFotos() {
     setShowFotoPicker(true)
+    setFotoStep('selecionar')
     setFotoSel(new Map())
     setFotoBusca('')
     await carregarProdutosFoto('')
@@ -596,24 +610,30 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }
 
+  /* Monta a legenda sugerida de cada selecionado (com o desconto atual) e
+     abre a tela de revisão -- nada é enviado ainda, o dono edita cada
+     texto antes de confirmar. */
+  function abrirRevisao() {
+    const desconto = Number(descontoPct) || 0
+    const legendas: Record<string, string> = {}
+    for (const it of fotoSel.values()) legendas[it.estoque_id] = construirLegendaFoto(it, desconto)
+    setFotoLegendas(legendas)
+    setFotoStep('revisar')
+  }
+
   async function enviarFotosSelecionadas() {
     const escolhidas = [...fotoSel.values()]   // todos os selecionados (mesmo de buscas anteriores)
     if (escolhidas.length === 0) return
     setEnviandoFoto(true)
     setShowFotoPicker(false)
+    setFotoStep('selecionar')
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
     const total = escolhidas.length
-    const desconto = Number(descontoPct) || 0   // 0 = sem desconto, legenda sai só com o preço normal
     let ok = 0
     for (let i = 0; i < total; i++) {
       const it = escolhidas[i]
       setFotoProgresso({ feitas: i, total })
-      const legenda = [it.nome, it.marca].filter(Boolean).join(' ')
-        + (it.preco_venda
-            ? (desconto > 0 && desconto < 100
-                ? ` — de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(it.preco_venda * (1 - desconto / 100))} (-${desconto}%)`
-                : ` — ${fmtPrecoBRL(it.preco_venda)}`)
-            : '')
+      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it, Number(descontoPct) || 0)
       let enviado = await enviarImagemUrl(it.foto_url, legenda)
       if (!enviado) { await sleep(1200); enviado = await enviarImagemUrl(it.foto_url, legenda) }  // 1 retry
       if (enviado) ok++
@@ -622,6 +642,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setFotoProgresso(null)
     setEnviandoFoto(false)
     setFotoSel(new Map())
+    setFotoLegendas({})
     if (ok < total) {
       setSendError(`Enviei ${ok} de ${total} fotos — a Meta limita rajada. Reenvie as que faltaram.`)
       setTimeout(() => setSendError(null), 9000)
@@ -1111,111 +1132,167 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
       {/* Seletor de produtos do estoque (com foto) */}
       {showFotoPicker && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowFotoPicker(false)}>
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowFotoPicker(false); setFotoStep('selecionar') }}>
           <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-lg h-[85vh] sm:h-[75vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-bold">Enviar foto de produto</h3>
-                <p className="text-xs text-zinc-500 mt-0.5">Busque por marca/tamanho (ex.: &ldquo;polo M aramis&rdquo;). As já enviadas pro cliente ficam marcadas.</p>
+                <h3 className="font-bold">{fotoStep === 'revisar' ? 'Revisar antes de enviar' : 'Enviar foto de produto'}</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {fotoStep === 'revisar'
+                    ? 'Edite o texto de cada foto como quiser — nada foi enviado ainda.'
+                    : 'Busque por marca/tamanho (ex.: "polo M aramis"). As já enviadas pro cliente ficam marcadas.'}
+                </p>
               </div>
-              <button onClick={() => setShowFotoPicker(false)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
+              <button onClick={() => { setShowFotoPicker(false); setFotoStep('selecionar') }} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
 
-            <div className="p-3 shrink-0 flex flex-col gap-2">
-              <input
-                autoFocus
-                value={fotoBusca}
-                onChange={e => setFotoBusca(e.target.value)}
-                placeholder="Ex: polo M aramis"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
-              />
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs text-zinc-500 shrink-0">Desconto:</span>
-                {[10, 20, 30, 40, 50, 60, 70].map(p => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setDescontoPct(prev => prev === String(p) ? '' : String(p))}
-                    className={`px-2 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${descontoPct === String(p) ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}
-                  >
-                    {p}%
-                  </button>
-                ))}
-                <input
-                  value={descontoPct}
-                  onChange={e => setDescontoPct(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                  placeholder="outro"
-                  className="w-16 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-center placeholder-zinc-600 outline-none focus:border-[#C79A54] [color-scheme:dark]"
-                />
-                {descontoPct && (
-                  <button type="button" onClick={() => setDescontoPct('')} className="text-xs text-zinc-500 hover:text-red-400 transition px-1 cursor-pointer">limpar</button>
-                )}
-              </div>
-              {descontoPct && Number(descontoPct) > 0 && (
-                <p className="text-[11px] text-zinc-600">A legenda vai sair &ldquo;de R$89,00 por R$62,30 (-{descontoPct}%)&rdquo; em cada foto com preço cadastrado.</p>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-3 pb-3">
-              {fotoLoading ? (
-                <p className="text-sm text-zinc-500 text-center py-8">Carregando...</p>
-              ) : fotoItens.length === 0 ? (
-                <p className="text-sm text-zinc-500 text-center py-8">Nenhum produto com foto encontrado.{fotoBusca ? '' : ' Cadastre fotos na biblioteca.'}</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {fotoItens.map(it => {
-                    const sel = fotoSel.has(it.estoque_id)
-                    return (
+            {fotoStep === 'selecionar' ? (
+              <>
+                <div className="p-3 shrink-0 flex flex-col gap-2">
+                  <input
+                    autoFocus
+                    value={fotoBusca}
+                    onChange={e => setFotoBusca(e.target.value)}
+                    placeholder="Ex: polo M aramis"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                  />
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-zinc-500 shrink-0">Desconto:</span>
+                    {[10, 20, 30, 40, 50, 60, 70].map(p => (
                       <button
-                        key={it.estoque_id}
-                        onClick={() => setFotoSel(prev => { const s = new Map(prev); if (s.has(it.estoque_id)) s.delete(it.estoque_id); else s.set(it.estoque_id, it); return s })}
-                        className={`relative text-left rounded-xl overflow-hidden border transition ${sel ? 'border-[#C79A54] ring-2 ring-[#C79A54]/40' : 'border-zinc-800 hover:border-zinc-600'}`}
+                        key={p}
+                        type="button"
+                        onClick={() => setDescontoPct(prev => prev === String(p) ? '' : String(p))}
+                        className={`px-2 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${descontoPct === String(p) ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}
                       >
-                        <div className="aspect-square bg-zinc-800 relative">
-                          <img src={it.foto_url} alt="" className={`w-full h-full object-cover ${it.ja_enviada ? 'opacity-40' : ''}`} />
-                          {it.ja_enviada && (
-                            <span className="absolute inset-x-0 bottom-0 bg-black/75 text-[10px] font-semibold text-emerald-300 text-center py-0.5">já enviada ✓</span>
-                          )}
-                        </div>
-                        {sel && (
-                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#C79A54] flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 18 4 13"/></svg>
-                          </div>
-                        )}
-                        {it.serve && (
-                          <span className="absolute top-1.5 left-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/90 text-white">serve</span>
-                        )}
-                        <div className="p-2">
-                          <p className="text-xs font-medium truncate">{it.nome}</p>
-                          <p className="text-[11px] text-zinc-500 truncate">
-                            {[it.marca, it.cor].filter(Boolean).join(' · ')}
-                          </p>
-                          <p className="text-[10px] text-zinc-600 truncate mt-0.5">Tam: {it.tamanhos.join('/')}</p>
-                        </div>
+                        {p}%
                       </button>
-                    )
-                  })}
+                    ))}
+                    <input
+                      value={descontoPct}
+                      onChange={e => setDescontoPct(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      placeholder="outro"
+                      className="w-16 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-center placeholder-zinc-600 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                    />
+                    {descontoPct && (
+                      <button type="button" onClick={() => setDescontoPct('')} className="text-xs text-zinc-500 hover:text-red-400 transition px-1 cursor-pointer">limpar</button>
+                    )}
+                  </div>
+                  {descontoPct && Number(descontoPct) > 0 && (
+                    <p className="text-[11px] text-zinc-600">A legenda sugerida sai &ldquo;de R$89,00 por R$62,30 (-{descontoPct}%)&rdquo; — você ainda revisa e edita cada uma antes de enviar.</p>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="p-3 border-t border-zinc-800 flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => { setShowFotoPicker(false); imgInputRef.current?.click() }}
-                className="text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded-lg px-3 py-2.5 transition cursor-pointer shrink-0"
-              >
-                📁 Do computador
-              </button>
-              <button
-                onClick={enviarFotosSelecionadas}
-                disabled={fotoSel.size === 0}
-                className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
-              >
-                Enviar {fotoSel.size > 0 ? `${fotoSel.size} foto${fotoSel.size > 1 ? 's' : ''}` : ''}
-              </button>
-            </div>
+                <div className="flex-1 overflow-y-auto px-3 pb-3">
+                  {fotoLoading ? (
+                    <p className="text-sm text-zinc-500 text-center py-8">Carregando...</p>
+                  ) : fotoItens.length === 0 ? (
+                    <p className="text-sm text-zinc-500 text-center py-8">Nenhum produto com foto encontrado.{fotoBusca ? '' : ' Cadastre fotos na biblioteca.'}</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {fotoItens.map(it => {
+                        const sel = fotoSel.has(it.estoque_id)
+                        return (
+                          <button
+                            key={it.estoque_id}
+                            onClick={() => setFotoSel(prev => { const s = new Map(prev); if (s.has(it.estoque_id)) s.delete(it.estoque_id); else s.set(it.estoque_id, it); return s })}
+                            className={`relative text-left rounded-xl overflow-hidden border transition ${sel ? 'border-[#C79A54] ring-2 ring-[#C79A54]/40' : 'border-zinc-800 hover:border-zinc-600'}`}
+                          >
+                            <div className="aspect-square bg-zinc-800 relative">
+                              <img src={it.foto_url} alt="" className={`w-full h-full object-cover ${it.ja_enviada ? 'opacity-40' : ''}`} />
+                              {it.ja_enviada && (
+                                <span className="absolute inset-x-0 bottom-0 bg-black/75 text-[10px] font-semibold text-emerald-300 text-center py-0.5">já enviada ✓</span>
+                              )}
+                            </div>
+                            {sel && (
+                              <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#C79A54] flex items-center justify-center">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 18 4 13"/></svg>
+                              </div>
+                            )}
+                            {it.serve && (
+                              <span className="absolute top-1.5 left-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/90 text-white">serve</span>
+                            )}
+                            <div className="p-2">
+                              <p className="text-xs font-medium truncate">{it.nome}</p>
+                              <p className="text-[11px] text-zinc-500 truncate">
+                                {[it.marca, it.cor].filter(Boolean).join(' · ')}
+                              </p>
+                              <p className="text-[10px] text-zinc-600 truncate mt-0.5">Tam: {it.tamanhos.join('/')}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-zinc-800 flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => { setShowFotoPicker(false); imgInputRef.current?.click() }}
+                    className="text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded-lg px-3 py-2.5 transition cursor-pointer shrink-0"
+                  >
+                    📁 Do computador
+                  </button>
+                  <button
+                    onClick={abrirRevisao}
+                    disabled={fotoSel.size === 0}
+                    className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                  >
+                    Revisar {fotoSel.size > 0 ? `${fotoSel.size} foto${fotoSel.size > 1 ? 's' : ''}` : ''}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-3">
+                  {[...fotoSel.values()].map(it => (
+                    <div key={it.estoque_id} className="flex gap-3 bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3">
+                      <img src={it.foto_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0 bg-zinc-800" />
+                      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                        <p className="text-xs text-zinc-500 truncate">
+                          {it.nome}{it.marca ? ` · ${it.marca}` : ''}{it.preco_venda ? ` · ${fmtPrecoBRL(it.preco_venda)}` : ''}
+                        </p>
+                        <textarea
+                          value={fotoLegendas[it.estoque_id] ?? ''}
+                          onChange={e => setFotoLegendas(prev => ({ ...prev, [it.estoque_id]: e.target.value }))}
+                          rows={2}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-200 resize-y outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        title="Remover desta leva"
+                        onClick={() => setFotoSel(prev => { const s = new Map(prev); s.delete(it.estoque_id); return s })}
+                        className="text-zinc-500 hover:text-red-400 transition shrink-0 self-start"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                  {fotoSel.size === 0 && (
+                    <p className="text-sm text-zinc-500 text-center py-8">Nenhuma foto selecionada.</p>
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-zinc-800 flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setFotoStep('selecionar')}
+                    className="text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded-lg px-3 py-2.5 transition cursor-pointer shrink-0"
+                  >
+                    ← Voltar
+                  </button>
+                  <button
+                    onClick={enviarFotosSelecionadas}
+                    disabled={fotoSel.size === 0}
+                    className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+                  >
+                    Enviar {fotoSel.size > 0 ? `${fotoSel.size} foto${fotoSel.size > 1 ? 's' : ''}` : ''}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
