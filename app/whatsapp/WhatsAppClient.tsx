@@ -50,14 +50,10 @@ function fmtPrecoBRL(n: number): string {
 }
 
 /* Legenda padrão sugerida pra uma foto -- ponto de partida editável, não o
-   texto final (o dono revisa/ajusta cada uma antes de enviar). */
-function construirLegendaFoto(it: ProdutoFoto, descontoPct: number): string {
+   texto final (o dono revisa/ajusta cada uma antes de enviar). Simples de
+   propósito: só nome + marca, sem preço nem termos técnicos do estoque. */
+function construirLegendaFoto(it: ProdutoFoto): string {
   return [it.nome, it.marca].filter(Boolean).join(' ')
-    + (it.preco_venda
-        ? (descontoPct > 0 && descontoPct < 100
-            ? ` — de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(it.preco_venda * (1 - descontoPct / 100))} (-${descontoPct}%)`
-            : ` — ${fmtPrecoBRL(it.preco_venda)}`)
-        : '')
 }
 
 /* Formata número brasileiro — retorna null se não for número real */
@@ -610,13 +606,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }
 
-  /* Monta a legenda sugerida de cada selecionado (com o desconto atual) e
-     abre a tela de revisão -- nada é enviado ainda, o dono edita cada
-     texto antes de confirmar. */
+  /* Monta a legenda sugerida de cada selecionado e abre a tela de revisão
+     -- nada é enviado ainda, o dono edita cada texto antes de confirmar. */
   function abrirRevisao() {
-    const desconto = Number(descontoPct) || 0
     const legendas: Record<string, string> = {}
-    for (const it of fotoSel.values()) legendas[it.estoque_id] = construirLegendaFoto(it, desconto)
+    for (const it of fotoSel.values()) legendas[it.estoque_id] = construirLegendaFoto(it)
     setFotoLegendas(legendas)
     setFotoStep('revisar')
   }
@@ -633,7 +627,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     for (let i = 0; i < total; i++) {
       const it = escolhidas[i]
       setFotoProgresso({ feitas: i, total })
-      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it, Number(descontoPct) || 0)
+      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it)
       let enviado = await enviarImagemUrl(it.foto_url, legenda)
       if (!enviado) { await sleep(1200); enviado = await enviarImagemUrl(it.foto_url, legenda) }  // 1 retry
       if (enviado) ok++
@@ -1181,7 +1175,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     )}
                   </div>
                   {descontoPct && Number(descontoPct) > 0 && (
-                    <p className="text-[11px] text-zinc-600">A legenda sugerida sai &ldquo;de R$89,00 por R$62,30 (-{descontoPct}%)&rdquo; — você ainda revisa e edita cada uma antes de enviar.</p>
+                    <p className="text-[11px] text-zinc-600">Desconto só pra sua referência abaixo (preço de/por) — a legenda pro cliente continua simples, sem citar preço ou %.</p>
                   )}
                 </div>
 
@@ -1252,7 +1246,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                       <img src={it.foto_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0 bg-zinc-800" />
                       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                         <p className="text-xs text-zinc-500 truncate">
-                          {it.nome}{it.marca ? ` · ${it.marca}` : ''}{it.preco_venda ? ` · ${fmtPrecoBRL(it.preco_venda)}` : ''}
+                          {it.nome}{it.marca ? ` · ${it.marca}` : ''}
+                          {it.preco_venda ? (
+                            Number(descontoPct) > 0
+                              ? ` · de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(it.preco_venda * (1 - Number(descontoPct) / 100))}`
+                              : ` · ${fmtPrecoBRL(it.preco_venda)}`
+                          ) : ''}
                         </p>
                         <textarea
                           value={fotoLegendas[it.estoque_id] ?? ''}
