@@ -45,6 +45,10 @@ type ProdutoFoto = {
   ja_enviada?: boolean
 }
 
+function fmtPrecoBRL(n: number): string {
+  return `R$${n.toFixed(2).replace('.', ',')}`
+}
+
 /* Formata número brasileiro — retorna null se não for número real */
 function fmtPhone(phone: string): string | null {
   if (/^55\d{10,11}$/.test(phone)) {
@@ -137,6 +141,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [fotoSel, setFotoSel] = useState<Map<string, ProdutoFoto>>(new Map())  // guarda o produto inteiro p/ persistir entre buscas
   const [fotoProgresso, setFotoProgresso] = useState<{ feitas: number; total: number } | null>(null)
   const [fotoLoading, setFotoLoading] = useState(false)
+  const [descontoPct, setDescontoPct] = useState('')   // % aplicado na legenda de todas as fotos deste envio (ex.: Black Friday)
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -598,12 +603,17 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setShowFotoPicker(false)
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
     const total = escolhidas.length
+    const desconto = Number(descontoPct) || 0   // 0 = sem desconto, legenda sai só com o preço normal
     let ok = 0
     for (let i = 0; i < total; i++) {
       const it = escolhidas[i]
       setFotoProgresso({ feitas: i, total })
       const legenda = [it.nome, it.marca].filter(Boolean).join(' ')
-        + (it.preco_venda ? ` — R$${Number(it.preco_venda).toFixed(0)}` : '')
+        + (it.preco_venda
+            ? (desconto > 0 && desconto < 100
+                ? ` — de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(it.preco_venda * (1 - desconto / 100))} (-${desconto}%)`
+                : ` — ${fmtPrecoBRL(it.preco_venda)}`)
+            : '')
       let enviado = await enviarImagemUrl(it.foto_url, legenda)
       if (!enviado) { await sleep(1200); enviado = await enviarImagemUrl(it.foto_url, legenda) }  // 1 retry
       if (enviado) ok++
@@ -1113,7 +1123,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
               </button>
             </div>
 
-            <div className="p-3 shrink-0">
+            <div className="p-3 shrink-0 flex flex-col gap-2">
               <input
                 autoFocus
                 value={fotoBusca}
@@ -1121,6 +1131,31 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 placeholder="Ex: polo M aramis"
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
               />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-zinc-500 shrink-0">Desconto:</span>
+                {[10, 20, 30, 40, 50, 60, 70].map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setDescontoPct(prev => prev === String(p) ? '' : String(p))}
+                    className={`px-2 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${descontoPct === String(p) ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}
+                  >
+                    {p}%
+                  </button>
+                ))}
+                <input
+                  value={descontoPct}
+                  onChange={e => setDescontoPct(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  placeholder="outro"
+                  className="w-16 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-center placeholder-zinc-600 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                />
+                {descontoPct && (
+                  <button type="button" onClick={() => setDescontoPct('')} className="text-xs text-zinc-500 hover:text-red-400 transition px-1 cursor-pointer">limpar</button>
+                )}
+              </div>
+              {descontoPct && Number(descontoPct) > 0 && (
+                <p className="text-[11px] text-zinc-600">A legenda vai sair &ldquo;de R$89,00 por R$62,30 (-{descontoPct}%)&rdquo; em cada foto com preço cadastrado.</p>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto px-3 pb-3">
