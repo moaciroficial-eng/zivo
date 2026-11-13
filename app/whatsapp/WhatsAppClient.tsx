@@ -50,10 +50,16 @@ function fmtPrecoBRL(n: number): string {
 }
 
 /* Legenda padrão sugerida pra uma foto -- ponto de partida editável, não o
-   texto final (o dono revisa/ajusta cada uma antes de enviar). Simples de
-   propósito: só nome + marca, sem preço nem termos técnicos do estoque. */
-function construirLegendaFoto(it: ProdutoFoto): string {
-  return [it.nome, it.marca].filter(Boolean).join(' ')
+   texto final (o dono revisa/ajusta cada uma antes de enviar). Mostra o
+   preço "de/por" quando há desconto, mas nunca o % -- só o valor em R$. */
+function construirLegendaFoto(it: ProdutoFoto, descontoPct: number): string {
+  const base = [it.nome, it.marca].filter(Boolean).join(' ')
+  if (!it.preco_venda) return base
+  if (descontoPct > 0 && descontoPct < 100) {
+    const final = it.preco_venda * (1 - descontoPct / 100)
+    return `${base} — de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(final)}`
+  }
+  return `${base} — ${fmtPrecoBRL(it.preco_venda)}`
 }
 
 /* Formata número brasileiro — retorna null se não for número real */
@@ -148,9 +154,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [fotoSel, setFotoSel] = useState<Map<string, ProdutoFoto>>(new Map())  // guarda o produto inteiro p/ persistir entre buscas
   const [fotoProgresso, setFotoProgresso] = useState<{ feitas: number; total: number } | null>(null)
   const [fotoLoading, setFotoLoading] = useState(false)
-  const [descontoPct, setDescontoPct] = useState('')   // % aplicado na legenda de todas as fotos deste envio (ex.: Black Friday)
   const [fotoStep, setFotoStep] = useState<'selecionar' | 'revisar'>('selecionar')
   const [fotoLegendas, setFotoLegendas] = useState<Record<string, string>>({})   // texto editável por produto, antes de enviar
+  const [fotoDescontos, setFotoDescontos] = useState<Record<string, string>>({})   // % por produto (ex.: Black Friday) -- só pra montar o "de/por", nunca mostrado
   const [lidPhone, setLidPhone] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -585,6 +591,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setShowFotoPicker(true)
     setFotoStep('selecionar')
     setFotoSel(new Map())
+    setFotoDescontos({})
     setFotoBusca('')
     await carregarProdutosFoto('')
   }
@@ -610,9 +617,17 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
      -- nada é enviado ainda, o dono edita cada texto antes de confirmar. */
   function abrirRevisao() {
     const legendas: Record<string, string> = {}
-    for (const it of fotoSel.values()) legendas[it.estoque_id] = construirLegendaFoto(it)
+    for (const it of fotoSel.values()) legendas[it.estoque_id] = construirLegendaFoto(it, Number(fotoDescontos[it.estoque_id]) || 0)
     setFotoLegendas(legendas)
     setFotoStep('revisar')
+  }
+
+  /* Troca o desconto de um produto específico e regera a legenda sugerida
+     dele (se o dono já tiver editado o texto na mão, essa troca substitui --
+     é o ajuste fino: escolheu %, achou ruim, troca ou edita o texto direto). */
+  function definirDescontoItem(it: ProdutoFoto, pct: string) {
+    setFotoDescontos(prev => ({ ...prev, [it.estoque_id]: pct }))
+    setFotoLegendas(prev => ({ ...prev, [it.estoque_id]: construirLegendaFoto(it, Number(pct) || 0) }))
   }
 
   async function enviarFotosSelecionadas() {
@@ -627,7 +642,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     for (let i = 0; i < total; i++) {
       const it = escolhidas[i]
       setFotoProgresso({ feitas: i, total })
-      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it)
+      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it, Number(fotoDescontos[it.estoque_id]) || 0)
       let enviado = await enviarImagemUrl(it.foto_url, legenda)
       if (!enviado) { await sleep(1200); enviado = await enviarImagemUrl(it.foto_url, legenda) }  // 1 retry
       if (enviado) ok++
@@ -1152,31 +1167,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     placeholder="Ex: polo M aramis"
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
                   />
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs text-zinc-500 shrink-0">Desconto:</span>
-                    {[10, 20, 30, 40, 50, 60, 70].map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setDescontoPct(prev => prev === String(p) ? '' : String(p))}
-                        className={`px-2 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${descontoPct === String(p) ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}
-                      >
-                        {p}%
-                      </button>
-                    ))}
-                    <input
-                      value={descontoPct}
-                      onChange={e => setDescontoPct(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                      placeholder="outro"
-                      className="w-16 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-center placeholder-zinc-600 outline-none focus:border-[#C79A54] [color-scheme:dark]"
-                    />
-                    {descontoPct && (
-                      <button type="button" onClick={() => setDescontoPct('')} className="text-xs text-zinc-500 hover:text-red-400 transition px-1 cursor-pointer">limpar</button>
-                    )}
-                  </div>
-                  {descontoPct && Number(descontoPct) > 0 && (
-                    <p className="text-[11px] text-zinc-600">Desconto só pra sua referência abaixo (preço de/por) — a legenda pro cliente continua simples, sem citar preço ou %.</p>
-                  )}
+                  <p className="text-[11px] text-zinc-600">Selecione as fotos e clique em Revisar — o desconto de cada produto você ajusta na tela seguinte.</p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-3 pb-3">
@@ -1246,13 +1237,31 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                       <img src={it.foto_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0 bg-zinc-800" />
                       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                         <p className="text-xs text-zinc-500 truncate">
-                          {it.nome}{it.marca ? ` · ${it.marca}` : ''}
-                          {it.preco_venda ? (
-                            Number(descontoPct) > 0
-                              ? ` · de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(it.preco_venda * (1 - Number(descontoPct) / 100))}`
-                              : ` · ${fmtPrecoBRL(it.preco_venda)}`
-                          ) : ''}
+                          {it.nome}{it.marca ? ` · ${it.marca}` : ''}{it.preco_venda ? ` · ${fmtPrecoBRL(it.preco_venda)}` : ''}
                         </p>
+                        {it.preco_venda != null && (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {[10, 20, 30, 40, 50, 60, 70].map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => definirDescontoItem(it, fotoDescontos[it.estoque_id] === String(p) ? '' : String(p))}
+                                className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${fotoDescontos[it.estoque_id] === String(p) ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}
+                              >
+                                {p}%
+                              </button>
+                            ))}
+                            <input
+                              value={fotoDescontos[it.estoque_id] ?? ''}
+                              onChange={e => definirDescontoItem(it, e.target.value.replace(/\D/g, '').slice(0, 2))}
+                              placeholder="outro"
+                              className="w-12 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-[11px] text-center placeholder-zinc-600 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                            />
+                            {fotoDescontos[it.estoque_id] && (
+                              <button type="button" onClick={() => definirDescontoItem(it, '')} className="text-[11px] text-zinc-500 hover:text-red-400 transition px-1 cursor-pointer">limpar</button>
+                            )}
+                          </div>
+                        )}
                         <textarea
                           value={fotoLegendas[it.estoque_id] ?? ''}
                           onChange={e => setFotoLegendas(prev => ({ ...prev, [it.estoque_id]: e.target.value }))}
