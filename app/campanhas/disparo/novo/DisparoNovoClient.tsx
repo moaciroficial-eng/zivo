@@ -79,9 +79,6 @@ export default function DisparoNovoClient() {
   const [resultadosManual, setResultadosManual] = useState<{ id: string; nome: string; telefone: string }[]>([])
 
   const [custoPorMsg, setCustoPorMsg] = useState('')
-  const [agendar, setAgendar] = useState(false)
-  const [dataAgenda, setDataAgenda] = useState('')
-  const [horaAgenda, setHoraAgenda] = useState('')
 
   const [testeStatus, setTesteStatus] = useState<string | null>(null)
   const [testando, setTestando] = useState(false)
@@ -194,16 +191,11 @@ export default function DisparoNovoClient() {
     setCriando(true)
     setErro(null)
     try {
-      let agendadoPara: string | null = null
-      if (agendar) {
-        if (!dataAgenda || !horaAgenda) { setErro('Escolha a data e a hora do agendamento.'); setCriando(false); return }
-        agendadoPara = new Date(`${dataAgenda}T${horaAgenda}:00`).toISOString()
-      }
       const res = await fetch('/api/campanhas/disparo-template', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           templateName: templateSel.name, extras, bodyText: templateSel.bodyText,
-          pessoas, agendadoPara,
+          pessoas,
           filtro: { genero: genero || null, aniversariantesMes: aniversariantes, compradosDesdeDias: compradosDias || null, naoCompradosDesdeDias: naoCompradosDias || null },
         }),
       })
@@ -400,26 +392,13 @@ export default function DisparoNovoClient() {
             {testeStatus && <span className="text-xs text-zinc-400">{testeStatus}</span>}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setAgendar(false)} className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition ${!agendar ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-900 border-zinc-700 text-zinc-300'}`}>Enviar agora</button>
-              <button type="button" onClick={() => setAgendar(true)} className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition ${agendar ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-900 border-zinc-700 text-zinc-300'}`}>Agendar</button>
-            </div>
-            {agendar && (
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={dataAgenda} onChange={e => setDataAgenda(e.target.value)} className={`${INPUT} [color-scheme:dark]`} />
-                <input type="time" value={horaAgenda} onChange={e => setHoraAgenda(e.target.value)} className={`${INPUT} [color-scheme:dark]`} />
-              </div>
-            )}
-          </div>
-
           <button
             type="button"
             onClick={confirmarDisparo}
             disabled={criando}
             className="px-4 py-3 bg-[#C79A54] hover:bg-[#D4AB6A] disabled:opacity-50 text-zinc-950 text-sm font-semibold rounded-xl transition"
           >
-            {criando ? 'Enviando…' : agendar ? `Agendar envio pra ${pessoas.length} pessoas` : `Enviar agora pra ${pessoas.length} pessoas`}
+            {criando ? 'Enviando…' : `Enviar agora pra ${pessoas.length} pessoas`}
           </button>
         </div>
       )}

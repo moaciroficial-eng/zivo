@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: disparo } = await admin.from('disparo_templates')
-    .select('id, template_name, status, total_destinatarios, agendado_para, created_at')
+    .select('id, template_name, status, total_destinatarios, created_at')
     .eq('id', id).eq('user_id', user.id).maybeSingle()
   if (!disparo) return NextResponse.json({ ok: false, erro: 'Disparo não encontrado.' }, { status: 404 })
 

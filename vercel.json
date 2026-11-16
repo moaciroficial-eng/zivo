@@ -15,10 +15,6 @@
     {
       "path": "/api/cron/mensagens-agendadas",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/disparo-template",
-      "schedule": "0 13 * * *"
     }
   ]
 }

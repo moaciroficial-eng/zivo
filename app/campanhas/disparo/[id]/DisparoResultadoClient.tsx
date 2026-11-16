@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
-type Disparo = { id: string; template_name: string; status: string; total_destinatarios: number; agendado_para: string | null; created_at: string }
+type Disparo = { id: string; template_name: string; status: string; total_destinatarios: number; created_at: string }
 type Contagem = { pendente: number; enviado: number; entregue: number; lido: number; falhou: number }
 type Envio = { nome: string; status: string; motivo: string | null; contatoId: string | null; respondeu: boolean }
 
@@ -41,10 +41,9 @@ export default function DisparoResultadoClient({ id }: { id: string }) {
     }
   }, [id])
 
-  /* Envio "agora": o navegador chama o lote repetidas vezes até esvaziar a
-     fila de pendentes, com uma pausa curta entre chamadas (não trava a tela
-     e respeita o ritmo da Meta). Agendado: o cron cuida sozinho -- aqui só
-     mostramos o status, sem disparar nada do navegador. */
+  /* O navegador chama o lote repetidas vezes até esvaziar a fila de
+     pendentes, com uma pausa curta entre chamadas (não trava a tela e
+     respeita o ritmo da Meta). */
   useEffect(() => {
     let cancelado = false
     async function loop() {
@@ -52,7 +51,7 @@ export default function DisparoResultadoClient({ id }: { id: string }) {
       carregandoRef.current = true
       const d = await carregar()
       if (!d || cancelado) { carregandoRef.current = false; return }
-      const precisaEnviar = !d.agendado_para && (d.status === 'enviando')
+      const precisaEnviar = d.status === 'enviando'
       if (precisaEnviar) {
         setEnviando(true)
         const res = await fetch(`/api/campanhas/disparo-template/${id}/enviar-lote`, { method: 'POST' }).catch(() => null)
@@ -90,13 +89,11 @@ export default function DisparoResultadoClient({ id }: { id: string }) {
       <div>
         <h1 className="text-xl font-semibold text-zinc-100 font-mono">{disparo.template_name}</h1>
         <p className="text-sm text-zinc-500 mt-0.5">
-          {disparo.agendado_para
-            ? `Agendado pra ${new Date(disparo.agendado_para).toLocaleString('pt-BR')}`
-            : enviando ? 'Enviando agora…' : disparo.status === 'concluido' ? 'Concluído' : disparo.status}
+          {enviando ? 'Enviando agora…' : disparo.status === 'concluido' ? 'Concluído' : disparo.status}
         </p>
       </div>
 
-      {(enviando || (!disparo.agendado_para && disparo.status !== 'concluido')) && (
+      {(enviando || disparo.status !== 'concluido') && (
         <div className={CARD}>
           <div className="h-2 bg-zinc-900 rounded-full overflow-hidden">
             <div className="h-full bg-[#C79A54] transition-all" style={{ width: `${Math.round((processados / total) * 100)}%` }} />
