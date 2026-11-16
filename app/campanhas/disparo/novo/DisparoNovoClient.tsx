@@ -15,6 +15,35 @@ type Template = {
 type Pessoa = { clienteId: string; contatoId: string | null; nome: string; phone: string }
 type Excluidos = { semTelefone: number; optOut: number; duplicado: number }
 
+type Filtro = {
+  genero?: 'M' | 'F' | null
+  nomeComeca?: string | null
+  produtoTermo?: string | null
+  compradosDesdeDias?: number | null
+  naoCompradosDesdeDias?: number | null
+  gastoMinimo?: number | null
+  gastoDesdeAno?: boolean
+  qtdComprasMin?: number | null
+  aniversariantesMes?: boolean
+}
+
+/* Transforma o filtro atual em etiquetas removíveis -- cada uma sabe qual
+   campo limpar se o dono clicar no x (reaproveitado tanto pros filtros que
+   a IA entendeu quanto pros botões rápidos, é tudo o mesmo objeto). */
+function descreverFiltro(f: Filtro): { chave: keyof Filtro; label: string }[] {
+  const chips: { chave: keyof Filtro; label: string }[] = []
+  if (f.genero === 'M') chips.push({ chave: 'genero', label: 'Homens' })
+  if (f.genero === 'F') chips.push({ chave: 'genero', label: 'Mulheres' })
+  if (f.nomeComeca) chips.push({ chave: 'nomeComeca', label: `Nome começa com "${f.nomeComeca}"` })
+  if (f.produtoTermo) chips.push({ chave: 'produtoTermo', label: `Comprou: ${f.produtoTermo}` })
+  if (f.compradosDesdeDias != null) chips.push({ chave: 'compradosDesdeDias', label: `Comprou nos últimos ${f.compradosDesdeDias}d` })
+  if (f.naoCompradosDesdeDias != null) chips.push({ chave: 'naoCompradosDesdeDias', label: `Não comprou nos últimos ${f.naoCompradosDesdeDias}d` })
+  if (f.gastoMinimo != null) chips.push({ chave: 'gastoMinimo', label: `Gastou mais de R$${f.gastoMinimo}${f.gastoDesdeAno ? ' este ano' : ''}` })
+  if (f.qtdComprasMin != null) chips.push({ chave: 'qtdComprasMin', label: `${f.qtdComprasMin}+ compras` })
+  if (f.aniversariantesMes) chips.push({ chave: 'aniversariantesMes', label: 'Aniversariantes do mês' })
+  return chips
+}
+
 const INPUT = 'w-full bg-zinc-900 border border-zinc-700/60 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#C79A54]/60 focus:ring-1 focus:ring-[#C79A54]/30 transition'
 const LABEL = 'block text-xs font-medium text-zinc-400 mb-1.5'
 const CARD = 'bg-zinc-800/60 border border-zinc-700/60 rounded-2xl p-4'
@@ -66,10 +95,11 @@ export default function DisparoNovoClient() {
   const [templateSel, setTemplateSel] = useState<Template | null>(null)
   const [extras, setExtras] = useState<string[]>([])
 
-  const [genero, setGenero] = useState<'' | 'M' | 'F'>('')
-  const [aniversariantes, setAniversariantes] = useState(false)
-  const [compradosDias, setCompradosDias] = useState('')
-  const [naoCompradosDias, setNaoCompradosDias] = useState('')
+  const [filtro, setFiltro] = useState<Filtro>({})
+  const [textoPublico, setTextoPublico] = useState('')
+  const [interpretando, setInterpretando] = useState(false)
+  const [avisos, setAvisos] = useState<string[]>([])
+  const [diasRapido, setDiasRapido] = useState('')
 
   const [buscandoPublico, setBuscandoPublico] = useState(false)
   const [pessoas, setPessoas] = useState<Pessoa[] | null>(null)
@@ -116,12 +146,7 @@ export default function DisparoNovoClient() {
     try {
       const res = await fetch('/api/campanhas/disparo-template/publico', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          genero: genero || null,
-          aniversariantesMes: aniversariantes,
-          compradosDesdeDias: compradosDias ? Number(compradosDias) : null,
-          naoCompradosDesdeDias: naoCompradosDias ? Number(naoCompradosDias) : null,
-        }),
+        body: JSON.stringify(filtro),
       })
       const data = await res.json()
       if (!data.ok) { setErro(data.erro || 'Falha ao montar o público.'); return }
@@ -132,6 +157,39 @@ export default function DisparoNovoClient() {
     } finally {
       setBuscandoPublico(false)
     }
+  }
+
+  async function interpretarPublico() {
+    if (!textoPublico.trim()) return
+    setInterpretando(true)
+    setErro(null)
+    setAvisos([])
+    try {
+      const res = await fetch('/api/campanhas/disparo-template/interpretar-publico', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto: textoPublico }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErro(data.erro || 'Não entendi esse público.'); return }
+      setFiltro(data.filtro ?? {})
+      setAvisos(data.avisos ?? [])
+      setPessoas(null)
+      setExcluidos(null)
+    } catch {
+      setErro('Falha ao interpretar o público.')
+    } finally {
+      setInterpretando(false)
+    }
+  }
+
+  function limparChip(chave: keyof Filtro) {
+    setFiltro(prev => ({ ...prev, [chave]: null }))
+    setPessoas(null)
+  }
+
+  function aplicarPreset(parcial: Filtro) {
+    setFiltro(prev => ({ ...prev, ...parcial }))
+    setPessoas(null)
   }
 
   async function buscarManual(termo: string) {
@@ -158,6 +216,8 @@ export default function DisparoNovoClient() {
   function removerPessoa(phone: string) {
     setPessoas(prev => (prev ?? []).filter(p => p.phone !== phone))
   }
+
+  const chips = useMemo(() => descreverFiltro(filtro), [filtro])
 
   const listaFiltrada = useMemo(() => {
     const termo = filtroLista.trim().toLowerCase()
@@ -195,8 +255,7 @@ export default function DisparoNovoClient() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           templateName: templateSel.name, extras, bodyText: templateSel.bodyText,
-          pessoas,
-          filtro: { genero: genero || null, aniversariantesMes: aniversariantes, compradosDesdeDias: compradosDias || null, naoCompradosDesdeDias: naoCompradosDias || null },
+          pessoas, filtro,
         }),
       })
       const data = await res.json()
@@ -284,27 +343,55 @@ export default function DisparoNovoClient() {
           <h2 className="text-sm font-semibold text-zinc-200">Quem vai receber</h2>
 
           <div>
-            <label className={LABEL}>Gênero</label>
+            <label className={LABEL}>Pra quem você quer mandar?</label>
             <div className="flex gap-2">
-              {([['', 'Todos'], ['F', 'Mulheres'], ['M', 'Homens']] as const).map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setGenero(v)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${genero === v ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}>{label}</button>
-              ))}
+              <textarea
+                value={textoPublico}
+                onChange={e => setTextoPublico(e.target.value)}
+                rows={2}
+                placeholder='Ex: "homens que compraram Aramis e não compram há 3 meses"'
+                className={`${INPUT} resize-none`}
+              />
             </div>
+            <button
+              type="button"
+              onClick={interpretarPublico}
+              disabled={interpretando || !textoPublico.trim()}
+              className="mt-2 px-3.5 py-2 bg-zinc-700/60 hover:bg-zinc-700 disabled:opacity-50 text-xs text-zinc-200 font-semibold rounded-xl transition"
+            >
+              {interpretando ? 'Entendendo…' : 'Interpretar'}
+            </button>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-            <input type="checkbox" checked={aniversariantes} onChange={e => setAniversariantes(e.target.checked)} className="accent-[#C79A54]" />
-            Aniversariantes do mês
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={LABEL}>Comprou nos últimos (dias)</label>
-              <input value={compradosDias} onChange={e => setCompradosDias(e.target.value.replace(/\D/g, ''))} placeholder="ex: 30" className={INPUT} />
+          {avisos.length > 0 && (
+            <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex flex-col gap-1">
+              {avisos.map((a, i) => <p key={i}>⚠️ {a}</p>)}
             </div>
-            <div>
-              <label className={LABEL}>NÃO comprou nos últimos (dias)</label>
-              <input value={naoCompradosDias} onChange={e => setNaoCompradosDias(e.target.value.replace(/\D/g, ''))} placeholder="ex: 60" className={INPUT} />
+          )}
+
+          {chips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {chips.map(c => (
+                <span key={c.chave} className="flex items-center gap-1.5 bg-[#C79A54]/15 border border-[#C79A54]/30 text-[#E0B36A] text-xs rounded-lg px-2 py-1">
+                  {c.label}
+                  <button type="button" onClick={() => limparChip(c.chave)} className="hover:text-red-400 transition leading-none">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <label className={LABEL}>Ou use os botões rápidos</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => setFiltro({})} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition">Toda a base</button>
+              <button type="button" onClick={() => aplicarPreset({ genero: 'M' })} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition">Homens</button>
+              <button type="button" onClick={() => aplicarPreset({ genero: 'F' })} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition">Mulheres</button>
+              <button type="button" onClick={() => aplicarPreset({ aniversariantesMes: true })} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition">Aniversariantes do mês</button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input value={diasRapido} onChange={e => setDiasRapido(e.target.value.replace(/\D/g, ''))} placeholder="dias" className="w-20 bg-zinc-900 border border-zinc-700/60 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-[#C79A54]/60" />
+              <button type="button" disabled={!diasRapido} onClick={() => aplicarPreset({ compradosDesdeDias: Number(diasRapido) })} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 text-zinc-300 hover:border-zinc-500 disabled:opacity-40 transition">Comprou nos últimos</button>
+              <button type="button" disabled={!diasRapido} onClick={() => aplicarPreset({ naoCompradosDesdeDias: Number(diasRapido) })} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 text-zinc-300 hover:border-zinc-500 disabled:opacity-40 transition">Excluir quem comprou nos últimos</button>
             </div>
           </div>
 

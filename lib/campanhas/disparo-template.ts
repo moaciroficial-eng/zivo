@@ -14,9 +14,20 @@ export type FiltroPublico = {
   compradosDesdeDias?: number | null      // só quem comprou nos últimos X dias
   naoCompradosDesdeDias?: number | null   // exclui quem comprou nos últimos X dias
   aniversariantesMes?: boolean
+  nomeComeca?: string | null              // nome começa com esse prefixo (ex: "A")
+  produtoTermo?: string | null            // compraram algo cujo nome bate com esse termo (produto, categoria ou marca)
+  gastoMinimo?: number | null             // gastou (total) mais que esse valor em R$
+  gastoDesdeAno?: boolean                 // se true, o gastoMinimo conta só desde 1º de janeiro deste ano
+  qtdComprasMin?: number | null           // número mínimo de compras (all-time)
 }
 
 export type PessoaPublico = { clienteId: string; contatoId: string | null; nome: string; phone: string }
+
+/* Minúsculo + sem acento, pra comparar nome/produto sem exigir digitar
+   exatamente igual ("Aramis" bate com "aramis", "polo" bate com "Polo"). */
+function normalizarTexto(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
 
 /* Monta a lista final de quem recebe, já aplicando as exclusões automáticas:
    sem telefone válido, telefone repetido (manda uma vez só) e quem pediu
@@ -32,6 +43,11 @@ export async function montarPublico(admin: any, userId: string, filtro: FiltroPu
 
   if (filtro.genero) clientes = clientes.filter(c => c.genero === filtro.genero)
 
+  if (filtro.nomeComeca) {
+    const prefixo = normalizarTexto(filtro.nomeComeca)
+    clientes = clientes.filter(c => normalizarTexto(c.nome ?? '').startsWith(prefixo))
+  }
+
   if (filtro.aniversariantesMes) {
     const mesAtual = new Date().getMonth() + 1
     clientes = clientes.filter(c => {
@@ -40,31 +56,61 @@ export async function montarPublico(admin: any, userId: string, filtro: FiltroPu
     })
   }
 
-  if (filtro.compradosDesdeDias != null || filtro.naoCompradosDesdeDias != null) {
+  const precisaVendas = filtro.compradosDesdeDias != null || filtro.naoCompradosDesdeDias != null
+    || !!filtro.produtoTermo || filtro.gastoMinimo != null || filtro.qtdComprasMin != null
+
+  if (precisaVendas) {
     const ids = clientes.map(c => c.id)
-    const ultimaCompra = new Map<string, number>()
+    type Agregado = { ultimaCompra: number | null; totalGasto: number; totalGastoAno: number; qtdCompras: number; temProduto: boolean }
+    const porCliente = new Map<string, Agregado>()
     if (ids.length) {
       const { data: vendas } = await admin.from('vendas')
-        .select('cliente_id, data_venda').in('cliente_id', ids).order('data_venda', { ascending: false })
-      for (const v of (vendas ?? []) as { cliente_id: string | null; data_venda: string }[]) {
-        if (!v.cliente_id || ultimaCompra.has(v.cliente_id)) continue
-        ultimaCompra.set(v.cliente_id, new Date(v.data_venda).getTime())
+        .select('cliente_id, data_venda, valor, produtos').in('cliente_id', ids)
+      const termo = filtro.produtoTermo ? normalizarTexto(filtro.produtoTermo) : null
+      const inicioAno = new Date(new Date().getFullYear(), 0, 1).getTime()
+      for (const v of (vendas ?? []) as { cliente_id: string | null; data_venda: string; valor: number; produtos: { nome?: string }[] | null }[]) {
+        if (!v.cliente_id) continue
+        const t = new Date(v.data_venda).getTime()
+        const ag = porCliente.get(v.cliente_id) ?? { ultimaCompra: null, totalGasto: 0, totalGastoAno: 0, qtdCompras: 0, temProduto: false }
+        if (ag.ultimaCompra == null || t > ag.ultimaCompra) ag.ultimaCompra = t
+        ag.totalGasto += Number(v.valor) || 0
+        if (t >= inicioAno) ag.totalGastoAno += Number(v.valor) || 0
+        ag.qtdCompras += 1
+        if (termo && !ag.temProduto) {
+          ag.temProduto = (v.produtos ?? []).some(p => p?.nome && normalizarTexto(p.nome).includes(termo))
+        }
+        porCliente.set(v.cliente_id, ag)
       }
     }
     const agora = Date.now()
     if (filtro.compradosDesdeDias != null) {
       const limite = filtro.compradosDesdeDias
       clientes = clientes.filter(c => {
-        const u = ultimaCompra.get(c.id)
+        const u = porCliente.get(c.id)?.ultimaCompra
         return u != null && Math.round((agora - u) / 86400000) <= limite
       })
     }
     if (filtro.naoCompradosDesdeDias != null) {
       const limite = filtro.naoCompradosDesdeDias
       clientes = clientes.filter(c => {
-        const u = ultimaCompra.get(c.id)
+        const u = porCliente.get(c.id)?.ultimaCompra
         return u == null || Math.round((agora - u) / 86400000) >= limite
       })
+    }
+    if (filtro.produtoTermo) {
+      clientes = clientes.filter(c => porCliente.get(c.id)?.temProduto === true)
+    }
+    if (filtro.gastoMinimo != null) {
+      const limite = filtro.gastoMinimo
+      clientes = clientes.filter(c => {
+        const ag = porCliente.get(c.id)
+        const gasto = filtro.gastoDesdeAno ? (ag?.totalGastoAno ?? 0) : (ag?.totalGasto ?? 0)
+        return gasto > limite
+      })
+    }
+    if (filtro.qtdComprasMin != null) {
+      const limite = filtro.qtdComprasMin
+      clientes = clientes.filter(c => (porCliente.get(c.id)?.qtdCompras ?? 0) >= limite)
     }
   }
 
