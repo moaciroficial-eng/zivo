@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/disparo-template",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 13 * * *"
     }
   ]
 }
