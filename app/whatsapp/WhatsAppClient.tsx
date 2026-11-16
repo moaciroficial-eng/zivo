@@ -45,6 +45,16 @@ type ProdutoFoto = {
   ja_enviada?: boolean
 }
 
+type PecaOferta = {
+  estoque_id: string
+  nome: string
+  marca: string | null
+  foto_url: string
+  tamanhos: string[]
+  preco_de: number | null
+  preco_por: number | null
+}
+
 function fmtPrecoBRL(n: number): string {
   return `R$${n.toFixed(2).replace('.', ',')}`
 }
@@ -639,13 +649,22 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
     const total = escolhidas.length
     let ok = 0
+    const pecasEnviadas: PecaOferta[] = []
     for (let i = 0; i < total; i++) {
       const it = escolhidas[i]
       setFotoProgresso({ feitas: i, total })
-      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it, Number(fotoDescontos[it.estoque_id]) || 0)
+      const pct = Number(fotoDescontos[it.estoque_id]) || 0
+      const legenda = (fotoLegendas[it.estoque_id] ?? '').trim() || construirLegendaFoto(it, pct)
       let enviado = await enviarImagemUrl(it.foto_url, legenda)
       if (!enviado) { await sleep(1200); enviado = await enviarImagemUrl(it.foto_url, legenda) }  // 1 retry
-      if (enviado) ok++
+      if (enviado) {
+        ok++
+        const precoPor = it.preco_venda && pct > 0 && pct < 100 ? it.preco_venda * (1 - pct / 100) : it.preco_venda
+        pecasEnviadas.push({
+          estoque_id: it.estoque_id, nome: it.nome, marca: it.marca, foto_url: it.foto_url,
+          tamanhos: it.tamanhos, preco_de: it.preco_venda, preco_por: precoPor,
+        })
+      }
       if (i < total - 1) await sleep(700)   // espaça pra não tomar throttle da Meta
     }
     setFotoProgresso(null)
@@ -655,6 +674,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     if (ok < total) {
       setSendError(`Enviei ${ok} de ${total} fotos — a Meta limita rajada. Reenvie as que faltaram.`)
       setTimeout(() => setSendError(null), 9000)
+    }
+    if (pecasEnviadas.length > 0 && selectedContato) {
+      fetch('/api/whatsapp/ofertas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoId: selectedContato.id, pecas: pecasEnviadas }),
+      }).catch(() => null)   // histórico da oferta é secundário, não bloqueia o envio
     }
   }
 
