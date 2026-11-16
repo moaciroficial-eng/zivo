@@ -60,6 +60,15 @@ export function primeiroNome(nome?: string | null, fallback = ''): string {
   return n.split(/\s+/)[0]
 }
 
+/* Cadastro de importação em massa às vezes vem TUDO MAIÚSCULO -- no template
+   fica estranho ("Oi, AMANDA!"). Normaliza pra "Amanda" antes de preencher
+   a variável. Só a primeira letra maiúscula; o resto do nome minúsculo. */
+export function capitalizarPrimeiroNome(nome?: string | null, fallback = ''): string {
+  const n = primeiroNome(nome, fallback)
+  if (!n) return n
+  return n.charAt(0).toLocaleUpperCase('pt-BR') + n.slice(1).toLocaleLowerCase('pt-BR')
+}
+
 export function normalizarTelefoneBR(raw: string): string {
   const d = String(raw ?? '').replace(/\D/g, '')
   const with55 = d.startsWith('55') ? d : `55${d}`

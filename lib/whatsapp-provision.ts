@@ -108,7 +108,27 @@ export async function apagarTemplate(wabaId: string, token: string, name: string
   return { ok: false, motivo: `(${res.status}) ${txt.slice(0, 200)}` }
 }
 
-export type StatusTemplate = { name: string; status?: string; category?: string; rejected_reason?: string }
+export type StatusTemplate = {
+  name: string
+  status?: string
+  category?: string
+  rejected_reason?: string
+  language?: string
+  bodyText?: string      // texto do corpo, com {{1}}, {{2}}... -- pra prévia na tela de disparo
+  qtdVariaveis?: number  // quantas variáveis o corpo pede, além do {{1}}=nome
+  botoes?: string[]      // texto dos botões de resposta rápida, se houver
+}
+
+/* Extrai o texto do corpo e os botões a partir dos components crus da Meta. */
+function extrairDetalhesTemplate(components: unknown[] | undefined): { bodyText?: string; botoes?: string[] } {
+  if (!Array.isArray(components)) return {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body = components.find((c: any) => c?.type === 'BODY') as { text?: string } | undefined
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buttonsComp = components.find((c: any) => c?.type === 'BUTTONS') as { buttons?: { text?: string }[] } | undefined
+  const botoes = buttonsComp?.buttons?.map(b => b.text).filter((t): t is string => !!t)
+  return { bodyText: body?.text, botoes: botoes?.length ? botoes : undefined }
+}
 
 /* Cache em memória (por instância serverless) do status dos templates --
    aprovação não muda a cada segundo, não vale bater na Graph API em todo
@@ -131,12 +151,20 @@ export async function statusAprovadoTemplates(wabaId: string, token: string): Pr
    rejected_reason. */
 export async function consultarStatusTemplates(wabaId: string, token: string): Promise<StatusTemplate[]> {
   const out: StatusTemplate[] = []
-  let url: string | null = `${GRAPH}/${META_API_VERSION}/${wabaId}/message_templates?fields=name,status,category,rejected_reason&limit=100`
+  let url: string | null = `${GRAPH}/${META_API_VERSION}/${wabaId}/message_templates?fields=name,status,category,rejected_reason,language,components&limit=100`
   while (url) {
     const res: Response = await fetch(url, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) throw new Error(`Falha ao consultar status (${res.status}): ${(await res.text()).slice(0, 200)}`)
     const data = await res.json()
-    for (const t of (data?.data ?? [])) out.push(t as StatusTemplate)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const t of (data?.data ?? []) as any[]) {
+      const { bodyText, botoes } = extrairDetalhesTemplate(t.components)
+      const qtdVariaveis = bodyText ? new Set([...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1])).size : 0
+      out.push({
+        name: t.name, status: t.status, category: t.category, rejected_reason: t.rejected_reason,
+        language: t.language, bodyText, botoes, qtdVariaveis,
+      })
+    }
     url = data?.paging?.next ?? null
   }
   return out
