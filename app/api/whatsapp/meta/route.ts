@@ -151,15 +151,21 @@ function normalizarStatus(s: Record<string, unknown>): Record<string, unknown> |
   const status = s.status as string
   const tipo = status === 'read' ? 'ReadCallback'
     : (status === 'delivered' || status === 'sent') ? 'DeliveryCallback'
+    : status === 'failed' ? 'FailedCallback'
     : null
   if (!tipo) return null
-  return {
+  const base: Record<string, unknown> = {
     type: tipo,
     phone: String(s.recipient_id ?? ''),
     messageId: s.id as string,
     fromMe: true,
     isGroup: false,
   }
+  if (tipo === 'FailedCallback') {
+    const erros = s.errors as Record<string, unknown>[] | undefined
+    base.motivo = (erros?.[0]?.title as string | undefined) || (erros?.[0]?.message as string | undefined) || 'Falha no envio'
+  }
+  return base
 }
 
 /* Processa as entradas do webhook (resolve loja, baixa mídia, salva, dispara IA).

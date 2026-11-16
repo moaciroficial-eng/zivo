@@ -46,12 +46,17 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
   /* Ignora grupos, broadcasts e pings sem telefone */
   if (!phone || isGroup) return
 
-  /* Status updates (delivery/read) */
-  if (msgType === 'DeliveryCallback' || msgType === 'ReadCallback' || msgType === 'MessageStatusCallback') {
+  /* Status updates (delivery/read/falha) -- também espelha no disparo em
+     massa (disparo_template_envios), se o message_id for de um disparo. */
+  if (msgType === 'DeliveryCallback' || msgType === 'ReadCallback' || msgType === 'MessageStatusCallback' || msgType === 'FailedCallback') {
     const msgId  = payload.messageId as string | undefined
-    const status = msgType === 'ReadCallback' ? 'lida' : 'entregue'
+    const status = msgType === 'ReadCallback' ? 'lida' : msgType === 'FailedCallback' ? 'falhou' : 'entregue'
     if (msgId) {
       await supabase.from('whatsapp_mensagens').update({ status }).eq('message_id', msgId)
+      const statusDisparo = msgType === 'ReadCallback' ? 'lido' : msgType === 'FailedCallback' ? 'falhou' : 'entregue'
+      const update: Record<string, unknown> = { status: statusDisparo, updated_at: new Date().toISOString() }
+      if (msgType === 'FailedCallback') update.motivo_falha = (payload.motivo as string | undefined) ?? 'Falha no envio'
+      await supabase.from('disparo_template_envios').update(update).eq('message_id', msgId)
     }
     return
   }
@@ -255,6 +260,20 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
       },
       { onConflict: 'campanha_id,phone' as never, ignoreDuplicates: true },
     )
+  }
+
+  /* Opt-out: "parar"/"sair" (a palavra isolada, não uma frase que só contém
+     essas letras) marca o contato como "não receber mais" e confirma pro
+     cliente. Nenhum disparo em massa nem campanha volta a mandar pra ele --
+     a conversa normal (tirar dúvida, atendimento) continua funcionando. */
+  if (direcao === 'recebida' && tipo === 'texto' && /^(parar|sair|cancelar|stop)[.!\s]*$/i.test((conteudo ?? '').trim())) {
+    await supabase.from('whatsapp_contatos').update({ nao_receber: true }).eq('id', contato.id)
+    sendWhatsAppMessage({
+      phone,
+      message: 'Combinado! Você não vai mais receber mensagens de divulgação por aqui. Se precisar de alguma coisa, pode escrever que eu te ajudo. 🙏',
+      creds,
+    }).catch(() => null)
+    return
   }
 
   if (direcao === 'recebida') {
