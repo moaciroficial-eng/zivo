@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/app/components/useConfirm'
 
@@ -323,9 +324,14 @@ export default function CampanhasClient({ campanhas: campanhasInit, datas = [] }
   return (
     <div className="flex flex-col h-[calc(100dvh-3.25rem)] lg:h-screen max-w-3xl mx-auto w-full px-4 py-4 gap-3">
       {confirmUI}
-      <div className="shrink-0">
-        <h1 className="text-lg font-bold text-white">🎯 Consultora de Campanhas</h1>
-        <p className="text-xs text-zinc-500 mt-0.5">Me conta o que você quer vender que eu monto a oferta e acho os clientes certos.</p>
+      <div className="shrink-0 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold text-white">🎯 Consultora de Campanhas</h1>
+          <p className="text-xs text-zinc-500 mt-0.5">Me conta o que você quer vender que eu monto a oferta e acho os clientes certos.</p>
+        </div>
+        <Link href="/campanhas/disparo/novo" className="shrink-0 text-xs text-[#C79A54] hover:underline whitespace-nowrap mt-1">
+          Disparar template →
+        </Link>
       </div>
 
       {/* Conversa */}

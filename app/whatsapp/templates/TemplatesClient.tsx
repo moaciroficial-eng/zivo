@@ -334,6 +334,14 @@ export default function TemplatesClient() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <StatusBadge status={t.status} />
+                  {t.status === 'APPROVED' && (
+                    <Link
+                      href={`/campanhas/disparo/novo?template=${encodeURIComponent(t.name)}`}
+                      className="px-2.5 py-1 bg-[#C79A54]/15 hover:bg-[#C79A54]/25 border border-[#C79A54]/30 text-xs text-[#E0B36A] rounded-lg transition"
+                    >
+                      Disparar
+                    </Link>
+                  )}
                   {t.status === 'REJECTED' && (
                     <button
                       type="button"
