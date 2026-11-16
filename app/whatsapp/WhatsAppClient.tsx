@@ -39,10 +39,19 @@ type ProdutoFoto = {
   marca: string | null
   cor: string | null
   preco_venda: number | null
+  preco_promocional: number | null
   foto_url: string
   tamanhos: string[]
   serve: boolean
   ja_enviada?: boolean
+}
+
+/* Preço final de uma foto: desconto manual escolhido agora > preço
+   promocional já cadastrado no produto > preço de venda normal. */
+function precoFinalFoto(it: ProdutoFoto, descontoPct: number): number | null {
+  if (descontoPct > 0 && descontoPct < 100 && it.preco_venda) return it.preco_venda * (1 - descontoPct / 100)
+  if (it.preco_promocional != null) return it.preco_promocional
+  return it.preco_venda
 }
 
 type PecaOferta = {
@@ -71,8 +80,8 @@ function fmtPrecoBRL(n: number): string {
 function construirLegendaFoto(it: ProdutoFoto, descontoPct: number): string {
   const base = [it.nome, it.marca].filter(Boolean).join(' ')
   if (!it.preco_venda) return base
-  if (descontoPct > 0 && descontoPct < 100) {
-    const final = it.preco_venda * (1 - descontoPct / 100)
+  const final = precoFinalFoto(it, descontoPct)
+  if (final != null && final < it.preco_venda) {
     return `${base} — de ${fmtPrecoBRL(it.preco_venda)} por ${fmtPrecoBRL(final)}`
   }
   return `${base} — ${fmtPrecoBRL(it.preco_venda)}`
@@ -191,6 +200,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   // Oferta esperando o dono mandar as fotos na mão (cliente já respondeu o template)
   const [ofertaPendente, setOfertaPendente] = useState<{ id: string; pecas: PecaOferta[] } | null>(null)
   const [enviandoPendente, setEnviandoPendente] = useState(false)
+  // Depois de enviar com desconto manual, pergunta se salva o preço no produto
+  const [promptSalvarPreco, setPromptSalvarPreco] = useState<{ estoque_id: string; nome: string; precoFinal: number }[] | null>(null)
+  const [salvandoPreco, setSalvandoPreco] = useState(false)
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [replyTo, setReplyTo] = useState<Mensagem | null>(null)   // mensagem que estou citando
@@ -756,6 +768,19 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }
 
+  async function salvarPrecoNoProduto() {
+    if (!promptSalvarPreco) return
+    setSalvandoPreco(true)
+    try {
+      await Promise.all(promptSalvarPreco.map(it =>
+        supabase.from('estoque').update({ preco_promocional: it.precoFinal }).eq('id', it.estoque_id)
+      ))
+    } finally {
+      setSalvandoPreco(false)
+      setPromptSalvarPreco(null)
+    }
+  }
+
   /* ── Seletor de produtos do estoque (com foto) ── */
   async function abrirPickerFotos() {
     setShowFotoPicker(true)
@@ -811,11 +836,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     // (permite agrupar na conversa e oferecer "Copiar oferta" depois).
     const pecas: PecaOferta[] = escolhidas.map(it => {
       const pct = Number(fotoDescontos[it.estoque_id]) || 0
-      const precoPor = it.preco_venda && pct > 0 && pct < 100 ? it.preco_venda * (1 - pct / 100) : it.preco_venda
       return {
         estoque_id: it.estoque_id, nome: it.nome, marca: it.marca, foto_url: it.foto_url,
-        tamanhos: it.tamanhos, preco_de: it.preco_venda, preco_por: precoPor,
+        tamanhos: it.tamanhos, preco_de: it.preco_venda, preco_por: precoFinalFoto(it, pct),
       }
+    })
+    // Desconto manual escolhido agora (não vem do preço promocional já cadastrado) --
+    // depois de enviar, pergunta se quer salvar esse preço no produto.
+    const comDescontoManual = escolhidas.filter(it => {
+      const pct = Number(fotoDescontos[it.estoque_id]) || 0
+      return pct > 0 && pct < 100 && precoFinalFoto(it, pct) !== it.preco_promocional
     })
     let ofertaId: string | undefined
     try {
@@ -844,6 +874,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setEnviandoFoto(false)
     setFotoSel(new Map())
     setFotoLegendas({})
+    if (comDescontoManual.length > 0) {
+      setPromptSalvarPreco(comDescontoManual.map(it => ({
+        estoque_id: it.estoque_id, nome: it.nome,
+        precoFinal: precoFinalFoto(it, Number(fotoDescontos[it.estoque_id]) || 0)!,
+      })))
+    }
     if (ok < total) {
       setSendError(`Enviei ${ok} de ${total} fotos — a Meta limita rajada. Reenvie as que faltaram.`)
       setTimeout(() => setSendError(null), 9000)
@@ -1463,6 +1499,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                         <p className="text-xs text-zinc-500 truncate">
                           {it.nome}{it.marca ? ` · ${it.marca}` : ''}{it.preco_venda ? ` · ${fmtPrecoBRL(it.preco_venda)}` : ''}
                         </p>
+                        {it.preco_promocional != null && !fotoDescontos[it.estoque_id] && (
+                          <p className="text-[11px] text-emerald-400">🏷️ Promoção ativa: por {fmtPrecoBRL(it.preco_promocional)}</p>
+                        )}
                         {it.preco_venda != null && (
                           <div className="flex items-center gap-1 flex-wrap">
                             {[10, 20, 30, 40, 50, 60, 70].map(p => (
@@ -1691,6 +1730,32 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* "Salvar esse preço no produto?" -- depois de um desconto manual na revisão */}
+      {promptSalvarPreco && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPromptSalvarPreco(null)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold mb-1">Salvar esse preço no produto?</h3>
+            <p className="text-xs text-zinc-500 mb-3">Assim ele já vem pronto na próxima vez — sem precisar escolher o desconto de novo.</p>
+            <div className="flex flex-col gap-1 mb-4 max-h-40 overflow-y-auto">
+              {promptSalvarPreco.map(it => (
+                <div key={it.estoque_id} className="flex items-center justify-between text-sm text-zinc-300">
+                  <span className="truncate">{it.nome}</span>
+                  <span className="text-[#E0B36A] font-medium shrink-0 ml-2">{fmtPrecoBRL(it.precoFinal)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPromptSalvarPreco(null)} className="flex-1 text-sm text-zinc-400 hover:text-white border border-zinc-700 rounded-lg py-2.5 transition cursor-pointer">
+                Não
+              </button>
+              <button onClick={salvarPrecoNoProduto} disabled={salvandoPreco} className="flex-1 text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 rounded-lg py-2.5 transition cursor-pointer">
+                {salvandoPreco ? 'Salvando…' : 'Sim, salvar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

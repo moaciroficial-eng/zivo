@@ -56,7 +56,18 @@ type EstoqueItem = {
   codigo_produto: string | null
   preco_venda: number | null
   preco_custo: number | null
+  preco_promocional?: number | null
+  promocao_valida_until?: string | null
   tamanhos: TamanhoQtd[] | null
+}
+
+/* Preço promocional vale sozinho enquanto não passou da validade (sem data = sem prazo) */
+function precoEfetivo(item: Pick<EstoqueItem, 'preco_venda' | 'preco_promocional' | 'promocao_valida_until'>): number | null {
+  const hoje = new Date().toISOString().slice(0, 10)
+  if (item.preco_promocional != null && (!item.promocao_valida_until || item.promocao_valida_until >= hoje)) {
+    return item.preco_promocional
+  }
+  return item.preco_venda
 }
 
 type EstoqueFlat = EstoqueItem & { _tamanho: string | null }
@@ -749,7 +760,7 @@ export default function VendasClient({
   }
 
   function addFromSearch(item: EstoqueFlat) {
-    const preco = item.preco_venda != null ? String(item.preco_venda) : ''
+    const preco = precoEfetivo(item) != null ? String(precoEfetivo(item)) : ''
     const custo = item.preco_custo != null ? String(item.preco_custo) : ''
     const tamanhoStr = item._tamanho ? ` ${item._tamanho}` : ''
     const nome = item.nome + tamanhoStr + (item.marca ? ` (${item.marca})` : '')
@@ -2429,8 +2440,8 @@ export default function VendasClient({
                                     {codigo && <span className="font-mono"> · ref {codigo}</span>}
                                   </p>
                                 </div>
-                                {unica && prod.preco_venda != null && (
-                                  <span className="text-emerald-400 text-xs shrink-0 mt-0.5">{formatBRL(prod.preco_venda)}</span>
+                                {unica && precoEfetivo(prod) != null && (
+                                  <span className="text-emerald-400 text-xs shrink-0 mt-0.5">{formatBRL(precoEfetivo(prod)!)}</span>
                                 )}
                               </div>
                               {!unica && (
@@ -2445,8 +2456,8 @@ export default function VendasClient({
                                       {t.tamanho} <span className="text-zinc-500 font-normal">({t.qtd})</span>
                                     </button>
                                   ))}
-                                  {prod.preco_venda != null && (
-                                    <span className="ml-auto text-emerald-400 text-xs">{formatBRL(prod.preco_venda)}</span>
+                                  {precoEfetivo(prod) != null && (
+                                    <span className="ml-auto text-emerald-400 text-xs">{formatBRL(precoEfetivo(prod)!)}</span>
                                   )}
                                 </div>
                               )}
