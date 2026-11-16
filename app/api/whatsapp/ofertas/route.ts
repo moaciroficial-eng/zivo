@@ -1,20 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import type { PecaOferta } from '@/lib/ofertas'
 
 /* Registro de cada envio de fotos (oferta) -- guarda as peças, tamanhos
    disponíveis e preço de/por no momento do envio, pra poder "copiar oferta"
    e reenviar/encaminhar depois sem refazer tudo. */
-
-export type PecaOferta = {
-  estoque_id: string
-  nome: string
-  marca: string | null
-  foto_url: string
-  tamanhos: string[]
-  preco_de: number | null
-  preco_por: number | null
-}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()

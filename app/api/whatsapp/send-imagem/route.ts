@@ -13,13 +13,14 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  let phone: string, imageUrl: string, caption: string | undefined, contatoId: string | undefined
+  let phone: string, imageUrl: string, caption: string | undefined, contatoId: string | undefined, ofertaId: string | undefined
   try {
     const body = await request.json()
     phone     = body.phone
     imageUrl  = body.imageUrl
     caption   = body.caption
     contatoId = body.contatoId
+    ofertaId  = body.ofertaId
   } catch {
     return new NextResponse('Invalid JSON', { status: 400 })
   }
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
         conteudo: preview,
         status: 'enviada',
         timestamp,
-        raw: { image: { imageUrl, caption: caption ?? null } },
+        raw: { image: { imageUrl, caption: caption ?? null, ofertaId: ofertaId ?? null } },
       })
       await admin.from('whatsapp_contatos').update({
         ultima_mensagem: preview, ultima_mensagem_at: timestamp,
