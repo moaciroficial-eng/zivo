@@ -153,6 +153,13 @@ function fmtTime(ts: string | null): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+/* mm:ss de uma gravação em andamento ou de um áudio enviado */
+function fmtDuracao(seg: number): string {
+  const m = Math.floor(seg / 60)
+  const s = Math.floor(seg % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 /* Resumo curto de uma mensagem — usado na prévia de "respondendo a ..." */
 function resumoMsg(m: Mensagem): string {
   if (m.tipo === 'imagem') return '📷 Foto'
@@ -249,6 +256,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [replyTo, setReplyTo] = useState<Mensagem | null>(null)   // mensagem que estou citando
+  // Gravação/envio de áudio (nota de voz)
+  const [gravando, setGravando] = useState(false)
+  const [tempoGravacao, setTempoGravacao] = useState(0)
+  const [audioPreview, setAudioPreview] = useState<{ blob: Blob; url: string; duracao: number } | null>(null)
+  const [enviandoAudio, setEnviandoAudio] = useState(false)
+  const [janelaFechadaAudio, setJanelaFechadaAudio] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const audioStreamRef = useRef<MediaStream | null>(null)
+  const audioTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [acaoMsgId, setAcaoMsgId] = useState<string | null>(null) // menu de ação aberto
   const [view, setView] = useState<'list' | 'chat'>('list')
   /* Conexão/QR removidos — Meta oficial não usa QR nem "instância". */
@@ -425,6 +442,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }, [])
 
+  /* Garante que o microfone é liberado se o usuário sair da tela gravando */
+  useEffect(() => {
+    return () => { audioStreamRef.current?.getTracks().forEach(t => t.stop()) }
+  }, [])
+
   /* Foto de perfil de contato: a API oficial da Meta NÃO fornece (privacidade),
      ao contrário da Z-API antiga. Então não buscamos — o avatar mostra a
      inicial colorida do nome (ver corAvatar). */
@@ -442,6 +464,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
     setReplyTo(null); setAcaoMsgId(null)
+    if (gravando) cancelarGravacao()
+    if (audioPreview) descartarAudioGravado()
     if (!selectedId) { setMensagens([]); return }
     setLoadingMsgs(true)
     supabase
@@ -802,6 +826,133 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       setTimeout(() => setSendError(null), 6000)
     } finally {
       setEnviandoFoto(false)
+    }
+  }
+
+  /* ── Áudio (nota de voz) ──
+     Grava no navegador (webm/opus ou mp4, depende do browser), converte pra
+     OGG/Opus no próprio navegador (lib/audio-ffmpeg, via ffmpeg.wasm -- sem
+     depender de binário nativo numa function serverless) e só então sobe e
+     dispara pela Cloud API. */
+  function pararStreamMic() {
+    audioStreamRef.current?.getTracks().forEach(t => t.stop())
+    audioStreamRef.current = null
+    if (audioTimerRef.current) { clearInterval(audioTimerRef.current); audioTimerRef.current = null }
+  }
+
+  async function iniciarGravacao() {
+    if (!selectedContato || gravando || audioPreview) return
+    setSendError(null)
+    setJanelaFechadaAudio(false)
+
+    /* Fora da janela de 24h a Meta recusa áudio livre -- avisa antes de gravar */
+    try {
+      const res = await fetch('/api/whatsapp/ofertas/encaminhar/janela', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoIds: [selectedContato.id] }),
+      })
+      const d = await res.json().catch(() => null)
+      if (d?.ok && !(d.abertos as string[]).includes(selectedContato.id)) {
+        setJanelaFechadaAudio(true)
+        setTimeout(() => setJanelaFechadaAudio(false), 8000)
+        return
+      }
+    } catch { /* se a checagem falhar, deixa tentar -- a Meta recusa na hora de enviar */ }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioStreamRef.current = stream
+      const mr = new MediaRecorder(stream)
+      audioChunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      mediaRecorderRef.current = mr
+      mr.start()
+      setGravando(true)
+      setTempoGravacao(0)
+      audioTimerRef.current = setInterval(() => setTempoGravacao(t => t + 1), 1000)
+    } catch {
+      setSendError('Não consegui acessar o microfone.')
+      setTimeout(() => setSendError(null), 6000)
+    }
+  }
+
+  function cancelarGravacao() {
+    mediaRecorderRef.current?.stop()
+    mediaRecorderRef.current = null
+    pararStreamMic()
+    audioChunksRef.current = []
+    setGravando(false)
+    setTempoGravacao(0)
+  }
+
+  function pararGravacao() {
+    const mr = mediaRecorderRef.current
+    if (!mr) return
+    const duracao = tempoGravacao
+    mr.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || 'audio/webm' })
+      setAudioPreview({ blob, url: URL.createObjectURL(blob), duracao })
+      setGravando(false)
+    }
+    mr.stop()
+    mediaRecorderRef.current = null
+    pararStreamMic()
+  }
+
+  function descartarAudioGravado() {
+    if (audioPreview) URL.revokeObjectURL(audioPreview.url)
+    setAudioPreview(null)
+    setTempoGravacao(0)
+  }
+
+  async function enviarAudioGravado() {
+    if (!audioPreview || !selectedContato || enviandoAudio) return
+    setEnviandoAudio(true)
+    setSendError(null)
+    const isLid = selectedContato.jid?.endsWith('@lid')
+    const override = isLid ? lidPhone[selectedContato.id]?.replace(/\D/g, '') : undefined
+    const { blob, url, duracao } = audioPreview
+    try {
+      const { converterParaOggOpus } = await import('@/lib/audio-ffmpeg')
+      const oggBlob = await converterParaOggOpus(blob)
+      const { data: u } = await supabase.auth.getUser()
+      const uid = u.user?.id ?? 'anon'
+      /* Pasta separada de audios/ -- não mistura com as fotos da biblioteca (whatsapp/) */
+      const path = `audios/${uid}/${Date.now()}.ogg`
+      const { data: up, error: upErr } = await supabase.storage.from('biblioteca').upload(path, oggBlob, { contentType: 'audio/ogg; codecs=opus' })
+      if (upErr) throw new Error(upErr.message)
+      const { data: pub } = supabase.storage.from('biblioteca').getPublicUrl(up.path)
+
+      const msgId = `tmp-a-${Date.now()}`
+      const msgOtimista = {
+        id: msgId, contato_id: selectedContato.id, direcao: 'enviada', tipo: 'audio',
+        conteudo: '🎵 Áudio', status: 'enviada', timestamp: new Date().toISOString(),
+        raw: { audio: { audioUrl: pub.publicUrl, duracaoSeg: duracao } },
+      } as unknown as Mensagem
+      setMensagens(prev => [...prev, msgOtimista])
+      setContatos(cs => cs.map(c => c.id === selectedContato.id
+        ? { ...c, ultima_mensagem: '🎵 Áudio', ultima_mensagem_at: msgOtimista.timestamp }
+        : c
+      ))
+
+      const res = await fetch('/api/whatsapp/send-audio', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: override ?? selectedContato.phone, audioUrl: pub.publicUrl, contatoId: selectedContato.id, duracaoSeg: duracao }),
+      })
+      if (!res.ok) {
+        const t = await res.text()
+        setSendError(t || 'Falha ao enviar o áudio')
+        setMensagens(prev => prev.filter(m => m.id !== msgId))
+        setTimeout(() => setSendError(null), 8000)
+      }
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Falha ao converter/enviar o áudio')
+      setTimeout(() => setSendError(null), 6000)
+    } finally {
+      URL.revokeObjectURL(url)
+      setAudioPreview(null)
+      setTempoGravacao(0)
+      setEnviandoAudio(false)
     }
   }
 
@@ -1658,6 +1809,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   {sendError}
                 </div>
               )}
+              {janelaFechadaAudio && (
+                <div className="mx-3 mb-1 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400">
+                  Esse contato está fora da janela de 24h — só dá pra mandar um template, áudio livre não vai chegar.
+                </div>
+              )}
               {replyTo && (
                 <div className="mx-3 mb-1 flex items-center gap-2 px-3 py-2 bg-zinc-800/60 border-l-2 border-[#C79A54] rounded-lg">
                   <div className="min-w-0 flex-1">
@@ -1670,6 +1826,43 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 </div>
               )}
               <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2 relative">
+              {gravando ? (
+                <>
+                  <button onClick={cancelarGravacao} title="Cancelar gravação"
+                    className="text-red-400 hover:text-red-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                  <div className="flex-1 flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                    <span className="text-sm text-zinc-200 tabular-nums">{fmtDuracao(tempoGravacao)}</span>
+                    <span className="text-xs text-zinc-500">Gravando...</span>
+                  </div>
+                  <button onClick={pararGravacao} title="Concluir gravação"
+                    className="bg-[#C79A54] hover:bg-[#C79A54] text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </>
+              ) : audioPreview ? (
+                <>
+                  <button onClick={descartarAudioGravado} disabled={enviandoAudio} title="Descartar"
+                    className="text-zinc-400 hover:text-red-400 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                  <div className="flex-1 flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 min-w-0">
+                    <audio controls src={audioPreview.url} className="flex-1 h-8 min-w-0" />
+                    <span className="text-xs text-zinc-500 tabular-nums shrink-0">{fmtDuracao(audioPreview.duracao)}</span>
+                  </div>
+                  <button onClick={enviarAudioGravado} disabled={enviandoAudio} title="Enviar áudio"
+                    className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0">
+                    {enviandoAudio ? (
+                      <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round"/></svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
                 {/* Paleta de emoji */}
                 {showEmoji && (
                   <>
@@ -1748,16 +1941,29 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   placeholder="Digite uma mensagem..."
                   className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] transition-colors [color-scheme:dark]"
                 />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || sending}
-                  className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
-                </button>
+                {input.trim() ? (
+                  <button
+                    onClick={handleSend}
+                    disabled={sending}
+                    className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={iniciarGravacao}
+                    disabled={sending}
+                    title="Gravar áudio"
+                    className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3.5 py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                  </button>
+                )}
+                </>
+              )}
               </div>
             </>
           )}
