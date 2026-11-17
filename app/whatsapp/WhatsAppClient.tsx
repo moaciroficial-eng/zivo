@@ -70,6 +70,21 @@ type ItemQuadro = PecaOferta & {
   removido: boolean
 }
 
+/* Uma foto de produto encontrada no histórico da conversa (últimos 30 dias) --
+   "encontrado: false" quando não deu pra casar com nenhum item do estoque. */
+type HistoricoItem = {
+  foto_url: string
+  timestamp: string
+  encontrado: boolean
+  estoque_id?: string
+  nome?: string
+  marca?: string | null
+  tamanhos?: string[]
+  preco_de?: number | null
+  preco_por?: number | null
+  caption?: string | null
+}
+
 function fmtPrecoBRL(n: number): string {
   return `R$${n.toFixed(2).replace('.', ',')}`
 }
@@ -188,6 +203,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [quadroLoading, setQuadroLoading] = useState(false)
   const [quadroOrigemId, setQuadroOrigemId] = useState<string | null>(null)
   const [quadroItens, setQuadroItens] = useState<ItemQuadro[]>([])
+  const [quadroTrocaTamanho, setQuadroTrocaTamanho] = useState('')
+  // Picker de fotos antigas enviadas na conversa (não rastreadas como oferta)
+  const [showHistoricoPicker, setShowHistoricoPicker] = useState(false)
+  const [historicoLoading, setHistoricoLoading] = useState(false)
+  const [historicoItens, setHistoricoItens] = useState<HistoricoItem[]>([])
+  const [historicoSel, setHistoricoSel] = useState<Set<number>>(new Set())
   // Escolher contatos pra encaminhar a oferta copiada
   const [showEscolherContatos, setShowEscolherContatos] = useState(false)
   const [contatosBuscaEnc, setContatosBuscaEnc] = useState('')
@@ -651,6 +672,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     setQuadroLoading(true)
     setQuadroItens([])
     setQuadroOrigemId(null)
+    setQuadroTrocaTamanho('')
     try {
       const res = await fetch(`/api/whatsapp/ofertas/${ofertaId}`)
       const d = await res.json().catch(() => null)
@@ -682,6 +704,88 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   function definirPrecoQuadro(estoqueId: string, precoPor: string) {
     const n = Number(precoPor.replace(',', '.'))
     setQuadroItens(prev => prev.map(it => it.estoque_id === estoqueId ? { ...it, preco_por: Number.isFinite(n) ? n : it.preco_por } : it))
+  }
+
+  /* Troca o tamanho desejado de todas as peças ainda no quadro pro mesmo
+     tamanho (ex.: copiou pro Licinho em M, agora quer mandar tudo em P) --
+     o aviso de "acabou, tem X" já recalcula sozinho a partir disso. */
+  function trocarTamanhoTudo(tam: string) {
+    setQuadroTrocaTamanho(tam)
+    setQuadroItens(prev => prev.map(it => it.removido ? it : { ...it, tamanhos: [tam] }))
+  }
+
+  /* "Copiar oferta" a partir de qualquer foto de produto enviada antes nessa
+     conversa (não só ofertas rastreadas) -- abre a lista dos últimos 30 dias. */
+  async function abrirHistoricoPicker() {
+    if (!selectedContato) return
+    setShowHistoricoPicker(true)
+    setHistoricoLoading(true)
+    setHistoricoItens([])
+    setHistoricoSel(new Set())
+    try {
+      const res = await fetch(`/api/whatsapp/ofertas/historico?contatoId=${selectedContato.id}`)
+      const d = await res.json().catch(() => null)
+      const itens: HistoricoItem[] = d?.ok ? d.itens : []
+      setHistoricoItens(itens)
+      setHistoricoSel(new Set(itens.flatMap((it, i) => it.encontrado ? [i] : [])))
+    } catch {
+      setHistoricoItens([])
+    } finally {
+      setHistoricoLoading(false)
+    }
+  }
+
+  function toggleHistoricoSel(i: number) {
+    setHistoricoSel(prev => {
+      const s = new Set(prev)
+      if (s.has(i)) s.delete(i); else s.add(i)
+      return s
+    })
+  }
+
+  /* Sobe as fotos marcadas pro quadro de "Copiar oferta" já existente --
+     mesma recheagem de estoque, só que a partir de peças soltas do histórico
+     em vez de uma única oferta salva. Produtos repetidos (mesma peça mandada
+     em dias diferentes) entram uma só vez, com o envio mais recente. */
+  async function continuarComHistorico() {
+    const selecionadas = historicoItens.filter((it, i) => it.encontrado && historicoSel.has(i))
+    if (selecionadas.length === 0) return
+    const vistos = new Set<string>()
+    const pecas: PecaOferta[] = []
+    for (const it of selecionadas) {
+      if (!it.estoque_id || vistos.has(it.estoque_id)) continue
+      vistos.add(it.estoque_id)
+      pecas.push({
+        estoque_id: it.estoque_id, nome: it.nome ?? '', marca: it.marca ?? null, foto_url: it.foto_url,
+        tamanhos: it.tamanhos ?? [], preco_de: it.preco_de ?? null, preco_por: it.preco_por ?? null,
+      })
+    }
+    setShowHistoricoPicker(false)
+    setQuadroAberto(true)
+    setQuadroLoading(true)
+    setQuadroItens([])
+    setQuadroOrigemId(null)
+    setQuadroTrocaTamanho('')
+    try {
+      const res = await fetch('/api/whatsapp/ofertas/recheck', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pecas }),
+      })
+      const d = await res.json().catch(() => null)
+      if (!d?.ok) {
+        setSendError(d?.erro || 'Falha ao copiar as ofertas.')
+        setTimeout(() => setSendError(null), 6000)
+        setQuadroAberto(false)
+        return
+      }
+      setQuadroItens((d.itens as ItemQuadro[]).map(it => ({ ...it, removido: it.esgotado })))
+    } catch {
+      setSendError('Falha ao copiar as ofertas.')
+      setTimeout(() => setSendError(null), 6000)
+      setQuadroAberto(false)
+    } finally {
+      setQuadroLoading(false)
+    }
   }
 
   function abrirEscolherContatos() {
@@ -724,7 +828,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   }
 
   async function confirmarEncaminhar() {
-    if (!resumoEncaminhar || !quadroOrigemId) return
+    if (!resumoEncaminhar) return
     if (resumoEncaminhar.fora.length > 0 && !templateEscolhido) {
       setResultadoEncaminhar('Escolha um template pra quem está fora da janela de 24h.')
       return
@@ -1094,6 +1198,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     </div>
                   )}
                 </div>
+                <button
+                  onClick={abrirHistoricoPicker}
+                  title="Copiar oferta enviada antes"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-[#E0B36A] transition-colors shrink-0"
+                >
+                  <span className="text-base leading-none">🔁</span>
+                </button>
                 <button
                   onClick={() => pedirConfirm(
                     'Apagar esta conversa? Isso remove o histórico e o contato do WhatsApp. O cadastro do cliente não é afetado.',
@@ -1568,6 +1679,73 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         </div>
       )}
 
+      {/* Picker de fotos de produto enviadas antes nessa conversa (últimos 30
+          dias) -- junta peças de várias mensagens antigas pro quadro de
+          "Copiar oferta" existente, mesmo sem uma oferta rastreada por trás. */}
+      {showHistoricoPicker && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowHistoricoPicker(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-lg h-[85vh] sm:h-[75vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-bold">Copiar oferta</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Fotos enviadas nos últimos 30 dias — desmarque o que não quer levar.</p>
+              </div>
+              <button onClick={() => setShowHistoricoPicker(false)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+              {historicoLoading && <p className="text-sm text-zinc-500 text-center py-8">Carregando…</p>}
+              {!historicoLoading && historicoItens.map((it, i) => (
+                <label key={i} className={`flex gap-2.5 p-2.5 rounded-xl border bg-zinc-800/60 ${it.encontrado ? 'border-zinc-700/60 cursor-pointer' : 'border-zinc-800 opacity-50 cursor-not-allowed'}`}>
+                  <input
+                    type="checkbox"
+                    checked={it.encontrado && historicoSel.has(i)}
+                    disabled={!it.encontrado}
+                    onChange={() => toggleHistoricoSel(i)}
+                    className="accent-[#C79A54] mt-1 shrink-0"
+                  />
+                  <img src={it.foto_url} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0 bg-zinc-800" />
+                  <div className="flex-1 min-w-0">
+                    {it.encontrado ? (
+                      <>
+                        <p className="text-sm font-medium truncate">{[it.nome, it.marca].filter(Boolean).join(' ')}</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">Tamanhos: {(it.tamanhos ?? []).join(', ') || '—'}</p>
+                        <div className="flex items-center gap-1.5 mt-1 text-xs">
+                          {it.preco_de != null && it.preco_de !== it.preco_por && (
+                            <span className="text-zinc-500 line-through">{fmtPrecoBRL(it.preco_de)}</span>
+                          )}
+                          {it.preco_por != null && <span className="text-[#E0B36A] font-medium">{fmtPrecoBRL(it.preco_por)}</span>}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-zinc-400 truncate">{it.caption || 'Foto sem legenda'}</p>
+                        <p className="text-[11px] text-red-400 mt-0.5">Não encontrado no estoque</p>
+                      </>
+                    )}
+                  </div>
+                </label>
+              ))}
+              {!historicoLoading && historicoItens.length === 0 && (
+                <p className="text-sm text-zinc-500 text-center py-8">Nenhuma foto de produto enviada nos últimos 30 dias.</p>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-zinc-800 shrink-0">
+              <button
+                onClick={continuarComHistorico}
+                disabled={historicoSel.size === 0}
+                className="w-full text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+              >
+                Copiar {historicoSel.size > 0 ? `${historicoSel.size} peça${historicoSel.size > 1 ? 's' : ''}` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quadro de "Copiar oferta" -- peças da oferta anterior, estoque rechecado */}
       {quadroAberto && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setQuadroAberto(false)}>
@@ -1581,6 +1759,22 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
+
+            {!quadroLoading && quadroItens.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap px-3 pt-3 shrink-0">
+                <span className="text-[11px] text-zinc-500 shrink-0">Trocar tamanho de tudo:</span>
+                {['P', 'M', 'G', 'GG'].map(tam => (
+                  <button
+                    key={tam}
+                    type="button"
+                    onClick={() => trocarTamanhoTudo(tam)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${quadroTrocaTamanho === tam ? 'bg-[#C79A54] text-zinc-950 border-[#C79A54]' : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}
+                  >
+                    {tam}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
               {quadroLoading && <p className="text-sm text-zinc-500 text-center py-8">Carregando…</p>}
