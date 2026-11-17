@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/app/components/useConfirm'
+import { clienteServeProduto } from '@/lib/tamanhos'
 
 type Contato = {
   id: string
@@ -14,6 +15,26 @@ type Contato = {
   ultima_mensagem: string | null
   ultima_mensagem_at: string | null
   nao_lidas: number
+  cliente_id?: string | null
+}
+
+type ClienteMini = {
+  id: string
+  nome: string
+  telefone: string | null
+  tamanho_camiseta: string | null
+  tamanho_calca: string | null
+  tamanho_tenis: string | null
+}
+
+/* Resumo curto dos tamanhos do cadastro -- "Cam M · Cal 40" */
+function resumoTamanhosCliente(cli?: ClienteMini | null): string {
+  if (!cli) return ''
+  const partes: string[] = []
+  if (cli.tamanho_camiseta) partes.push(`Cam ${cli.tamanho_camiseta}`)
+  if (cli.tamanho_calca) partes.push(`Cal ${cli.tamanho_calca}`)
+  if (cli.tamanho_tenis) partes.push(`Tên ${cli.tamanho_tenis}`)
+  return partes.join(' · ')
 }
 
 type Mensagem = {
@@ -233,12 +254,46 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [novaConversa, setNovaConversa] = useState(false)
   const [novaSearch, setNovaSearch] = useState('')
   const [novaNumero, setNovaNumero] = useState('')
-  const [clientes, setClientes] = useState<{id:string;nome:string;telefone:string|null}[]>([])
+  const [clientes, setClientes] = useState<ClienteMini[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [confirmUI, pedirConfirm] = useConfirm()
+  // Editar nome do contato / vincular a um cliente cadastrado
+  const [showEditarContato, setShowEditarContato] = useState(false)
+  const [editarNomeInput, setEditarNomeInput] = useState('')
+  const [editarClienteBusca, setEditarClienteBusca] = useState('')
+  const [salvandoContato, setSalvandoContato] = useState(false)
+  // Contatos dentro da janela de 24h -- calculado quando abre "Escolher contatos"
+  const [janelaAbertaIds, setJanelaAbertaIds] = useState<Set<string> | null>(null)
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
+  const clientesPorId = useMemo(() => new Map(clientes.map(c => [c.id, c])), [clientes])
+
+  /* Nome pra exibir: cadastro do cliente > nome do WhatsApp > telefone */
+  function nomeExibicao(c: Contato): string {
+    const cli = c.cliente_id ? clientesPorId.get(c.cliente_id) : undefined
+    return cli?.nome ?? c.nome ?? fmtPhone(c.phone) ?? c.phone
+  }
+
+  /* Telefone formatado com o final em destaque -- pra diferenciar vários
+     contatos com o mesmo nome (ex.: três "Alessandro") de cara. */
+  function fmtPhoneDestaque(phone: string): { prefixo: string; fim: string } | null {
+    const f = fmtPhone(phone)
+    if (!f || f.length < 4) return null
+    return { prefixo: f.slice(0, -4), fim: f.slice(-4) }
+  }
+
+  /* Tamanhos que a oferta no quadro cobre agora (peças ainda não removidas) --
+     usado pra avisar quando o tamanho do cadastro do cliente não bate. */
+  const tamanhosOferta = [...new Set(quadroItens.filter(it => !it.removido).flatMap(it => it.tamanhos))]
+
+  function avisoTamanhoCliente(cli?: ClienteMini | null): string | null {
+    if (!cli || tamanhosOferta.length === 0) return null
+    const tamsCliente = [cli.tamanho_camiseta, cli.tamanho_calca, cli.tamanho_tenis].filter((t): t is string => !!t)
+    if (tamsCliente.length === 0) return null
+    if (clienteServeProduto(tamsCliente, tamanhosOferta)) return null
+    return `usa ${tamsCliente.join('/')}, oferta é ${tamanhosOferta.join('/')}`
+  }
 
   /* Mapa message_id → mensagem, pra achar a mensagem citada numa resposta */
   const msgPorId = new Map<string, Mensagem>()
@@ -251,15 +306,21 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   }, [])
 
   /* ── Nova conversa ── */
-  async function abrirNovaConversa() {
+  function abrirNovaConversa() {
     setNovaConversa(true)
     setNovaSearch('')
     setNovaNumero('')
-    if (clientes.length === 0) {
-      const { data } = await supabase.from('clientes').select('id, nome, telefone').order('nome')
-      setClientes((data ?? []) as {id:string;nome:string;telefone:string|null}[])
-    }
   }
+
+  /* Carrega os clientes cadastrados uma vez -- usado pra mostrar o nome do
+     cadastro na lista/cabeçalho, pro seletor de "Nova conversa" e pra
+     vincular um contato do WhatsApp a um cadastro. */
+  useEffect(() => {
+    supabase.from('clientes')
+      .select('id, nome, telefone, tamanho_camiseta, tamanho_calca, tamanho_tenis')
+      .order('nome')
+      .then(({ data }) => setClientes((data ?? []) as ClienteMini[]))
+  }, [user.id])
 
   async function iniciarConversa(phone: string, nome: string) {
     const normalized = phone.replace(/\D/g, '')
@@ -788,13 +849,57 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }
 
-  function abrirEscolherContatos() {
+  /* Edita o nome do contato no WhatsApp e/ou vincula a um cliente cadastrado --
+     resolve o "três Alessandro" mostrando de quem é cada conversa de verdade. */
+  function abrirEditarContato() {
+    if (!selectedContato) return
+    setEditarNomeInput(selectedContato.nome ?? '')
+    setEditarClienteBusca('')
+    setShowEditarContato(true)
+  }
+
+  async function salvarNomeContato() {
+    if (!selectedContato) return
+    setSalvandoContato(true)
+    try {
+      const nome = editarNomeInput.trim() || null
+      await supabase.from('whatsapp_contatos').update({ nome }).eq('id', selectedContato.id)
+      setContatos(cs => cs.map(c => c.id === selectedContato.id ? { ...c, nome } : c))
+    } finally {
+      setSalvandoContato(false)
+    }
+  }
+
+  async function vincularCliente(clienteId: string | null) {
+    if (!selectedContato) return
+    setSalvandoContato(true)
+    try {
+      await supabase.from('whatsapp_contatos').update({ cliente_id: clienteId }).eq('id', selectedContato.id)
+      setContatos(cs => cs.map(c => c.id === selectedContato.id ? { ...c, cliente_id: clienteId } : c))
+      setShowEditarContato(false)
+    } finally {
+      setSalvandoContato(false)
+    }
+  }
+
+  async function abrirEscolherContatos() {
     setContatosSelecionados(new Map())
     setContatosBuscaEnc('')
     setResumoEncaminhar(null)
     setTemplateEscolhido('')
     setResultadoEncaminhar(null)
+    setJanelaAbertaIds(null)
     setShowEscolherContatos(true)
+    try {
+      const res = await fetch('/api/whatsapp/ofertas/encaminhar/janela', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoIds: contatos.map(c => c.id) }),
+      })
+      const d = await res.json().catch(() => null)
+      setJanelaAbertaIds(new Set(d?.ok ? d.abertos : []))
+    } catch {
+      setJanelaAbertaIds(new Set())
+    }
   }
 
   function toggleContatoSelecionado(c: Contato) {
@@ -803,6 +908,19 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       if (s.has(c.id)) s.delete(c.id); else s.set(c.id, c)
       return s
     })
+  }
+
+  /* Busca por nome (cadastro ou WhatsApp), telefone ou tamanho do cadastro --
+     pra achar "o Alessandro que usa M" mesmo com vários contatos homônimos. */
+  function contatoCombinaBusca(c: Contato, termoBruto: string): boolean {
+    const termo = termoBruto.toLowerCase().trim()
+    if (!termo) return true
+    const cli = c.cliente_id ? clientesPorId.get(c.cliente_id) : undefined
+    const nomes = [cli?.nome, c.nome].filter(Boolean).join(' ').toLowerCase()
+    if (nomes.includes(termo)) return true
+    if (c.phone.includes(termo)) return true
+    const tamanhos = [cli?.tamanho_camiseta, cli?.tamanho_calca, cli?.tamanho_tenis].filter(Boolean).join(' ').toLowerCase()
+    return tamanhos.includes(termo)
   }
 
   /* Checa a janela de 24h de cada contato escolhido e, se algum estiver fora,
@@ -996,7 +1114,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   }
 
   const filtered = contatos.filter(c =>
-    (c.nome ?? c.phone).toLowerCase().includes(search.toLowerCase()) ||
+    nomeExibicao(c).toLowerCase().includes(search.toLowerCase()) ||
     c.phone.includes(search)
   )
 
@@ -1121,15 +1239,15 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   selectedId === c.id ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-full ${corAvatar(c.nome ?? c.phone ?? '?')} flex items-center justify-center shrink-0 text-sm font-semibold uppercase select-none overflow-hidden`}>
+                <div className={`w-10 h-10 rounded-full ${corAvatar(nomeExibicao(c))} flex items-center justify-center shrink-0 text-sm font-semibold uppercase select-none overflow-hidden`}>
                   {c.foto_url
                     ? <img src={c.foto_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                    : (c.nome ?? c.phone ?? '?')[0]
+                    : nomeExibicao(c)[0]
                   }
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-1">
-                    <span className="text-sm font-medium truncate">{c.nome ?? c.phone}</span>
+                    <span className="text-sm font-medium truncate">{nomeExibicao(c)}</span>
                     <span className="text-[10px] text-zinc-500 shrink-0">{fmtTime(c.ultima_mensagem_at)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-1 mt-0.5">
@@ -1171,20 +1289,34 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     <path d="M19 12H5M12 5l-7 7 7 7"/>
                   </svg>
                 </button>
-                <div className={`w-9 h-9 rounded-full ${corAvatar(selectedContato.nome ?? selectedContato.phone ?? '?')} flex items-center justify-center text-sm font-semibold uppercase select-none overflow-hidden`}>
+                <div className={`w-9 h-9 rounded-full ${corAvatar(nomeExibicao(selectedContato))} flex items-center justify-center text-sm font-semibold uppercase select-none overflow-hidden`}>
                   {selectedContato.foto_url
                     ? <img src={selectedContato.foto_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                    : (selectedContato.nome ?? selectedContato.phone ?? '?')[0]
+                    : nomeExibicao(selectedContato)[0]
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold leading-tight">
-                    {selectedContato.nome ?? phoneFromJid(selectedContato.jid) ?? selectedContato.phone}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold leading-tight truncate">{nomeExibicao(selectedContato)}</p>
+                    <button
+                      onClick={abrirEditarContato}
+                      title="Editar nome / vincular cliente"
+                      className="text-zinc-500 hover:text-[#E0B36A] transition shrink-0 cursor-pointer"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    </button>
+                  </div>
                   {(phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)) && (
                     <p className="text-[11px] text-zinc-500">
                       {phoneFromJid(selectedContato.jid) ?? fmtPhone(selectedContato.phone)}
                     </p>
+                  )}
+                  {selectedContato.cliente_id ? (
+                    <p className="text-[11px] text-emerald-400">
+                      {resumoTamanhosCliente(clientesPorId.get(selectedContato.cliente_id)) || 'Cadastro vinculado'}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-500">sem cadastro</p>
                   )}
                   {selectedContato.jid?.endsWith('@lid') && (
                     <div className="flex items-center gap-2 mt-1">
@@ -1763,7 +1895,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
             {!quadroLoading && quadroItens.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap px-3 pt-3 shrink-0">
                 <span className="text-[11px] text-zinc-500 shrink-0">Trocar tamanho de tudo:</span>
-                {['P', 'M', 'G', 'GG'].map(tam => (
+                {['P', 'M', 'G', 'GG', 'XGG'].map(tam => (
                   <button
                     key={tam}
                     type="button"
@@ -1862,19 +1994,41 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     autoFocus
                     value={contatosBuscaEnc}
                     onChange={e => setContatosBuscaEnc(e.target.value)}
-                    placeholder="Buscar pelo nome…"
+                    placeholder="Buscar por nome, telefone ou tamanho…"
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
                   />
                 </div>
                 <div className="flex-1 overflow-y-auto px-3 flex flex-col gap-1">
                   {contatos
-                    .filter(c => (c.nome ?? c.phone).toLowerCase().includes(contatosBuscaEnc.toLowerCase()))
-                    .map(c => (
-                      <label key={c.id} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer">
-                        <input type="checkbox" checked={contatosSelecionados.has(c.id)} onChange={() => toggleContatoSelecionado(c)} className="accent-[#C79A54]" />
-                        <span className="text-sm truncate">{c.nome ?? c.phone}</span>
-                      </label>
-                    ))}
+                    .filter(c => contatoCombinaBusca(c, contatosBuscaEnc))
+                    .map(c => {
+                      const cli = c.cliente_id ? clientesPorId.get(c.cliente_id) : undefined
+                      const tel = fmtPhoneDestaque(c.phone)
+                      const tamanhos = resumoTamanhosCliente(cli)
+                      const aviso = avisoTamanhoCliente(cli)
+                      const dentro = janelaAbertaIds?.has(c.id)
+                      return (
+                        <label key={c.id} className="flex items-start gap-2.5 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer">
+                          <input type="checkbox" checked={contatosSelecionados.has(c.id)} onChange={() => toggleContatoSelecionado(c)} className="accent-[#C79A54] mt-1" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-sm truncate">{cli?.nome ?? c.nome ?? c.phone}</span>
+                              {janelaAbertaIds && (
+                                <span className={`text-[10px] font-medium shrink-0 ${dentro ? 'text-emerald-400' : 'text-amber-500'}`}>
+                                  {dentro ? 'janela aberta' : 'fora da janela (vai template)'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-zinc-500 truncate">
+                              {tel ? <>{tel.prefixo}<span className="text-zinc-300 font-medium">{tel.fim}</span></> : c.phone}
+                              {tamanhos && ` · ${tamanhos}`}
+                              {!cli && <span className="text-amber-500"> · sem cadastro</span>}
+                            </p>
+                            {aviso && <p className="text-[11px] text-amber-500 mt-0.5">⚠️ {aviso}</p>}
+                          </div>
+                        </label>
+                      )
+                    })}
                 </div>
                 <div className="p-3 border-t border-zinc-800 shrink-0">
                   <button
@@ -1894,6 +2048,35 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     {resumoEncaminhar.fora.length > 0 && (
                       <p className="mt-1">⏳ {resumoEncaminhar.fora.length} fora da janela — recebem um template primeiro.</p>
                     )}
+                  </div>
+                  {quadroItens.filter(it => !it.removido).length > 10 && (
+                    <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                      ⚠️ {quadroItens.filter(it => !it.removido).length} peças por cliente — considere reduzir pra não sobrecarregar a conversa.
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    {[...resumoEncaminhar.dentro.map(c => ({ ...c, dentro: true })), ...resumoEncaminhar.fora.map(c => ({ ...c, dentro: false }))].map(r => {
+                      const contato = contatos.find(x => x.id === r.id)
+                      const cli = contato?.cliente_id ? clientesPorId.get(contato.cliente_id) : undefined
+                      const tel = contato ? fmtPhoneDestaque(contato.phone) : null
+                      const tamanhos = resumoTamanhosCliente(cli)
+                      const aviso = avisoTamanhoCliente(cli)
+                      return (
+                        <div key={r.id} className="flex items-start justify-between gap-2 bg-zinc-800/60 rounded-lg px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="text-sm truncate">{cli?.nome ?? r.nome ?? 'Contato'}</p>
+                            <p className="text-[11px] text-zinc-500 truncate">
+                              {tel ? <>{tel.prefixo}<span className="text-zinc-300 font-medium">{tel.fim}</span></> : ''}
+                              {tamanhos && ` · ${tamanhos}`}
+                            </p>
+                            {aviso && <p className="text-[11px] text-amber-500 mt-0.5">⚠️ {aviso}</p>}
+                          </div>
+                          <span className={`text-[10px] font-medium shrink-0 ${r.dentro ? 'text-emerald-400' : 'text-amber-500'}`}>
+                            {r.dentro ? 'direto' : 'template'}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                   {resumoEncaminhar.fora.length > 0 && (
                     <div>
@@ -1924,6 +2107,84 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Editar nome do contato / vincular a um cliente cadastrado */}
+      {showEditarContato && selectedContato && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowEditarContato(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h3 className="font-bold">Editar contato</h3>
+              <button onClick={() => setShowEditarContato(false)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1">
+              <div>
+                <p className="text-xs text-zinc-500 mb-1.5">Nome no WhatsApp</p>
+                <div className="flex gap-2">
+                  <input
+                    value={editarNomeInput}
+                    onChange={e => setEditarNomeInput(e.target.value)}
+                    placeholder={selectedContato.phone}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+                  />
+                  <button
+                    onClick={salvarNomeContato}
+                    disabled={salvandoContato}
+                    className="text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 rounded-xl px-3 transition cursor-pointer"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-zinc-500 mb-1.5">
+                  {selectedContato.cliente_id ? 'Vinculado a:' : 'Vincular a um cliente cadastrado'}
+                </p>
+                {selectedContato.cliente_id && (
+                  <div className="flex items-center justify-between bg-zinc-800/60 rounded-lg px-3 py-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-sm truncate">{clientesPorId.get(selectedContato.cliente_id)?.nome}</p>
+                      <p className="text-[11px] text-zinc-500">{resumoTamanhosCliente(clientesPorId.get(selectedContato.cliente_id))}</p>
+                    </div>
+                    <button onClick={() => vincularCliente(null)} disabled={salvandoContato} className="text-xs text-red-400 hover:text-red-300 transition cursor-pointer shrink-0 ml-2">
+                      Desvincular
+                    </button>
+                  </div>
+                )}
+                <input
+                  value={editarClienteBusca}
+                  onChange={e => setEditarClienteBusca(e.target.value)}
+                  placeholder="Buscar cliente pelo nome ou telefone…"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark] mb-2"
+                />
+                <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                  {clientes
+                    .filter(c => editarClienteBusca.trim() && (
+                      c.nome.toLowerCase().includes(editarClienteBusca.toLowerCase()) ||
+                      (c.telefone ?? '').includes(editarClienteBusca)
+                    ))
+                    .slice(0, 20)
+                    .map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => vincularCliente(c.id)}
+                        disabled={salvandoContato}
+                        className="w-full flex items-center justify-between text-left bg-zinc-800/40 hover:bg-zinc-800 rounded-lg px-3 py-2 transition cursor-pointer disabled:opacity-40"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm truncate">{c.nome}</p>
+                          <p className="text-[11px] text-zinc-500 truncate">{c.telefone ?? ''}{resumoTamanhosCliente(c) && ` · ${resumoTamanhosCliente(c)}`}</p>
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
