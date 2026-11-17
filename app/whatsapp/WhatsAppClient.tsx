@@ -271,6 +271,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const produtoFetchedRef = useRef<Set<string>>(new Set())
   const [highlightMsgId, setHighlightMsgId] = useState<string | null>(null)
   const msgRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  // Mensagem citada que ficou fora da janela de 200 carregadas -- buscada direto
+  // pelo wamid (message_id) quando necessário. null = buscou e não achou.
+  const [citacoesExternas, setCitacoesExternas] = useState<Map<string, Mensagem | null>>(new Map())
+  const citacaoExternaFetchedRef = useRef<Set<string>>(new Set())
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
   const clientesPorId = useMemo(() => new Map(clientes.map(c => [c.id, c])), [clientes])
@@ -305,11 +309,29 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const msgPorId = new Map<string, Mensagem>()
   for (const mm of mensagens) if (mm.message_id) msgPorId.set(mm.message_id, mm)
 
-  /* Clica no quadrinho "respondendo a ..." -> rola até a mensagem original e destaca por 2s */
-  function irParaMensagem(id: string) {
-    msgRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    setHighlightMsgId(id)
-    setTimeout(() => setHighlightMsgId(h => (h === id ? null : h)), 2000)
+  /* Clica no quadrinho "respondendo a ..." -> rola até a mensagem original e destaca por 2s.
+     Se a mensagem ainda não estiver na janela carregada (msgExterna foi buscada
+     direto pelo wamid), insere ela na lista primeiro e só então rola -- precisa
+     esperar o ref montar, por isso o requestAnimationFrame + pequeno timeout. */
+  function irParaMensagem(id: string, msgExterna?: Mensagem) {
+    const existente = msgRefs.current.get(id)
+    if (existente) {
+      existente.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightMsgId(id)
+      setTimeout(() => setHighlightMsgId(h => (h === id ? null : h)), 2000)
+      return
+    }
+    if (!msgExterna) return
+    setMensagens(prev => prev.some(m => m.id === msgExterna.id)
+      ? prev
+      : [...prev, msgExterna].sort((a, b) => a.timestamp.localeCompare(b.timestamp)))
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        msgRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightMsgId(id)
+        setTimeout(() => setHighlightMsgId(h => (h === id ? null : h)), 2000)
+      }, 60)
+    })
   }
 
   /* Identifica o produto por trás de cada foto citada (pra nome/tamanho/preço +
@@ -327,6 +349,27 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         .then((data: ProdutoResolvido & { ok?: boolean }) =>
           setProdutoCitado(prev => new Map(prev).set(citada.id, data?.ok ? data : { encontrado: false })))
         .catch(() => setProdutoCitado(prev => new Map(prev).set(citada.id, { encontrado: false })))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mensagens])
+
+  /* Mensagem citada que não está entre as 200 carregadas (resposta a algo
+     mais antigo, ou a janela ainda não puxou pra lá) -- busca direto pelo
+     wamid em vez de paginar pra trás até achar. */
+  useEffect(() => {
+    for (const mm of mensagens) {
+      const ctxId = (mm.raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
+      if (!ctxId || msgPorId.has(ctxId) || citacaoExternaFetchedRef.current.has(ctxId)) continue
+      citacaoExternaFetchedRef.current.add(ctxId)
+      supabase
+        .from('whatsapp_mensagens')
+        .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, message_id, raw')
+        .eq('message_id', ctxId)
+        .maybeSingle()
+        .then(
+          ({ data }) => setCitacoesExternas(prev => new Map(prev).set(ctxId, (data as Mensagem | null) ?? null)),
+          () => setCitacoesExternas(prev => new Map(prev).set(ctxId, null)),
+        )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mensagens])
@@ -1437,8 +1480,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                      (fora das últimas 200) ou de antes de guardarmos o wamid real
                      (era Z-API) -- mostra avisando em vez de sumir sem explicação. */
                   const ctxId = (raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
-                  const citada = ctxId ? msgPorId.get(ctxId) : undefined
-                  const citacaoPerdida = !!ctxId && !citada
+                  const citadaLocal = ctxId ? msgPorId.get(ctxId) : undefined
+                  const citadaExterna = !citadaLocal && ctxId ? citacoesExternas.get(ctxId) : undefined
+                  const citada = citadaLocal ?? citadaExterna ?? undefined
+                  const citacaoPerdida = !!ctxId && !citada && citacoesExternas.has(ctxId) && citacoesExternas.get(ctxId) === null
 
                   const placeholders = ['📷 Imagem', '🎵 Áudio', '🎥 Vídeo', '🎯 Figurinha', '📄 Documento']
                   const mostrarTexto = !!m.conteudo && !placeholders.includes(m.conteudo) && m.tipo !== 'documento'
@@ -1474,8 +1519,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   const produtoDaCitada = citada ? produtoCitado.get(citada.id) : undefined
 
                   return (
-                    <div key={m.id} ref={el => { if (el) msgRefs.current.set(m.id, el); else msgRefs.current.delete(m.id) }}
-                      className={`rounded-xl transition-colors duration-500 ${highlightMsgId === m.id ? 'bg-[#C79A54]/20' : ''}`}>
+                    <div key={m.id} ref={el => { if (el) msgRefs.current.set(m.id, el); else msgRefs.current.delete(m.id) }}>
                       {mostrarCopiarOferta && (
                         <div className="flex justify-end mb-1">
                           <button
@@ -1488,9 +1532,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                       )}
                       <div className={`group flex items-center gap-1 ${enviada ? 'justify-end' : 'justify-start'}`}>
                       {enviada && acao}
-                      <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
+                      <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm transition-shadow duration-500 ${
                         enviada ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
-                      }`}>
+                      } ${highlightMsgId === m.id ? 'ring-2 ring-[#F0CC88] ring-offset-2 ring-offset-[#16151A]' : ''}`}>
                         {/* Citou uma mensagem que não achamos (fora da janela carregada, ou de antes do wamid real) */}
                         {citacaoPerdida && (
                           <div className={`mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 border-zinc-500/50 ${enviada ? 'bg-black/15' : 'bg-black/25'}`}>
@@ -1500,7 +1544,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
                         {/* Prévia da mensagem citada -- clica e rola até a original */}
                         {citada && (
-                          <button type="button" onClick={() => irParaMensagem(citada.id)}
+                          <button type="button" onClick={() => irParaMensagem(citada.id, citada)}
                             className={`block w-full text-left mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 ${enviada ? 'border-[#F0CC88]/70 bg-black/15 hover:bg-black/25' : 'border-[#C79A54] bg-black/25 hover:bg-black/35'} transition`}>
                             <span className="flex items-start gap-2">
                               {citadaImageUrl && (
