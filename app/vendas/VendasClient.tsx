@@ -1104,11 +1104,29 @@ export default function VendasClient({
     setDrawer(true)
   }
 
-  /* Atalho de 1 toque vindo de fora (ex.: Painel) — abre direto o Nova
-     Venda sem precisar entrar em Vendas e só então achar o botão. Lê via
-     window.location (não useSearchParams) pra não exigir Suspense aqui. */
+  /* Atalho de 1 toque vindo de fora (ex.: Painel, ou "Registrar venda dessa
+     peça" no quadrinho do WhatsApp) — abre direto o Nova Venda sem precisar
+     entrar em Vendas e só então achar o botão. Lê via window.location (não
+     useSearchParams) pra não exigir Suspense aqui. Opcionalmente já vem com
+     o produto (estoqueId/nome/tamanho/preco) e/ou o cliente pré-preenchidos. */
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('nova') === '1') openNew()
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('nova') !== '1') return
+    openNew()
+
+    const estoqueId = params.get('estoqueId') ?? ''
+    const nome = params.get('nome') ?? ''
+    const tamanho = params.get('tamanho') ?? ''
+    const preco = params.get('preco') ?? ''
+    if (estoqueId || nome) {
+      setForm(f => ({ ...f, produtos: [{ ...EMPTY_PRODUTO, estoqueId, nome, tamanho, precoUnitario: preco }] }))
+    }
+
+    const clienteId = params.get('clienteId')
+    if (clienteId) {
+      supabase.from('clientes').select('id, nome').eq('id', clienteId).maybeSingle()
+        .then(({ data }) => { if (data) setForm(f => ({ ...f, clienteId: data.id, clienteNome: data.nome, clienteSearch: data.nome })) })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

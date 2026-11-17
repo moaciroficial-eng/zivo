@@ -227,7 +227,7 @@ Exemplos:
 
   if (resposta) {
     try {
-      await sendWhatsAppMessage({ phone: ownerPhone, message: resposta, userId })
+      const { messageId } = await sendWhatsAppMessage({ phone: ownerPhone, message: resposta, userId })
       /* Salva no histórico do chat.
          Usa a MESMA normalização do webhook (com o 9º dígito) pra a resposta
          cair no mesmo contato "Moca (você)" da mensagem recebida — senão o 9
@@ -243,7 +243,7 @@ Exemplos:
       if (contatoDono?.id) {
         const timestamp = new Date().toISOString()
         await admin.from('whatsapp_mensagens').insert({
-          user_id: userId, contato_id: contatoDono.id,
+          user_id: userId, contato_id: contatoDono.id, message_id: messageId ?? null,
           direcao: 'enviada', tipo: 'texto',
           conteudo: resposta, status: 'enviada', timestamp,
           raw: { origem: 'ia' },

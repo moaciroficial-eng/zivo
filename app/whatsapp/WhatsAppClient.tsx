@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/app/components/useConfirm'
 import { clienteServeProduto } from '@/lib/tamanhos'
+import type { ProdutoResolvido } from '@/lib/ofertas'
 
 type Contato = {
   id: string
@@ -265,6 +266,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [salvandoContato, setSalvandoContato] = useState(false)
   // Contatos dentro da janela de 24h -- calculado quando abre "Escolher contatos"
   const [janelaAbertaIds, setJanelaAbertaIds] = useState<Set<string> | null>(null)
+  // Produto por trás de uma foto citada no quadrinho "respondendo a ..." (cache por mensagem)
+  const [produtoCitado, setProdutoCitado] = useState<Map<string, ProdutoResolvido>>(new Map())
+  const produtoFetchedRef = useRef<Set<string>>(new Set())
+  const [highlightMsgId, setHighlightMsgId] = useState<string | null>(null)
+  const msgRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
   const clientesPorId = useMemo(() => new Map(clientes.map(c => [c.id, c])), [clientes])
@@ -298,6 +304,32 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* Mapa message_id → mensagem, pra achar a mensagem citada numa resposta */
   const msgPorId = new Map<string, Mensagem>()
   for (const mm of mensagens) if (mm.message_id) msgPorId.set(mm.message_id, mm)
+
+  /* Clica no quadrinho "respondendo a ..." -> rola até a mensagem original e destaca por 2s */
+  function irParaMensagem(id: string) {
+    msgRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightMsgId(id)
+    setTimeout(() => setHighlightMsgId(h => (h === id ? null : h)), 2000)
+  }
+
+  /* Identifica o produto por trás de cada foto citada (pra nome/tamanho/preço +
+     "Registrar venda dessa peça"). Dedup por ref -- não refaz a mesma busca
+     a cada render ou quando mensagens novas chegam por realtime. */
+  useEffect(() => {
+    for (const mm of mensagens) {
+      const ctxId = (mm.raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
+      if (!ctxId) continue
+      const citada = msgPorId.get(ctxId)
+      if (!citada || citada.tipo !== 'imagem' || produtoFetchedRef.current.has(citada.id)) continue
+      produtoFetchedRef.current.add(citada.id)
+      fetch(`/api/whatsapp/mensagens/produto?mensagemId=${citada.id}`)
+        .then(r => r.json())
+        .then((data: ProdutoResolvido & { ok?: boolean }) =>
+          setProdutoCitado(prev => new Map(prev).set(citada.id, data?.ok ? data : { encontrado: false })))
+        .catch(() => setProdutoCitado(prev => new Map(prev).set(citada.id, { encontrado: false })))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mensagens])
 
   /* Deep-link: /whatsapp?contato=<id> (vindo de "Clientes para responder" no dashboard) abre a conversa direto */
   useEffect(() => {
@@ -1429,8 +1461,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     </div>
                   ) : null
 
+                  const citadaImageUrl = citada ? ((citada.raw?.image as Record<string, unknown> | undefined)?.imageUrl as string | undefined) : undefined
+                  const produtoDaCitada = citada ? produtoCitado.get(citada.id) : undefined
+
                   return (
-                    <div key={m.id}>
+                    <div key={m.id} ref={el => { if (el) msgRefs.current.set(m.id, el); else msgRefs.current.delete(m.id) }}
+                      className={`rounded-xl transition-colors duration-500 ${highlightMsgId === m.id ? 'bg-[#C79A54]/20' : ''}`}>
                       {mostrarCopiarOferta && (
                         <div className="flex justify-end mb-1">
                           <button
@@ -1446,13 +1482,39 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                       <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
                         enviada ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                       }`}>
-                        {/* Prévia da mensagem citada */}
+                        {/* Prévia da mensagem citada -- clica e rola até a original */}
                         {citada && (
-                          <div className={`mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 ${enviada ? 'border-[#F0CC88]/70 bg-black/15' : 'border-[#C79A54] bg-black/25'}`}>
-                            <span className="block text-[11px] font-semibold text-[#E0B36A]">
-                              {citada.direcao === 'enviada' ? 'Você' : (selectedContato?.nome ?? 'Cliente')}
+                          <button type="button" onClick={() => irParaMensagem(citada.id)}
+                            className={`block w-full text-left mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 ${enviada ? 'border-[#F0CC88]/70 bg-black/15 hover:bg-black/25' : 'border-[#C79A54] bg-black/25 hover:bg-black/35'} transition`}>
+                            <span className="flex items-start gap-2">
+                              {citadaImageUrl && (
+                                <img src={citadaImageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
+                              )}
+                              <span className="min-w-0">
+                                <span className="block text-[11px] font-semibold text-[#E0B36A]">
+                                  {citada.direcao === 'enviada' ? 'Você' : (selectedContato?.nome ?? 'Cliente')}
+                                </span>
+                                <span className="block text-[11px] opacity-80 line-clamp-2 break-words">{resumoMsg(citada)}</span>
+                              </span>
                             </span>
-                            <span className="block text-[11px] opacity-80 line-clamp-2 break-words">{resumoMsg(citada)}</span>
+                          </button>
+                        )}
+
+                        {/* Peça de estoque por trás da foto citada */}
+                        {citada && produtoDaCitada?.encontrado && (
+                          <div className="mx-1.5 mb-1.5 px-2 py-1.5 rounded-lg bg-black/20 text-[11px] space-y-1">
+                            <p className="opacity-90">
+                              {[produtoDaCitada.nome, produtoDaCitada.marca].filter(Boolean).join(' ')}
+                              {produtoDaCitada.tamanhos?.length ? ` · ${produtoDaCitada.tamanhos.join('/')}` : ''}
+                              {produtoDaCitada.preco_por != null ? ` · R$${produtoDaCitada.preco_por.toFixed(2).replace('.', ',')}` : ''}
+                            </p>
+                            <Link
+                              href={`/vendas?nova=1&estoqueId=${encodeURIComponent(produtoDaCitada.estoque_id ?? '')}&nome=${encodeURIComponent([produtoDaCitada.nome, produtoDaCitada.marca].filter(Boolean).join(' '))}&tamanho=${produtoDaCitada.tamanhos?.length === 1 ? encodeURIComponent(produtoDaCitada.tamanhos[0]) : ''}&preco=${produtoDaCitada.preco_por ?? ''}&clienteId=${encodeURIComponent(selectedContato?.cliente_id ?? '')}`}
+                              target="_blank"
+                              className={`inline-block font-semibold rounded-lg px-2 py-1 transition ${enviada ? 'bg-[#16151A]/20 hover:bg-[#16151A]/30' : 'bg-[#C79A54] text-[#16151A] hover:bg-[#d8ac68]'}`}
+                            >
+                              Registrar venda dessa peça
+                            </Link>
                           </div>
                         )}
 
