@@ -405,10 +405,15 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       .from('whatsapp_mensagens')
       .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, message_id, raw')
       .eq('contato_id', selectedId)
-      .order('timestamp', { ascending: true })
+      .order('timestamp', { ascending: false })
       .limit(200)
       .then(({ data }) => {
-        setMensagens((data ?? []) as Mensagem[])
+        /* Busca as 200 mais RECENTES (desc) e inverte pra render em ordem
+           cronológica -- antes buscava as 200 mais ANTIGAS (asc + limit),
+           então toda conversa com mais de 200 mensagens nunca mostrava nada
+           recente (e, pra "respondendo a...", a mensagem citada quase
+           sempre ficava de fora do que foi carregado). */
+        setMensagens(((data ?? []) as Mensagem[]).reverse())
         setLoadingMsgs(false)
       })
     supabase
@@ -1427,9 +1432,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     )
                   }
 
-                  /* Mensagem citada (o cliente respondeu a uma mensagem específica) */
+                  /* Mensagem citada (o cliente respondeu a uma mensagem específica).
+                     ctxId existe mas não achou em msgPorId -> original não carregada
+                     (fora das últimas 200) ou de antes de guardarmos o wamid real
+                     (era Z-API) -- mostra avisando em vez de sumir sem explicação. */
                   const ctxId = (raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
                   const citada = ctxId ? msgPorId.get(ctxId) : undefined
+                  const citacaoPerdida = !!ctxId && !citada
 
                   const placeholders = ['📷 Imagem', '🎵 Áudio', '🎥 Vídeo', '🎯 Figurinha', '📄 Documento']
                   const mostrarTexto = !!m.conteudo && !placeholders.includes(m.conteudo) && m.tipo !== 'documento'
@@ -1482,6 +1491,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                       <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
                         enviada ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                       }`}>
+                        {/* Citou uma mensagem que não achamos (fora da janela carregada, ou de antes do wamid real) */}
+                        {citacaoPerdida && (
+                          <div className={`mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 border-zinc-500/50 ${enviada ? 'bg-black/15' : 'bg-black/25'}`}>
+                            <span className="block text-[11px] italic opacity-60">Mensagem original não encontrada</span>
+                          </div>
+                        )}
+
                         {/* Prévia da mensagem citada -- clica e rola até a original */}
                         {citada && (
                           <button type="button" onClick={() => irParaMensagem(citada.id)}
