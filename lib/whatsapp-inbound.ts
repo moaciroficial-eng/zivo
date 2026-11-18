@@ -46,13 +46,22 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
   /* Ignora grupos, broadcasts e pings sem telefone */
   if (!phone || isGroup) return
 
-  /* Status updates (delivery/read) */
-  if (msgType === 'DeliveryCallback' || msgType === 'ReadCallback' || msgType === 'MessageStatusCallback') {
-    const msgId  = payload.messageId as string | undefined
-    const status = msgType === 'ReadCallback' ? 'lida' : 'entregue'
-    if (msgId) {
-      await supabase.from('whatsapp_mensagens').update({ status }).eq('message_id', msgId)
+  /* Status updates (delivery/read/falha) */
+  if (msgType === 'DeliveryCallback' || msgType === 'ReadCallback' || msgType === 'MessageStatusCallback' || msgType === 'FailedCallback') {
+    const msgId = payload.messageId as string | undefined
+    if (!msgId) return
+    if (msgType === 'FailedCallback') {
+      const erro = payload.erro as Record<string, unknown> | null | undefined
+      console.error(`[inbound] Falha no envio (wamid=${msgId}):`, JSON.stringify(erro))
+      /* Guarda o erro dentro do raw -- sem coluna nova, só mescla no que já existe
+         (update() substitui a coluna inteira, por isso lê antes de escrever). */
+      const { data: atual } = await supabase.from('whatsapp_mensagens').select('raw').eq('message_id', msgId).maybeSingle()
+      const rawAtual = (atual?.raw as Record<string, unknown> | null) ?? {}
+      await supabase.from('whatsapp_mensagens').update({ status: 'falhou', raw: { ...rawAtual, erro } }).eq('message_id', msgId)
+      return
     }
+    const status = msgType === 'ReadCallback' ? 'lida' : 'entregue'
+    await supabase.from('whatsapp_mensagens').update({ status }).eq('message_id', msgId)
     return
   }
 

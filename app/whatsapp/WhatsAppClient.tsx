@@ -1776,11 +1776,24 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                           <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${enviada ? 'text-[#E0B36A]' : 'text-zinc-500'}`}>
                             {fmtTime(m.timestamp)}
                             {enviada && (
-                              <span className={m.status === 'lida' ? 'text-blue-300' : ''}>
-                                {m.status === 'lida' ? '✓✓' : m.status === 'entregue' ? '✓✓' : '✓'}
-                              </span>
+                              m.status === 'falhou' ? (
+                                <span className="text-red-400" title="Falhou -- veja o motivo abaixo">⚠️</span>
+                              ) : (
+                                <span className={m.status === 'lida' ? 'text-blue-300' : ''}>
+                                  {m.status === 'lida' ? '✓✓' : m.status === 'entregue' ? '✓✓' : '✓'}
+                                </span>
+                              )
                             )}
                           </div>
+                          {enviada && m.status === 'falhou' && (() => {
+                            const erro = raw?.erro as Record<string, unknown> | null | undefined
+                            const desc = (erro?.title as string | undefined) || (erro?.message as string | undefined)
+                            return (
+                              <p className="mt-1 text-[10px] text-red-400 break-words">
+                                ⚠️ Não entregou{erro?.code ? ` (código ${erro.code})` : ''}{desc ? `: ${desc}` : ''}
+                              </p>
+                            )
+                          })()}
                         </div>
                       </div>
                       {!enviada && acao}

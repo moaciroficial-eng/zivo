@@ -44,8 +44,10 @@ export async function converterParaOggOpus(blob: Blob): Promise<Blob> {
   const nomeSaida = 'saida.ogg'
   await ffmpeg.writeFile(nomeEntrada, await fetchFile(blob))
   try {
-    /* mono + 48kHz + ~32kbps -- qualidade de nota de voz, arquivo pequeno */
-    await ffmpeg.exec(['-i', nomeEntrada, '-c:a', 'libopus', '-ar', '48000', '-ac', '1', '-b:a', '32k', nomeSaida])
+    /* mono + 48kHz + ~32kbps + application=voip -- sempre RECODIFICA (não é
+       remux): entra tanto webm/opus (Chrome/Android) quanto mp4/aac (Safari/
+       iPhone) e sai um OGG/Opus válido nos dois casos. */
+    await ffmpeg.exec(['-i', nomeEntrada, '-c:a', 'libopus', '-ar', '48000', '-ac', '1', '-b:a', '32k', '-application', 'voip', nomeSaida])
     const data = await ffmpeg.readFile(nomeSaida) as Uint8Array
     const copia = new Uint8Array(data.length)
     copia.set(data)
