@@ -372,6 +372,73 @@ export async function sendWhatsAppDocument({ phone, documentUrl, filename, capti
   return { messageId: data?.messages?.[0]?.id ?? undefined }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   INTERATIVAS (Meta) — botões de resposta rápida e lista
+
+   Só funciona DENTRO da janela de 24h (mensagem livre) e só provider
+   meta -- Z-API não tem equivalente oficial, então não existe variante
+   sendViaZapi* aqui. Limites da própria API da Meta:
+   - botões: no máximo 3, título de cada um até 20 caracteres.
+   - lista: até 10 linhas (title até 24 chars, id até 200 chars).
+   A resposta do cliente (toque no botão/linha) chega no webhook como
+   um "interactive" -- normalizarMensagem (meta/route.ts) traduz pra um
+   texto comum, então o parser do fluxo de qualificação não precisa
+   saber se foi toque ou digitação. ══════════════════════════════ */
+export type BotaoInterativo = { id: string; titulo: string }
+export type ButtonsOptions = { phone: string; corpo: string; botoes: BotaoInterativo[]; creds?: WhatsAppCreds; userId?: string }
+
+export async function sendWhatsAppButtons({ phone, corpo, botoes, creds, userId }: ButtonsOptions): Promise<{ messageId?: string }> {
+  if (botoes.length === 0 || botoes.length > 3) throw new Error('Mensagem de botões precisa de 1 a 3 opções.')
+  const efetivas = creds ?? await credsPara(userId)
+  const { phoneNumberId, accessToken } = resolverMeta(efetivas?.meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: normalizarTelefoneBR(phone),
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: corpo },
+        action: { buttons: botoes.map(b => ({ type: 'reply', reply: { id: b.id, title: b.titulo.slice(0, 20) } })) },
+      },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta botões erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
+export type LinhaLista = { id: string; titulo: string; descricao?: string }
+export type ListaOptions = { phone: string; corpo: string; textoBotao: string; linhas: LinhaLista[]; creds?: WhatsAppCreds; userId?: string }
+
+export async function sendWhatsAppList({ phone, corpo, textoBotao, linhas, creds, userId }: ListaOptions): Promise<{ messageId?: string }> {
+  if (linhas.length === 0 || linhas.length > 10) throw new Error('Mensagem de lista precisa de 1 a 10 opções.')
+  const efetivas = creds ?? await credsPara(userId)
+  const { phoneNumberId, accessToken } = resolverMeta(efetivas?.meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: normalizarTelefoneBR(phone),
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        body: { text: corpo },
+        action: {
+          button: textoBotao.slice(0, 20),
+          sections: [{ rows: linhas.map(l => ({ id: l.id, title: l.titulo.slice(0, 24), ...(l.descricao ? { description: l.descricao.slice(0, 72) } : {}) })) }],
+        },
+      },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta lista erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
 /* ── Marcar como lida (✓✓ azul) + opcional "digitando…" (só Meta) ──
    best-effort: nunca lança, é enfeite. */
 export async function marcarComoLida({ messageId, creds, userId, digitando }: { messageId: string; creds?: WhatsAppCreds; userId?: string; digitando?: boolean }): Promise<void> {

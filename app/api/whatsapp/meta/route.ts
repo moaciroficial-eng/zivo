@@ -134,6 +134,18 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
       base.reaction = { emoji: r?.emoji ?? '', messageId: r?.message_id ?? null }
       break
     }
+    case 'interactive': {
+      /* Toque em botão ou linha de lista (ex.: fluxo de qualificação).
+         Trata como texto comum (message = título) -- assim o mesmo parser
+         que entende resposta digitada entende o toque, sem duplicar lógica.
+         interactiveId fica à parte (vai pro raw) pra casar com precisão
+         contra as opções que A GENTE mandou, sem depender do título. */
+      const it = m.interactive as Record<string, unknown> | undefined
+      const reply = (it?.button_reply ?? it?.list_reply) as Record<string, unknown> | undefined
+      base.text = { message: (reply?.title as string | undefined) ?? '' }
+      base.interactiveId = (reply?.id as string | undefined) ?? null
+      break
+    }
     default:
       /* tipo não suportado — deixa o pipeline ignorar (sem conteúdo) */
       break
