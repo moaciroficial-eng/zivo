@@ -13,6 +13,8 @@ export type Produto = {
   tamanhos: TamanhoQtd[]
   preco_custo: number | null
   preco_venda: number | null
+  preco_promocional: number | null
+  promocao_valida_until: string | null
   ncm: string | null
   cfop: string | null
   icms: string | null

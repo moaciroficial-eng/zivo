@@ -63,6 +63,13 @@ function calcMargem(custo: number | null, venda: number | null) {
   return ((venda - custo) / custo * 100).toFixed(0)
 }
 
+/* Preço promocional vale sozinho enquanto não passou da validade (sem data = sem prazo) */
+function precoEfetivo(p: Pick<Produto, 'preco_venda' | 'preco_promocional' | 'promocao_valida_until'>): number | null {
+  const hoje = new Date().toISOString().slice(0, 10)
+  if (p.preco_promocional != null && (!p.promocao_valida_until || p.promocao_valida_until >= hoje)) return p.preco_promocional
+  return p.preco_venda
+}
+
 function totalQtd(tamanhos: TamanhoQtd[]) {
   return tamanhos.reduce((s, t) => s + t.qtd, 0)
 }
@@ -124,6 +131,14 @@ export default function EstoqueClient({
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const [showNFeModal, setShowNFeModal] = useState(false)
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [showPromoModal, setShowPromoModal] = useState(false)
+  const [promoScope, setPromoScope] = useState<'selecao' | 'marca' | 'categoria'>('selecao')
+  const [promoMarcaSel, setPromoMarcaSel] = useState('')
+  const [promoTipo, setPromoTipo] = useState<'pct' | 'fixo'>('pct')
+  const [promoValor, setPromoValor] = useState('')
+  const [promoValidoAte, setPromoValidoAte] = useState('')
+  const [aplicandoPromo, setAplicandoPromo] = useState(false)
 
   /* ── Toast ── */
 
@@ -140,6 +155,49 @@ export default function EstoqueClient({
     if (!error) { setProdutos(ps => ps.filter(p => p.id !== id)); showToast('Produto removido.') }
     else showToast(error.message, 'error')
     setDeleting(null); setConfirmDelete(null)
+  }
+
+  /* ── Promoção em lote ── */
+
+  function toggleSelecionado(id: string) {
+    setSelecionados(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
+  }
+
+  function alvosPromo(): Produto[] {
+    if (promoScope === 'selecao') return produtos.filter(p => selecionados.has(p.id))
+    if (promoScope === 'marca') return produtos.filter(p => p.marca === promoMarcaSel)
+    return produtos.filter(p => catFiltro === 'todos' || p.categoria === catFiltro)
+  }
+
+  async function aplicarPromocao() {
+    const valor = Number(promoValor.replace(',', '.'))
+    if (!Number.isFinite(valor) || valor <= 0) { showToast('Informe um valor válido.', 'error'); return }
+    const alvos = alvosPromo()
+    if (alvos.length === 0) { showToast('Nenhum produto nesse grupo.', 'error'); return }
+
+    setAplicandoPromo(true)
+    const validoAte = promoValidoAte || null
+    const updates = alvos.map(p => {
+      const preco_promocional = promoTipo === 'pct'
+        ? (p.preco_venda != null ? Math.round(p.preco_venda * (1 - valor / 100) * 100) / 100 : null)
+        : valor
+      return { id: p.id, preco_promocional }
+    }).filter(u => u.preco_promocional != null)
+
+    const resultados = await Promise.all(updates.map(u =>
+      supabase.from('estoque').update({ preco_promocional: u.preco_promocional, promocao_valida_until: validoAte }).eq('id', u.id)
+    ))
+    const falhas = resultados.filter(r => r.error).length
+
+    setProdutos(ps => ps.map(p => {
+      const u = updates.find(x => x.id === p.id)
+      return u ? { ...p, preco_promocional: u.preco_promocional, promocao_valida_until: validoAte } : p
+    }))
+    setAplicandoPromo(false)
+    setShowPromoModal(false)
+    setSelecionados(new Set())
+    setPromoValor('')
+    showToast(falhas > 0 ? `Aplicado com ${falhas} falha(s).` : `Promoção aplicada em ${updates.length} produto(s).`, falhas > 0 ? 'error' : 'success')
   }
 
   /* ── CSV ── */
@@ -251,6 +309,12 @@ export default function EstoqueClient({
           </div>
           <div className="flex items-center gap-2">
             <input ref={csvInput} type="file" accept=".csv" className="hidden" onChange={handleCSVChange} />
+            <button
+              onClick={() => { setPromoScope(selecionados.size > 0 ? 'selecao' : 'categoria'); setShowPromoModal(true) }}
+              className="flex items-center gap-2 text-sm text-zinc-200 bg-[#C79A54]/15 hover:bg-[#C79A54]/25 border border-[#C79A54]/30 rounded-lg px-4 py-2 transition cursor-pointer"
+            >
+              🏷️ Promoção{selecionados.size > 0 ? ` (${selecionados.size})` : ''}
+            </button>
             <button
               onClick={() => setColarOpen(true)}
               className="flex items-center gap-2 text-sm text-zinc-200 bg-[#C79A54]/15 hover:bg-[#C79A54]/25 border border-[#C79A54]/30 rounded-lg px-4 py-2 transition cursor-pointer"
@@ -471,6 +535,14 @@ export default function EstoqueClient({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-800">
+                    <th className="px-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={filtered.length > 0 && filtered.every(p => selecionados.has(p.id))}
+                        onChange={e => setSelecionados(e.target.checked ? new Set(filtered.map(p => p.id)) : new Set())}
+                        className="accent-[#C79A54] cursor-pointer"
+                      />
+                    </th>
                     <th className="text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Produto</th>
                     <th className="text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Categoria</th>
                     <th className="text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Tamanhos / Qtd</th>
@@ -486,6 +558,14 @@ export default function EstoqueClient({
                     const margem = calcMargem(p.preco_custo, p.preco_venda)
                     return (
                       <tr key={p.id} className="hover:bg-white/[0.025] transition group">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selecionados.has(p.id)}
+                            onChange={() => toggleSelecionado(p.id)}
+                            className="accent-[#C79A54] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <span className={`w-1.5 h-8 rounded-full shrink-0 ${
@@ -533,7 +613,15 @@ export default function EstoqueClient({
                           </div>
                         </td>
                         <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{formatBRL(p.preco_custo)}</td>
-                        <td className="px-4 py-3 font-medium whitespace-nowrap">{formatBRL(p.preco_venda)}</td>
+                        <td className="px-4 py-3 font-medium whitespace-nowrap">
+                          {precoEfetivo(p) !== p.preco_venda ? (
+                            <div>
+                              <span className="text-zinc-500 line-through text-xs mr-1">{formatBRL(p.preco_venda)}</span>
+                              <span className="text-emerald-400">{formatBRL(precoEfetivo(p))}</span>
+                              {p.promocao_valida_until && <p className="text-[10px] text-zinc-500">até {new Date(p.promocao_valida_until + 'T00:00:00').toLocaleDateString('pt-BR')}</p>}
+                            </div>
+                          ) : formatBRL(p.preco_venda)}
+                        </td>
                         <td className="px-4 py-3">
                           {margem != null ? (
                             <span className={`text-xs font-semibold ${Number(margem) >= 50 ? 'text-emerald-400' : Number(margem) >= 20 ? 'text-amber-400' : 'text-red-400'}`}>
@@ -582,6 +670,71 @@ export default function EstoqueClient({
           }}
           onClose={() => setShowNFeModal(false)}
         />
+      )}
+
+      {showPromoModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4" onClick={() => setShowPromoModal(false)}>
+          <div onClick={e => e.stopPropagation()} className="w-full sm:max-w-md bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl p-5 flex flex-col gap-4">
+            <div>
+              <p className="text-base font-bold text-white">🏷️ Aplicar promoção em lote</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Enquanto válida, o preço entra sozinho no envio de fotos e na Nova Venda.</p>
+            </div>
+
+            <div>
+              <p className="text-xs text-zinc-500 mb-1.5">Aplicar em:</p>
+              <div className="flex items-center gap-1 bg-zinc-950 border border-zinc-800 rounded-xl p-1">
+                <button onClick={() => setPromoScope('selecao')} className={`flex-1 px-2 py-1.5 text-xs rounded-lg transition cursor-pointer ${promoScope === 'selecao' ? 'bg-zinc-700 text-white font-medium' : 'text-zinc-400 hover:text-white'}`}>Seleção ({selecionados.size})</button>
+                <button onClick={() => setPromoScope('marca')} className={`flex-1 px-2 py-1.5 text-xs rounded-lg transition cursor-pointer ${promoScope === 'marca' ? 'bg-zinc-700 text-white font-medium' : 'text-zinc-400 hover:text-white'}`}>Marca</button>
+                <button onClick={() => setPromoScope('categoria')} className={`flex-1 px-2 py-1.5 text-xs rounded-lg transition cursor-pointer ${promoScope === 'categoria' ? 'bg-zinc-700 text-white font-medium' : 'text-zinc-400 hover:text-white'}`}>Categoria atual</button>
+              </div>
+              {promoScope === 'marca' && (
+                <select value={promoMarcaSel} onChange={e => setPromoMarcaSel(e.target.value)}
+                  className="w-full mt-2 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 [color-scheme:dark]">
+                  <option value="">Selecione a marca…</option>
+                  {marcasDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              )}
+              {promoScope === 'categoria' && (
+                <p className="text-[11px] text-zinc-600 mt-1.5">{catFiltro === 'todos' ? 'Todas as categorias' : CAT_LABEL[catFiltro as Produto['categoria']]} — {alvosPromo().length} produto(s)</p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-zinc-950 border border-zinc-800 rounded-xl p-1 shrink-0">
+                <button onClick={() => setPromoTipo('pct')} className={`px-3 py-1.5 text-xs rounded-lg transition cursor-pointer ${promoTipo === 'pct' ? 'bg-zinc-700 text-white font-medium' : 'text-zinc-400 hover:text-white'}`}>% off</button>
+                <button onClick={() => setPromoTipo('fixo')} className={`px-3 py-1.5 text-xs rounded-lg transition cursor-pointer ${promoTipo === 'fixo' ? 'bg-zinc-700 text-white font-medium' : 'text-zinc-400 hover:text-white'}`}>R$ fixo</button>
+              </div>
+              <input
+                value={promoValor}
+                onChange={e => setPromoValor(e.target.value)}
+                placeholder={promoTipo === 'pct' ? 'Ex: 30' : 'Ex: 99,90'}
+                inputMode="decimal"
+                className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none focus:border-[#C79A54]"
+              />
+            </div>
+
+            <div>
+              <p className="text-xs text-zinc-500 mb-1.5">Válido até (opcional):</p>
+              <input
+                type="date"
+                value={promoValidoAte}
+                onChange={e => setPromoValidoAte(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 [color-scheme:dark]"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowPromoModal(false)} className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm transition cursor-pointer">Cancelar</button>
+              <button
+                onClick={aplicarPromocao}
+                disabled={aplicandoPromo || !promoValor.trim() || (promoScope === 'marca' && !promoMarcaSel)}
+                className="flex-1 py-2.5 bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-50 text-[#16151A] rounded-xl text-sm font-bold transition cursor-pointer"
+              >
+                {aplicandoPromo ? 'Aplicando…' : 'Aplicar promoção'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {colarOpen && (

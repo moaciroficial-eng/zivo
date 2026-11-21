@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const [{ data: estoque }, { data: fotos }, { data: enviadas }] = await Promise.all([
-    admin.from('estoque').select('id, nome, marca, cor, categoria, preco_venda, tamanhos, genero, status')
+    admin.from('estoque').select('id, nome, marca, cor, categoria, preco_venda, preco_promocional, promocao_valida_until, tamanhos, genero, status')
       .eq('user_id', user.id).not('status', 'eq', 'vendido'),
     admin.from('biblioteca_fotos').select('url, estoque_ids').eq('user_id', user.id),
     // fotos JÁ ENVIADAS pra ESSE contato (pra não mandar de novo)
@@ -86,17 +86,22 @@ export async function POST(request: NextRequest) {
     // não enviadas primeiro; depois as que servem no cliente
     .sort((a, b) => Number(a.jaEnviada) - Number(b.jaEnviada) || Number(b.serve) - Number(a.serve))
     .slice(0, 40)
-    .map(x => ({
-      estoque_id: x.e.id,
-      nome: x.e.nome,
-      marca: x.e.marca,
-      cor: x.e.cor,
-      preco_venda: x.e.preco_venda,
-      foto_url: fotoDe.get(x.e.id)!,
-      tamanhos: x.tamanhosDisp,
-      serve: x.serve,
-      ja_enviada: x.jaEnviada,
-    }))
+    .map(x => {
+      const hoje = new Date().toISOString().slice(0, 10)
+      const promoValida = x.e.preco_promocional != null && (!x.e.promocao_valida_until || x.e.promocao_valida_until >= hoje)
+      return {
+        estoque_id: x.e.id,
+        nome: x.e.nome,
+        marca: x.e.marca,
+        cor: x.e.cor,
+        preco_venda: x.e.preco_venda,
+        preco_promocional: promoValida ? x.e.preco_promocional : null,
+        foto_url: fotoDe.get(x.e.id)!,
+        tamanhos: x.tamanhosDisp,
+        serve: x.serve,
+        ja_enviada: x.jaEnviada,
+      }
+    })
 
   return NextResponse.json({ ok: true, itens, temCliente: tamsCliente.some(Boolean) })
 }
