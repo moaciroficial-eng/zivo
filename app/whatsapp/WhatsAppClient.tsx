@@ -286,6 +286,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [janelaAbertaIds, setJanelaAbertaIds] = useState<Set<string> | null>(null)
   // Liga/desliga do fluxo de qualificação automática (3 perguntas)
   const [qualificacaoAtiva, setQualificacaoAtiva] = useState<boolean | null>(null)
+  // Respostas prontas -- atalho "/" no campo de digitar
+  const [respostasProntas, setRespostasProntas] = useState<{ id: string; titulo: string; atalho: string; texto: string }[]>([])
+  const [showRespostas, setShowRespostas] = useState(false)
   // Produto por trás de uma foto citada no quadrinho "respondendo a ..." (cache por mensagem)
   const [produtoCitado, setProdutoCitado] = useState<Map<string, ProdutoResolvido>>(new Map())
   const produtoFetchedRef = useRef<Set<string>>(new Set())
@@ -422,6 +425,33 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     supabase.from('loja_config').select('qualificacao_ativa').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => setQualificacaoAtiva(data?.qualificacao_ativa ?? true))
   }, [user.id])
+
+  /* Respostas prontas -- carregadas uma vez, filtradas no cliente ao digitar "/" */
+  useEffect(() => {
+    supabase.from('respostas_prontas').select('id, titulo, atalho, texto').order('titulo')
+      .then(({ data }) => setRespostasProntas(data ?? []))
+  }, [user.id])
+
+  /* Troca {nome} pelo primeiro nome do contato aberto (cadastro > WhatsApp) */
+  function preencherRespostaPronta(texto: string): string {
+    const cli = selectedContato?.cliente_id ? clientesPorId.get(selectedContato.cliente_id) : undefined
+    const nomeBruto = cli?.nome ?? selectedContato?.nome ?? ''
+    const primeiro = nomeBruto.trim().includes('@') ? '' : nomeBruto.trim().split(/\s+/)[0]
+    return texto.replace(/\{nome\}/g, primeiro || 'você')
+  }
+
+  function escolherRespostaPronta(r: { texto: string }) {
+    setInput(preencherRespostaPronta(r.texto))
+    setShowRespostas(false)
+    inputRef.current?.focus()
+  }
+
+  const respostasFiltradas = input.startsWith('/')
+    ? respostasProntas.filter(r => {
+        const termo = input.slice(1).toLowerCase()
+        return !termo || r.atalho.toLowerCase().includes(termo) || r.titulo.toLowerCase().includes(termo)
+      })
+    : []
 
   async function alternarQualificacao() {
     if (qualificacaoAtiva === null) return
@@ -1977,14 +2007,31 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     )}
                   </button>
                 </div>
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                  placeholder="Digite uma mensagem..."
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] transition-colors [color-scheme:dark]"
-                />
+                <div className="relative flex-1">
+                  {/* Respostas prontas -- digitar "/" filtra e Enter/clique preenche o campo */}
+                  {showRespostas && respostasFiltradas.length > 0 && (
+                    <div className="absolute bottom-full left-0 mb-2 z-50 w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl p-1.5 max-h-60 overflow-y-auto">
+                      {respostasFiltradas.map(r => (
+                        <button key={r.id} onClick={() => escolherRespostaPronta(r)}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-800 transition">
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{r.titulo}</span>
+                            <span className="text-[11px] text-[#E0B36A]">/{r.atalho}</span>
+                          </span>
+                          <span className="block text-xs text-zinc-500 truncate">{r.texto}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={e => { setInput(e.target.value); setShowRespostas(e.target.value.startsWith('/')) }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (showRespostas && respostasFiltradas.length > 0) escolherRespostaPronta(respostasFiltradas[0]); else handleSend() } }}
+                    placeholder="Digite uma mensagem... (ou / pra respostas prontas)"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] transition-colors [color-scheme:dark]"
+                  />
+                </div>
                 {input.trim() ? (
                   <button
                     onClick={handleSend}
