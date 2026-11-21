@@ -1,6 +1,7 @@
 import { after } from 'next/server'
 import { sendWhatsAppMessage, normalizarTelefoneBR } from '@/lib/whatsapp'
 import { varrerConversasPendentes } from '@/lib/agentes/varredura'
+import { processarQualificacao } from '@/lib/agentes/qualificacao'
 import { logErro } from '@/lib/log-erro'
 import { enviarPushParaUsuario } from '@/lib/push'
 
@@ -337,6 +338,17 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
         creds,
       }).catch(() => null)
     } else if (tipo === 'texto' && conteudo) {
+      /* Qualificação automática (3 perguntas) -- roda ANTES do atendimento
+         normal de IA. Se tratar a mensagem (disparou, avançou etapa ou
+         respondeu "ver mais opções"), a IA não responde por cima. */
+      const tratouQualificacao = await processarQualificacao(
+        supabase, cleanUserId,
+        { id: contato.id, nome: nomeContato, phone, cliente_id: clienteId, campanha_id: campanhaId },
+        { conteudo, tipo, timestamp, interactiveId: (payload.interactiveId as string | undefined) ?? null },
+        creds,
+      ).catch(e => { logErro('inbound:qualificacao', e, { contatoId: contato.id }, cleanUserId); return false })
+      if (tratouQualificacao) return
+
       if (estadoAtivo) {
         /* Tarefa ativa: chama gerente/executar diretamente para evitar cadeia fire-and-forget */
         after(fetch(`${baseUrl}/api/gerente/executar`, {
