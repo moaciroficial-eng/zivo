@@ -17,6 +17,7 @@ type Contato = {
   ultima_mensagem_at: string | null
   nao_lidas: number
   cliente_id?: string | null
+  lead_qualificado?: boolean
 }
 
 type ClienteMini = {
@@ -283,6 +284,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [salvandoContato, setSalvandoContato] = useState(false)
   // Contatos dentro da janela de 24h -- calculado quando abre "Escolher contatos"
   const [janelaAbertaIds, setJanelaAbertaIds] = useState<Set<string> | null>(null)
+  // Liga/desliga do fluxo de qualificação automática (3 perguntas)
+  const [qualificacaoAtiva, setQualificacaoAtiva] = useState<boolean | null>(null)
   // Produto por trás de uma foto citada no quadrinho "respondendo a ..." (cache por mensagem)
   const [produtoCitado, setProdutoCitado] = useState<Map<string, ProdutoResolvido>>(new Map())
   const produtoFetchedRef = useRef<Set<string>>(new Set())
@@ -413,6 +416,19 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       .order('nome')
       .then(({ data }) => setClientes((data ?? []) as ClienteMini[]))
   }, [user.id])
+
+  /* Estado atual do fluxo de qualificação (liga/desliga) */
+  useEffect(() => {
+    supabase.from('loja_config').select('qualificacao_ativa').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setQualificacaoAtiva(data?.qualificacao_ativa ?? true))
+  }, [user.id])
+
+  async function alternarQualificacao() {
+    if (qualificacaoAtiva === null) return
+    const novo = !qualificacaoAtiva
+    setQualificacaoAtiva(novo)
+    await supabase.from('loja_config').upsert({ user_id: user.id, qualificacao_ativa: novo }, { onConflict: 'user_id' })
+  }
 
   async function iniciarConversa(phone: string, nome: string) {
     const normalized = phone.replace(/\D/g, '')
@@ -1382,6 +1398,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
             </Link>
+            <button
+              onClick={alternarQualificacao}
+              disabled={qualificacaoAtiva === null}
+              title={qualificacaoAtiva ? 'Qualificação automática ligada -- clique pra desligar' : 'Qualificação automática desligada -- clique pra ligar'}
+              className={`w-9 h-9 flex items-center justify-center rounded-lg border transition shrink-0 disabled:opacity-40 ${
+                qualificacaoAtiva ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]' : 'bg-zinc-800 border-zinc-700 text-zinc-500'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-6 6c0 2 1 3.5 2 5 .6.9 1 1.5 1 3h6c0-1.5.4-2.1 1-3 1-1.5 2-3 2-5a6 6 0 0 0-6-6Z"/></svg>
+            </button>
           </div>
 
           {/* Modal nova conversa */}
@@ -1478,7 +1504,12 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-1">
-                    <span className="text-sm font-medium truncate">{nomeExibicao(c)}</span>
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className="text-sm font-medium truncate">{nomeExibicao(c)}</span>
+                      {c.lead_qualificado && (
+                        <span title="Lead qualificado" className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-[#16151A] bg-[#C79A54] rounded px-1 py-0.5">Lead</span>
+                      )}
+                    </span>
                     <span className="text-[10px] text-zinc-500 shrink-0">{fmtTime(c.ultima_mensagem_at)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-1 mt-0.5">
