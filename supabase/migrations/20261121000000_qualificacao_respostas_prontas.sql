@@ -44,3 +44,22 @@ create table if not exists respostas_prontas (
 alter table respostas_prontas enable row level security;
 create policy "user_respostas_prontas" on respostas_prontas
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Seeds editáveis -- NUNCA inventamos chave Pix/endereço/prazo reais, só
+-- placeholders entre [colchetes] pra o dono editar na tela antes de usar.
+insert into respostas_prontas (user_id, titulo, atalho, texto)
+select u.id, v.titulo, v.atalho, v.texto
+from auth.users u
+cross join (values
+  ('Chave Pix', 'pix', 'Nossa chave Pix é [cole sua chave aqui]. Pode me mandar o comprovante por aqui que eu confirmo! 🙏'),
+  ('Endereço e horário', 'horario', 'A gente atende [cole seu horário aqui]. Endereço: [cole seu endereço aqui].'),
+  ('Como funciona a condicional', 'condicional', 'Oi {nome}! Na condicional você leva a peça, experimenta em casa e tem [defina os dias] pra decidir -- sem compromisso 😊'),
+  ('Troca', 'troca', 'Pra troca é só trazer a peça com a etiqueta e a nota em até [defina os dias] da compra 🙏'),
+  ('Entrega em LEM/região', 'entrega', 'Entregamos em LEM e região! Valor: [defina aqui]. Prazo: [defina aqui].'),
+  ('Parcelamento', 'parcelamento', 'Parcelamos em até [defina Nx] no cartão 💳 Se quiser, me chama que já te passo o link de pagamento!'),
+  ('Vou separar pra você', 'separar', 'Vou separar essa peça pra você, {nome}! 🙏'),
+  ('Agradecimento pós-compra', 'obrigado', 'Muito obrigada pela compra, {nome}! Foi um prazer te atender 💛 Qualquer coisa, pode chamar.')
+) as v(titulo, atalho, texto)
+where not exists (
+  select 1 from respostas_prontas r where r.user_id = u.id and r.atalho = v.atalho
+);
