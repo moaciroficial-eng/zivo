@@ -308,6 +308,51 @@ async function sendViaZapiVideo(number: string, videoUrl: string, caption: strin
   return { messageId: data?.messageId ?? data?.zaapId ?? data?.id ?? undefined }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   ÁUDIO — nota de voz. A Meta renderiza como nota de voz (bolha com
+   onda) quando o arquivo é OGG com codec Opus; a conversão pro formato
+   certo acontece no navegador antes do upload (ver WhatsAppClient).
+   Mesmo esquema de URL pública + janela de 24h das outras mídias.
+   ══════════════════════════════════════════════════════════════ */
+export type AudioOptions = { phone: string; audioUrl: string; creds?: WhatsAppCreds; userId?: string }
+
+export async function sendWhatsAppAudio({ phone, audioUrl, creds, userId }: AudioOptions): Promise<{ messageId?: string }> {
+  const efetivas = creds ?? await credsPara(userId)
+  const provider = efetivas?.provider || PROVIDER_GLOBAL
+  const number = normalizarTelefoneBR(phone)
+  if (provider === 'meta') return sendViaMetaAudio(number, audioUrl, efetivas?.meta)
+  return sendViaZapiAudio(number, audioUrl, efetivas)
+}
+
+async function sendViaMetaAudio(number: string, audioUrl: string, meta?: MetaCreds): Promise<{ messageId?: string }> {
+  const { phoneNumberId, accessToken } = resolverMeta(meta)
+  if (!phoneNumberId || !accessToken) throw new Error('Meta WhatsApp não configurada.')
+  const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: number,
+      type: 'audio', audio: { link: audioUrl },
+    }),
+  })
+  if (!res.ok) throw new Error(`Meta áudio erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messages?.[0]?.id ?? undefined }
+}
+
+async function sendViaZapiAudio(number: string, audioUrl: string, creds?: ZapiCreds): Promise<{ messageId?: string }> {
+  const { instance, token, clientToken } = resolverCreds(creds)
+  if (!instance || !token || !clientToken) throw new Error('Z-API não configurada.')
+  const res = await fetch(`https://api.z-api.io/instances/${instance}/token/${token}/send-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
+    body: JSON.stringify({ phone: number, audio: audioUrl }),
+  })
+  if (!res.ok) throw new Error(`Z-API áudio erro ${res.status}: ${await res.text()}`)
+  const data = await res.json().catch(() => ({}))
+  return { messageId: data?.messageId ?? data?.zaapId ?? data?.id ?? undefined }
+}
+
 /* ── DOCUMENTO (Meta) — PDF/arquivo por URL pública, dentro da janela ── */
 export type DocumentoOptions = { phone: string; documentUrl: string; filename?: string; caption?: string; creds?: WhatsAppCreds; userId?: string }
 export async function sendWhatsAppDocument({ phone, documentUrl, filename, caption, creds, userId }: DocumentoOptions): Promise<{ messageId?: string }> {

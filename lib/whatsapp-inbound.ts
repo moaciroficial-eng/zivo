@@ -49,15 +49,30 @@ export async function processarEventoInbound(supabase: any, userId: string, payl
   /* Status updates (delivery/read/falha) -- também espelha no disparo em
      massa (disparo_template_envios), se o message_id for de um disparo. */
   if (msgType === 'DeliveryCallback' || msgType === 'ReadCallback' || msgType === 'MessageStatusCallback' || msgType === 'FailedCallback') {
-    const msgId  = payload.messageId as string | undefined
-    const status = msgType === 'ReadCallback' ? 'lida' : msgType === 'FailedCallback' ? 'falhou' : 'entregue'
-    if (msgId) {
-      await supabase.from('whatsapp_mensagens').update({ status }).eq('message_id', msgId)
-      const statusDisparo = msgType === 'ReadCallback' ? 'lido' : msgType === 'FailedCallback' ? 'falhou' : 'entregue'
-      const update: Record<string, unknown> = { status: statusDisparo, updated_at: new Date().toISOString() }
-      if (msgType === 'FailedCallback') update.motivo_falha = (payload.motivo as string | undefined) ?? 'Falha no envio'
-      await supabase.from('disparo_template_envios').update(update).eq('message_id', msgId)
+    const msgId = payload.messageId as string | undefined
+    if (!msgId) return
+
+    if (msgType === 'FailedCallback') {
+      const erro = payload.erro as Record<string, unknown> | null | undefined
+      const motivo = (payload.motivo as string | undefined) ?? 'Falha no envio'
+      console.error(`[inbound] Falha no envio (wamid=${msgId}):`, JSON.stringify(erro))
+      /* Guarda o erro dentro do raw -- sem coluna nova, só mescla no que já existe
+         (update() substitui a coluna inteira, por isso lê antes de escrever). */
+      const { data: atual } = await supabase.from('whatsapp_mensagens').select('raw').eq('message_id', msgId).maybeSingle()
+      const rawAtual = (atual?.raw as Record<string, unknown> | null) ?? {}
+      await supabase.from('whatsapp_mensagens').update({ status: 'falhou', raw: { ...rawAtual, erro } }).eq('message_id', msgId)
+      await supabase.from('disparo_template_envios')
+        .update({ status: 'falhou', motivo_falha: motivo, updated_at: new Date().toISOString() })
+        .eq('message_id', msgId)
+      return
     }
+
+    const status = msgType === 'ReadCallback' ? 'lida' : 'entregue'
+    await supabase.from('whatsapp_mensagens').update({ status }).eq('message_id', msgId)
+    const statusDisparo = msgType === 'ReadCallback' ? 'lido' : 'entregue'
+    await supabase.from('disparo_template_envios')
+      .update({ status: statusDisparo, updated_at: new Date().toISOString() })
+      .eq('message_id', msgId)
     return
   }
 

@@ -59,7 +59,7 @@ async function buscarEstoque(admin: any, userId: string, produto: string, marca:
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function notificarDono(admin: any, userId: string, ownerPhone: string, mensagem: string) {
   try {
-    await sendWhatsAppMessage({ phone: ownerPhone, message: mensagem, userId })
+    const { messageId } = await sendWhatsAppMessage({ phone: ownerPhone, message: mensagem, userId })
 
     const phone = ownerPhone.startsWith('55') ? ownerPhone : `55${ownerPhone}`
     const { data: contato } = await admin
@@ -67,7 +67,7 @@ async function notificarDono(admin: any, userId: string, ownerPhone: string, men
     if (contato?.id) {
       const timestamp = new Date().toISOString()
       await admin.from('whatsapp_mensagens').insert({
-        user_id: userId, contato_id: contato.id,
+        user_id: userId, contato_id: contato.id, message_id: messageId ?? null,
         direcao: 'enviada', tipo: 'texto',
         conteudo: mensagem, status: 'enviada', timestamp,
         raw: { origem: 'ia' },

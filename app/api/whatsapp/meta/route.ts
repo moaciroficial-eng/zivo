@@ -149,23 +149,43 @@ function normalizarMensagem(m: MetaMessage, nomeContato: string | null): Record<
 
 function normalizarStatus(s: Record<string, unknown>): Record<string, unknown> | null {
   const status = s.status as string
+
+  /* "failed" -- a Meta aceitou o envio (messages[0].id) mas depois não
+     conseguiu entregar (ex.: não baixou a mídia pela URL, formato inválido).
+     Antes isso era DESCARTADO aqui (tipo=null) -- a mensagem ficava pra
+     sempre com "✓ enviado" e a gente nunca via o motivo real do erro.
+     `erro` (objeto rico) alimenta o raw da mensagem no chat; `motivo`
+     (string curta) alimenta disparo_template_envios.motivo_falha. */
+  if (status === 'failed') {
+    const erro = (s.errors as Record<string, unknown>[] | undefined)?.[0]
+    return {
+      type: 'FailedCallback',
+      phone: String(s.recipient_id ?? ''),
+      messageId: s.id as string,
+      fromMe: true,
+      isGroup: false,
+      erro: erro ? {
+        code: erro.code ?? null,
+        title: erro.title ?? null,
+        message: erro.message ?? null,
+        details: (erro.error_data as Record<string, unknown> | undefined)?.details ?? null,
+        fbtrace_id: erro.fbtrace_id ?? null,
+      } : null,
+      motivo: (erro?.title as string | undefined) || (erro?.message as string | undefined) || 'Falha no envio',
+    }
+  }
+
   const tipo = status === 'read' ? 'ReadCallback'
     : (status === 'delivered' || status === 'sent') ? 'DeliveryCallback'
-    : status === 'failed' ? 'FailedCallback'
     : null
   if (!tipo) return null
-  const base: Record<string, unknown> = {
+  return {
     type: tipo,
     phone: String(s.recipient_id ?? ''),
     messageId: s.id as string,
     fromMe: true,
     isGroup: false,
   }
-  if (tipo === 'FailedCallback') {
-    const erros = s.errors as Record<string, unknown>[] | undefined
-    base.motivo = (erros?.[0]?.title as string | undefined) || (erros?.[0]?.message as string | undefined) || 'Falha no envio'
-  }
-  return base
 }
 
 /* Processa as entradas do webhook (resolve loja, baixa mídia, salva, dispara IA).

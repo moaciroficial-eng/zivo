@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/app/components/useConfirm'
 import { clienteServeProduto } from '@/lib/tamanhos'
+import type { ProdutoResolvido } from '@/lib/ofertas'
 
 type Contato = {
   id: string
@@ -152,6 +153,13 @@ function fmtTime(ts: string | null): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+/* mm:ss de uma gravação em andamento ou de um áudio enviado */
+function fmtDuracao(seg: number): string {
+  const m = Math.floor(seg / 60)
+  const s = Math.floor(seg % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 /* Resumo curto de uma mensagem — usado na prévia de "respondendo a ..." */
 function resumoMsg(m: Mensagem): string {
   if (m.tipo === 'imagem') return '📷 Foto'
@@ -248,6 +256,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [search, setSearch] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [replyTo, setReplyTo] = useState<Mensagem | null>(null)   // mensagem que estou citando
+  // Gravação/envio de áudio (nota de voz)
+  const [gravando, setGravando] = useState(false)
+  const [tempoGravacao, setTempoGravacao] = useState(0)
+  const [audioPreview, setAudioPreview] = useState<{ blob: Blob; url: string; duracao: number } | null>(null)
+  const [enviandoAudio, setEnviandoAudio] = useState(false)
+  const [janelaFechadaAudio, setJanelaFechadaAudio] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const audioStreamRef = useRef<MediaStream | null>(null)
+  const audioTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [acaoMsgId, setAcaoMsgId] = useState<string | null>(null) // menu de ação aberto
   const [view, setView] = useState<'list' | 'chat'>('list')
   /* Conexão/QR removidos — Meta oficial não usa QR nem "instância". */
@@ -265,6 +283,15 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [salvandoContato, setSalvandoContato] = useState(false)
   // Contatos dentro da janela de 24h -- calculado quando abre "Escolher contatos"
   const [janelaAbertaIds, setJanelaAbertaIds] = useState<Set<string> | null>(null)
+  // Produto por trás de uma foto citada no quadrinho "respondendo a ..." (cache por mensagem)
+  const [produtoCitado, setProdutoCitado] = useState<Map<string, ProdutoResolvido>>(new Map())
+  const produtoFetchedRef = useRef<Set<string>>(new Set())
+  const [highlightMsgId, setHighlightMsgId] = useState<string | null>(null)
+  const msgRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  // Mensagem citada que ficou fora da janela de 200 carregadas -- buscada direto
+  // pelo wamid (message_id) quando necessário. null = buscou e não achou.
+  const [citacoesExternas, setCitacoesExternas] = useState<Map<string, Mensagem | null>>(new Map())
+  const citacaoExternaFetchedRef = useRef<Set<string>>(new Set())
 
   const selectedContato = contatos.find(c => c.id === selectedId) ?? null
   const clientesPorId = useMemo(() => new Map(clientes.map(c => [c.id, c])), [clientes])
@@ -298,6 +325,71 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* Mapa message_id → mensagem, pra achar a mensagem citada numa resposta */
   const msgPorId = new Map<string, Mensagem>()
   for (const mm of mensagens) if (mm.message_id) msgPorId.set(mm.message_id, mm)
+
+  /* Clica no quadrinho "respondendo a ..." -> rola até a mensagem original e destaca por 2s.
+     Se a mensagem ainda não estiver na janela carregada (msgExterna foi buscada
+     direto pelo wamid), insere ela na lista primeiro e só então rola -- precisa
+     esperar o ref montar, por isso o requestAnimationFrame + pequeno timeout. */
+  function irParaMensagem(id: string, msgExterna?: Mensagem) {
+    const existente = msgRefs.current.get(id)
+    if (existente) {
+      existente.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightMsgId(id)
+      setTimeout(() => setHighlightMsgId(h => (h === id ? null : h)), 2000)
+      return
+    }
+    if (!msgExterna) return
+    setMensagens(prev => prev.some(m => m.id === msgExterna.id)
+      ? prev
+      : [...prev, msgExterna].sort((a, b) => a.timestamp.localeCompare(b.timestamp)))
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        msgRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightMsgId(id)
+        setTimeout(() => setHighlightMsgId(h => (h === id ? null : h)), 2000)
+      }, 60)
+    })
+  }
+
+  /* Identifica o produto por trás de cada foto citada (pra nome/tamanho/preço +
+     "Registrar venda dessa peça"). Dedup por ref -- não refaz a mesma busca
+     a cada render ou quando mensagens novas chegam por realtime. */
+  useEffect(() => {
+    for (const mm of mensagens) {
+      const ctxId = (mm.raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
+      if (!ctxId) continue
+      const citada = msgPorId.get(ctxId)
+      if (!citada || citada.tipo !== 'imagem' || produtoFetchedRef.current.has(citada.id)) continue
+      produtoFetchedRef.current.add(citada.id)
+      fetch(`/api/whatsapp/mensagens/produto?mensagemId=${citada.id}`)
+        .then(r => r.json())
+        .then((data: ProdutoResolvido & { ok?: boolean }) =>
+          setProdutoCitado(prev => new Map(prev).set(citada.id, data?.ok ? data : { encontrado: false })))
+        .catch(() => setProdutoCitado(prev => new Map(prev).set(citada.id, { encontrado: false })))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mensagens])
+
+  /* Mensagem citada que não está entre as 200 carregadas (resposta a algo
+     mais antigo, ou a janela ainda não puxou pra lá) -- busca direto pelo
+     wamid em vez de paginar pra trás até achar. */
+  useEffect(() => {
+    for (const mm of mensagens) {
+      const ctxId = (mm.raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
+      if (!ctxId || msgPorId.has(ctxId) || citacaoExternaFetchedRef.current.has(ctxId)) continue
+      citacaoExternaFetchedRef.current.add(ctxId)
+      supabase
+        .from('whatsapp_mensagens')
+        .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, message_id, raw')
+        .eq('message_id', ctxId)
+        .maybeSingle()
+        .then(
+          ({ data }) => setCitacoesExternas(prev => new Map(prev).set(ctxId, (data as Mensagem | null) ?? null)),
+          () => setCitacoesExternas(prev => new Map(prev).set(ctxId, null)),
+        )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mensagens])
 
   /* Deep-link: /whatsapp?contato=<id> (vindo de "Clientes para responder" no dashboard) abre a conversa direto */
   useEffect(() => {
@@ -350,6 +442,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }, [])
 
+  /* Garante que o microfone é liberado se o usuário sair da tela gravando */
+  useEffect(() => {
+    return () => { audioStreamRef.current?.getTracks().forEach(t => t.stop()) }
+  }, [])
+
   /* Foto de perfil de contato: a API oficial da Meta NÃO fornece (privacidade),
      ao contrário da Z-API antiga. Então não buscamos — o avatar mostra a
      inicial colorida do nome (ver corAvatar). */
@@ -367,16 +464,23 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
     setReplyTo(null); setAcaoMsgId(null)
+    if (gravando) cancelarGravacao()
+    if (audioPreview) descartarAudioGravado()
     if (!selectedId) { setMensagens([]); return }
     setLoadingMsgs(true)
     supabase
       .from('whatsapp_mensagens')
       .select('id, contato_id, direcao, tipo, conteudo, status, timestamp, message_id, raw')
       .eq('contato_id', selectedId)
-      .order('timestamp', { ascending: true })
+      .order('timestamp', { ascending: false })
       .limit(200)
       .then(({ data }) => {
-        setMensagens((data ?? []) as Mensagem[])
+        /* Busca as 200 mais RECENTES (desc) e inverte pra render em ordem
+           cronológica -- antes buscava as 200 mais ANTIGAS (asc + limit),
+           então toda conversa com mais de 200 mensagens nunca mostrava nada
+           recente (e, pra "respondendo a...", a mensagem citada quase
+           sempre ficava de fora do que foi carregado). */
+        setMensagens(((data ?? []) as Mensagem[]).reverse())
         setLoadingMsgs(false)
       })
     supabase
@@ -722,6 +826,133 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       setTimeout(() => setSendError(null), 6000)
     } finally {
       setEnviandoFoto(false)
+    }
+  }
+
+  /* ── Áudio (nota de voz) ──
+     Grava no navegador (webm/opus ou mp4, depende do browser), converte pra
+     OGG/Opus no próprio navegador (lib/audio-ffmpeg, via ffmpeg.wasm -- sem
+     depender de binário nativo numa function serverless) e só então sobe e
+     dispara pela Cloud API. */
+  function pararStreamMic() {
+    audioStreamRef.current?.getTracks().forEach(t => t.stop())
+    audioStreamRef.current = null
+    if (audioTimerRef.current) { clearInterval(audioTimerRef.current); audioTimerRef.current = null }
+  }
+
+  async function iniciarGravacao() {
+    if (!selectedContato || gravando || audioPreview) return
+    setSendError(null)
+    setJanelaFechadaAudio(false)
+
+    /* Fora da janela de 24h a Meta recusa áudio livre -- avisa antes de gravar */
+    try {
+      const res = await fetch('/api/whatsapp/ofertas/encaminhar/janela', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoIds: [selectedContato.id] }),
+      })
+      const d = await res.json().catch(() => null)
+      if (d?.ok && !(d.abertos as string[]).includes(selectedContato.id)) {
+        setJanelaFechadaAudio(true)
+        setTimeout(() => setJanelaFechadaAudio(false), 8000)
+        return
+      }
+    } catch { /* se a checagem falhar, deixa tentar -- a Meta recusa na hora de enviar */ }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioStreamRef.current = stream
+      const mr = new MediaRecorder(stream)
+      audioChunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      mediaRecorderRef.current = mr
+      mr.start()
+      setGravando(true)
+      setTempoGravacao(0)
+      audioTimerRef.current = setInterval(() => setTempoGravacao(t => t + 1), 1000)
+    } catch {
+      setSendError('Não consegui acessar o microfone.')
+      setTimeout(() => setSendError(null), 6000)
+    }
+  }
+
+  function cancelarGravacao() {
+    mediaRecorderRef.current?.stop()
+    mediaRecorderRef.current = null
+    pararStreamMic()
+    audioChunksRef.current = []
+    setGravando(false)
+    setTempoGravacao(0)
+  }
+
+  function pararGravacao() {
+    const mr = mediaRecorderRef.current
+    if (!mr) return
+    const duracao = tempoGravacao
+    mr.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || 'audio/webm' })
+      setAudioPreview({ blob, url: URL.createObjectURL(blob), duracao })
+      setGravando(false)
+    }
+    mr.stop()
+    mediaRecorderRef.current = null
+    pararStreamMic()
+  }
+
+  function descartarAudioGravado() {
+    if (audioPreview) URL.revokeObjectURL(audioPreview.url)
+    setAudioPreview(null)
+    setTempoGravacao(0)
+  }
+
+  async function enviarAudioGravado() {
+    if (!audioPreview || !selectedContato || enviandoAudio) return
+    setEnviandoAudio(true)
+    setSendError(null)
+    const isLid = selectedContato.jid?.endsWith('@lid')
+    const override = isLid ? lidPhone[selectedContato.id]?.replace(/\D/g, '') : undefined
+    const { blob, url, duracao } = audioPreview
+    try {
+      const { converterParaOggOpus } = await import('@/lib/audio-ffmpeg')
+      const oggBlob = await converterParaOggOpus(blob)
+      const { data: u } = await supabase.auth.getUser()
+      const uid = u.user?.id ?? 'anon'
+      /* Pasta separada de audios/ -- não mistura com as fotos da biblioteca (whatsapp/) */
+      const path = `audios/${uid}/${Date.now()}.ogg`
+      const { data: up, error: upErr } = await supabase.storage.from('biblioteca').upload(path, oggBlob, { contentType: 'audio/ogg; codecs=opus' })
+      if (upErr) throw new Error(upErr.message)
+      const { data: pub } = supabase.storage.from('biblioteca').getPublicUrl(up.path)
+
+      const msgId = `tmp-a-${Date.now()}`
+      const msgOtimista = {
+        id: msgId, contato_id: selectedContato.id, direcao: 'enviada', tipo: 'audio',
+        conteudo: '🎵 Áudio', status: 'enviada', timestamp: new Date().toISOString(),
+        raw: { audio: { audioUrl: pub.publicUrl, duracaoSeg: duracao } },
+      } as unknown as Mensagem
+      setMensagens(prev => [...prev, msgOtimista])
+      setContatos(cs => cs.map(c => c.id === selectedContato.id
+        ? { ...c, ultima_mensagem: '🎵 Áudio', ultima_mensagem_at: msgOtimista.timestamp }
+        : c
+      ))
+
+      const res = await fetch('/api/whatsapp/send-audio', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: override ?? selectedContato.phone, audioUrl: pub.publicUrl, contatoId: selectedContato.id, duracaoSeg: duracao }),
+      })
+      if (!res.ok) {
+        const t = await res.text()
+        setSendError(t || 'Falha ao enviar o áudio')
+        setMensagens(prev => prev.filter(m => m.id !== msgId))
+        setTimeout(() => setSendError(null), 8000)
+      }
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Falha ao converter/enviar o áudio')
+      setTimeout(() => setSendError(null), 6000)
+    } finally {
+      URL.revokeObjectURL(url)
+      setAudioPreview(null)
+      setTempoGravacao(0)
+      setEnviandoAudio(false)
     }
   }
 
@@ -1395,9 +1626,15 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     )
                   }
 
-                  /* Mensagem citada (o cliente respondeu a uma mensagem específica) */
+                  /* Mensagem citada (o cliente respondeu a uma mensagem específica).
+                     ctxId existe mas não achou em msgPorId -> original não carregada
+                     (fora das últimas 200) ou de antes de guardarmos o wamid real
+                     (era Z-API) -- mostra avisando em vez de sumir sem explicação. */
                   const ctxId = (raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
-                  const citada = ctxId ? msgPorId.get(ctxId) : undefined
+                  const citadaLocal = ctxId ? msgPorId.get(ctxId) : undefined
+                  const citadaExterna = !citadaLocal && ctxId ? citacoesExternas.get(ctxId) : undefined
+                  const citada = citadaLocal ?? citadaExterna ?? undefined
+                  const citacaoPerdida = !!ctxId && !citada && citacoesExternas.has(ctxId) && citacoesExternas.get(ctxId) === null
 
                   const placeholders = ['📷 Imagem', '🎵 Áudio', '🎥 Vídeo', '🎯 Figurinha', '📄 Documento']
                   const mostrarTexto = !!m.conteudo && !placeholders.includes(m.conteudo) && m.tipo !== 'documento'
@@ -1429,8 +1666,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                     </div>
                   ) : null
 
+                  const citadaImageUrl = citada ? ((citada.raw?.image as Record<string, unknown> | undefined)?.imageUrl as string | undefined) : undefined
+                  const produtoDaCitada = citada ? produtoCitado.get(citada.id) : undefined
+
                   return (
-                    <div key={m.id}>
+                    <div key={m.id} ref={el => { if (el) msgRefs.current.set(m.id, el); else msgRefs.current.delete(m.id) }}>
                       {mostrarCopiarOferta && (
                         <div className="flex justify-end mb-1">
                           <button
@@ -1443,16 +1683,49 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                       )}
                       <div className={`group flex items-center gap-1 ${enviada ? 'justify-end' : 'justify-start'}`}>
                       {enviada && acao}
-                      <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm ${
+                      <div className={`max-w-[78%] rounded-2xl overflow-hidden text-sm transition-shadow duration-500 ${
                         enviada ? 'bg-[#C79A54] text-[#16151A] rounded-br-sm' : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
-                      }`}>
-                        {/* Prévia da mensagem citada */}
+                      } ${highlightMsgId === m.id ? 'ring-2 ring-[#F0CC88] ring-offset-2 ring-offset-[#16151A]' : ''}`}>
+                        {/* Citou uma mensagem que não achamos (fora da janela carregada, ou de antes do wamid real) */}
+                        {citacaoPerdida && (
+                          <div className={`mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 border-zinc-500/50 ${enviada ? 'bg-black/15' : 'bg-black/25'}`}>
+                            <span className="block text-[11px] italic opacity-60">Mensagem original não encontrada</span>
+                          </div>
+                        )}
+
+                        {/* Prévia da mensagem citada -- clica e rola até a original */}
                         {citada && (
-                          <div className={`mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 ${enviada ? 'border-[#F0CC88]/70 bg-black/15' : 'border-[#C79A54] bg-black/25'}`}>
-                            <span className="block text-[11px] font-semibold text-[#E0B36A]">
-                              {citada.direcao === 'enviada' ? 'Você' : (selectedContato?.nome ?? 'Cliente')}
+                          <button type="button" onClick={() => irParaMensagem(citada.id, citada)}
+                            className={`block w-full text-left mx-1.5 mt-1.5 px-2 py-1 rounded-lg border-l-2 ${enviada ? 'border-[#F0CC88]/70 bg-black/15 hover:bg-black/25' : 'border-[#C79A54] bg-black/25 hover:bg-black/35'} transition`}>
+                            <span className="flex items-start gap-2">
+                              {citadaImageUrl && (
+                                <img src={citadaImageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
+                              )}
+                              <span className="min-w-0">
+                                <span className="block text-[11px] font-semibold text-[#E0B36A]">
+                                  {citada.direcao === 'enviada' ? 'Você' : (selectedContato?.nome ?? 'Cliente')}
+                                </span>
+                                <span className="block text-[11px] opacity-80 line-clamp-2 break-words">{resumoMsg(citada)}</span>
+                              </span>
                             </span>
-                            <span className="block text-[11px] opacity-80 line-clamp-2 break-words">{resumoMsg(citada)}</span>
+                          </button>
+                        )}
+
+                        {/* Peça de estoque por trás da foto citada */}
+                        {citada && produtoDaCitada?.encontrado && (
+                          <div className="mx-1.5 mb-1.5 px-2 py-1.5 rounded-lg bg-black/20 text-[11px] space-y-1">
+                            <p className="opacity-90">
+                              {[produtoDaCitada.nome, produtoDaCitada.marca].filter(Boolean).join(' ')}
+                              {produtoDaCitada.tamanhos?.length ? ` · ${produtoDaCitada.tamanhos.join('/')}` : ''}
+                              {produtoDaCitada.preco_por != null ? ` · R$${produtoDaCitada.preco_por.toFixed(2).replace('.', ',')}` : ''}
+                            </p>
+                            <Link
+                              href={`/vendas?nova=1&estoqueId=${encodeURIComponent(produtoDaCitada.estoque_id ?? '')}&nome=${encodeURIComponent([produtoDaCitada.nome, produtoDaCitada.marca].filter(Boolean).join(' '))}&tamanho=${produtoDaCitada.tamanhos?.length === 1 ? encodeURIComponent(produtoDaCitada.tamanhos[0]) : ''}&preco=${produtoDaCitada.preco_por ?? ''}&clienteId=${encodeURIComponent(selectedContato?.cliente_id ?? '')}`}
+                              target="_blank"
+                              className={`inline-block font-semibold rounded-lg px-2 py-1 transition ${enviada ? 'bg-[#16151A]/20 hover:bg-[#16151A]/30' : 'bg-[#C79A54] text-[#16151A] hover:bg-[#d8ac68]'}`}
+                            >
+                              Registrar venda dessa peça
+                            </Link>
                           </div>
                         )}
 
@@ -1503,11 +1776,24 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                           <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${enviada ? 'text-[#E0B36A]' : 'text-zinc-500'}`}>
                             {fmtTime(m.timestamp)}
                             {enviada && (
-                              <span className={m.status === 'lida' ? 'text-blue-300' : ''}>
-                                {m.status === 'lida' ? '✓✓' : m.status === 'entregue' ? '✓✓' : '✓'}
-                              </span>
+                              m.status === 'falhou' ? (
+                                <span className="text-red-400" title="Falhou -- veja o motivo abaixo">⚠️</span>
+                              ) : (
+                                <span className={m.status === 'lida' ? 'text-blue-300' : ''}>
+                                  {m.status === 'lida' ? '✓✓' : m.status === 'entregue' ? '✓✓' : '✓'}
+                                </span>
+                              )
                             )}
                           </div>
+                          {enviada && m.status === 'falhou' && (() => {
+                            const erro = raw?.erro as Record<string, unknown> | null | undefined
+                            const desc = (erro?.title as string | undefined) || (erro?.message as string | undefined)
+                            return (
+                              <p className="mt-1 text-[10px] text-red-400 break-words">
+                                ⚠️ Não entregou{erro?.code ? ` (código ${erro.code})` : ''}{desc ? `: ${desc}` : ''}
+                              </p>
+                            )
+                          })()}
                         </div>
                       </div>
                       {!enviada && acao}
@@ -1536,6 +1822,11 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   {sendError}
                 </div>
               )}
+              {janelaFechadaAudio && (
+                <div className="mx-3 mb-1 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400">
+                  Esse contato está fora da janela de 24h — só dá pra mandar um template, áudio livre não vai chegar.
+                </div>
+              )}
               {replyTo && (
                 <div className="mx-3 mb-1 flex items-center gap-2 px-3 py-2 bg-zinc-800/60 border-l-2 border-[#C79A54] rounded-lg">
                   <div className="min-w-0 flex-1">
@@ -1548,6 +1839,43 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 </div>
               )}
               <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2 relative">
+              {gravando ? (
+                <>
+                  <button onClick={cancelarGravacao} title="Cancelar gravação"
+                    className="text-red-400 hover:text-red-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                  <div className="flex-1 flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                    <span className="text-sm text-zinc-200 tabular-nums">{fmtDuracao(tempoGravacao)}</span>
+                    <span className="text-xs text-zinc-500">Gravando...</span>
+                  </div>
+                  <button onClick={pararGravacao} title="Concluir gravação"
+                    className="bg-[#C79A54] hover:bg-[#C79A54] text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </>
+              ) : audioPreview ? (
+                <>
+                  <button onClick={descartarAudioGravado} disabled={enviandoAudio} title="Descartar"
+                    className="text-zinc-400 hover:text-red-400 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                  <div className="flex-1 flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 min-w-0">
+                    <audio controls src={audioPreview.url} className="flex-1 h-8 min-w-0" />
+                    <span className="text-xs text-zinc-500 tabular-nums shrink-0">{fmtDuracao(audioPreview.duracao)}</span>
+                  </div>
+                  <button onClick={enviarAudioGravado} disabled={enviandoAudio} title="Enviar áudio"
+                    className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0">
+                    {enviandoAudio ? (
+                      <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round"/></svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
                 {/* Paleta de emoji */}
                 {showEmoji && (
                   <>
@@ -1626,16 +1954,29 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   placeholder="Digite uma mensagem..."
                   className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] transition-colors [color-scheme:dark]"
                 />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || sending}
-                  className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
-                </button>
+                {input.trim() ? (
+                  <button
+                    onClick={handleSend}
+                    disabled={sending}
+                    className="bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed text-[#16151A] rounded-xl px-3.5 py-2.5 transition-colors shrink-0"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={iniciarGravacao}
+                    disabled={sending}
+                    title="Gravar áudio"
+                    className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3.5 py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                  </button>
+                )}
+                </>
+              )}
               </div>
             </>
           )}
