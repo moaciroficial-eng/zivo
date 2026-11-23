@@ -181,6 +181,15 @@ const NAV = [
         ),
       },
       {
+        href: '/funil',
+        label: 'Funil',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+          </svg>
+        ),
+      },
+      {
         href: '/assinatura',
         label: 'Assinatura',
         icon: (

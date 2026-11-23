@@ -167,13 +167,13 @@ function fmtPreco(n: number | null): string {
   return n != null ? `R$${n.toFixed(2).replace('.', ',')}` : ''
 }
 
-async function enviarResultadoEstoque(admin: Admin, userId: string, contato: ContatoQual, creds: WhatsAppCreds | undefined, categoria: string, tamanho: string) {
+async function enviarResultadoEstoque(admin: Admin, userId: string, contato: ContatoQual, creds: WhatsAppCreds | undefined, categoria: string, tamanho: string): Promise<boolean> {
   const itens = await buscarEstoqueQualificacao(admin, userId, categoria, tamanho)
   if (itens.length === 0) {
     const texto = 'Vou conferir aqui e já te mando 😉'
     const { messageId } = await sendWhatsAppMessage({ phone: contato.phone, message: texto, creds, userId })
     await registrarEnvio(admin, userId, contato, messageId, texto, 'resultado')
-    return
+    return false
   }
   const primeiros = itens.slice(0, 4)
   for (let i = 0; i < primeiros.length; i++) {
@@ -196,6 +196,7 @@ async function enviarResultadoEstoque(admin: Admin, userId: string, contato: Con
     })
     await registrarEnvio(admin, userId, contato, messageId, 'Quer ver mais opções?', 'resultado')
   }
+  return true
 }
 
 /* Toque em "Ver mais opções" -- manda o resto em texto (nome + preço, sem
@@ -269,11 +270,12 @@ async function finalizarQualificacao(admin: Admin, userId: string, contato: Cont
 
   const agora = new Date().toISOString()
   await admin.from('whatsapp_contatos').update({ lead_qualificado: true }).eq('id', contato.id)
+
+  const fotosEnviadas = await enviarResultadoEstoque(admin, userId, contato, creds, categoria, tamanho)
   await admin.from('whatsapp_qualificacao').update({
     status: 'concluido', preferencia: preferencia.valor, concluido_at: agora, updated_at: agora,
+    fotos_enviadas: fotosEnviadas,
   }).eq('id', qualId)
-
-  await enviarResultadoEstoque(admin, userId, contato, creds, categoria, tamanho)
 }
 
 async function avancarFluxo(
