@@ -52,7 +52,7 @@ select u.id, v.titulo, v.atalho, v.texto
 from auth.users u
 cross join (values
   ('Chave Pix', 'pix', 'Nossa chave Pix é [cole sua chave aqui]. Pode me mandar o comprovante por aqui que eu confirmo! 🙏'),
-  ('Endereço e horário', 'horario', 'A gente atende [cole seu horário aqui]. Endereço: [cole seu endereço aqui].'),
+  ('Endereço e horário', 'horario', 'A gente atende [cole seu horário aqui] no endereço (local): [cole seu endereço aqui].'),
   ('Como funciona a condicional', 'condicional', 'Oi {nome}! Na condicional você leva a peça, experimenta em casa e tem [defina os dias] pra decidir -- sem compromisso 😊'),
   ('Troca', 'troca', 'Pra troca é só trazer a peça com a etiqueta e a nota em até [defina os dias] da compra 🙏'),
   ('Entrega em LEM/região', 'entrega', 'Entregamos em LEM e região! Valor: [defina aqui]. Prazo: [defina aqui].'),

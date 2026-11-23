@@ -478,10 +478,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
       .then(({ data }) => setQualificacaoAtiva(data?.qualificacao_ativa ?? true))
   }, [user.id])
 
-  /* Respostas prontas -- carregadas uma vez, filtradas no cliente ao digitar "/" */
+  /* Respostas prontas -- carregadas uma vez, filtradas no cliente ao digitar "/".
+     Loga o erro (ex.: tabela ainda não existe porque a migration não foi
+     aplicada) em vez de engolir silenciosamente -- antes um erro aqui
+     resultava em "/" sem mostrar nada, sem pista nenhuma do motivo. */
   useEffect(() => {
     supabase.from('respostas_prontas').select('id, titulo, atalho, texto').order('titulo')
-      .then(({ data }) => setRespostasProntas(data ?? []))
+      .then(({ data, error }) => {
+        if (error) console.error('[respostas-prontas] falha ao carregar:', error.message)
+        setRespostasProntas(data ?? [])
+      })
   }, [user.id])
 
   /* Troca {nome} pelo primeiro nome do contato aberto (cadastro > WhatsApp) */
@@ -501,7 +507,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const respostasFiltradas = input.startsWith('/')
     ? respostasProntas.filter(r => {
         const termo = input.slice(1).toLowerCase()
-        return !termo || r.atalho.toLowerCase().includes(termo) || r.titulo.toLowerCase().includes(termo)
+        return !termo
+          || r.atalho.toLowerCase().includes(termo)
+          || r.titulo.toLowerCase().includes(termo)
+          || r.texto.toLowerCase().includes(termo)
       })
     : []
 
@@ -2394,6 +2403,8 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                         <button onClick={() => { setShowAnexo(false); imgInputRef.current?.click() }} className="w-full flex items-center gap-3 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-3 py-2 transition">🖼️ Imagem</button>
                         <button onClick={() => { setShowAnexo(false); videoInputRef.current?.click() }} className="w-full flex items-center gap-3 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-3 py-2 transition">🎥 Vídeo <span className="text-[10px] text-zinc-500">16MB</span></button>
                         <button onClick={() => { setShowAnexo(false); docInputRef.current?.click() }} className="w-full flex items-center gap-3 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-3 py-2 transition">📄 Documento</button>
+                        <div className="h-px bg-zinc-800 my-1" />
+                        <Link href="/respostas-prontas" target="_blank" onClick={() => setShowAnexo(false)} className="w-full flex items-center gap-3 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-3 py-2 transition">💬 Gerenciar respostas prontas</Link>
                       </div>
                     </>
                   )}
