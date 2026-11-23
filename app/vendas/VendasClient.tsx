@@ -193,6 +193,10 @@ function labelMetodo(m: string): string {
   return m
 }
 
+function origemLeadLabel(o: string): string {
+  return o === 'live' ? 'Live' : o === 'campanha' ? 'Campanha' : 'Orgânico'
+}
+
 function labelPagamento(fp: string): string {
   if (!fp) return '—'
   if (fp === 'crediario') return 'Crediário'
@@ -581,6 +585,7 @@ export default function VendasClient({
   historicoCaixas,
   initialCrediarios,
   marcaPorCliente = {},
+  origemLeadPorCliente = {},
   fotoMap = {},
   modo = 'dono',
   fiscalAtivo = false,
@@ -594,6 +599,7 @@ export default function VendasClient({
   historicoCaixas: Caixa[]
   initialCrediarios: CrediarioItem[]
   marcaPorCliente?: Record<string, string>
+  origemLeadPorCliente?: Record<string, string>
   fotoMap?: Record<string, string>
   modo?: 'dono' | 'funcionaria'
   fiscalAtivo?: boolean
@@ -657,6 +663,7 @@ export default function VendasClient({
   const csvInput = useRef<HTMLInputElement>(null)
   const productSearchRef = useRef<HTMLInputElement>(null)
   const [filtro, setFiltro] = useState<Filtro>('mes')
+  const [soViaTerny, setSoViaTerny] = useState(false)
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [caixa, setCaixa] = useState<Caixa | null>(caixaAtual)
@@ -1114,11 +1121,25 @@ export default function VendasClient({
     if (params.get('nova') !== '1') return
     openNew()
 
+    /* Carrinho do WhatsApp -- vários itens de uma vez (?itens=JSON) */
+    const itensParam = params.get('itens')
+    if (itensParam) {
+      try {
+        const itens = JSON.parse(itensParam) as { estoqueId?: string; nome: string; tamanho?: string; preco?: number }[]
+        if (itens.length > 0) {
+          setForm(f => ({
+            ...f,
+            produtos: itens.map(it => ({ ...EMPTY_PRODUTO, estoqueId: it.estoqueId ?? '', nome: it.nome, tamanho: it.tamanho ?? '', precoUnitario: it.preco != null ? String(it.preco) : '' })),
+          }))
+        }
+      } catch { /* JSON inválido -- ignora, abre o Nova Venda em branco */ }
+    }
+
     const estoqueId = params.get('estoqueId') ?? ''
     const nome = params.get('nome') ?? ''
     const tamanho = params.get('tamanho') ?? ''
     const preco = params.get('preco') ?? ''
-    if (estoqueId || nome) {
+    if (!itensParam && (estoqueId || nome)) {
       setForm(f => ({ ...f, produtos: [{ ...EMPTY_PRODUTO, estoqueId, nome, tamanho, precoUnitario: preco }] }))
     }
 
@@ -1752,7 +1773,9 @@ export default function VendasClient({
     ? vendas.filter(v => { const d = v.data_venda.slice(0, 10); return d >= dateRange.start && d <= dateRange.end })
     : vendas
 
-  const filtered = vendasPeriodo.filter(v => v.cliente_nome.toLowerCase().includes(search.toLowerCase()))
+  const filtered = vendasPeriodo
+    .filter(v => v.cliente_nome.toLowerCase().includes(search.toLowerCase()))
+    .filter(v => !soViaTerny || (v.cliente_id && origemLeadPorCliente[v.cliente_id]))
   const totalReceita = vendasPeriodo.reduce((s, v) => s + Number(v.valor), 0)
   const ticketMedio = vendasPeriodo.length > 0 ? totalReceita / vendasPeriodo.length : 0
   const totalAReceber = crediarios.reduce((s, c) => {
@@ -1882,6 +1905,14 @@ export default function VendasClient({
               </button>
             )}
           </div>
+          <button
+            onClick={() => setSoViaTerny(v => !v)}
+            className={`text-sm px-3.5 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              soViaTerny ? 'bg-[#C79A54] text-[#16151A]' : 'text-zinc-400 bg-zinc-800 hover:text-white border border-zinc-700 hover:border-zinc-500'
+            }`}
+          >
+            🤖 Só via Terny
+          </button>
         </div>
 
         {/* Stats */}
@@ -2082,6 +2113,11 @@ export default function VendasClient({
                               {v.cliente_nome.charAt(0).toUpperCase()}
                             </span>
                             {v.cliente_nome}
+                            {v.cliente_id && origemLeadPorCliente[v.cliente_id] && (
+                              <span title={`via Terny — ${origemLeadPorCliente[v.cliente_id]}`} className="text-[10px] font-semibold text-[#E0B36A] bg-[#C79A54]/15 rounded px-1.5 py-0.5 shrink-0">
+                                🤖 {origemLeadLabel(origemLeadPorCliente[v.cliente_id])}
+                              </span>
+                            )}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-semibold text-emerald-400 whitespace-nowrap">{formatBRL(Number(v.valor))}</td>

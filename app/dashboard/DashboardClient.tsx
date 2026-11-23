@@ -73,6 +73,7 @@ type Props = {
   totalReceita: number
   totalVendas: number
   vendidoMes: number
+  vendidoTernyMes: number
   lucroMes: number | null
   lucroParcial: boolean
   metaInicial: MetaRow | null
@@ -656,7 +657,7 @@ function QuemChamarHoje({ itens }: { itens: OportunidadeFeed[] }) {
 }
 
 export default function DashboardClient({
-  user, mes, totalReceita, totalVendas, vendidoMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono', paraResponder = [], oportunidadesHoje = [],
+  user, mes, totalReceita, totalVendas, vendidoMes, vendidoTernyMes, lucroMes, lucroParcial, metaInicial, vendasPorDia, setup, modo = 'dono', paraResponder = [], oportunidadesHoje = [],
 }: Props) {
   const restrito = modo === 'funcionaria'   // modo funcionária: oculta todo valor financeiro
   const [meta,           setMeta]           = useState<MetaRow | null>(metaInicial)
@@ -866,6 +867,13 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        {vendidoTernyMes > 0 && (
+          <Link href="/vendas" className="block bg-[#C79A54]/10 border border-[#C79A54]/30 rounded-2xl px-5 py-3 mb-3 flex items-center justify-between gap-3 hover:border-[#C79A54]/50 transition">
+            <span className="text-sm text-[#E0B36A]">🤖 Vendido pelo Terny este mês</span>
+            <span className="text-lg font-bold text-[#C79A54]">{valoresVisiveis ? fmtNum(vendidoTernyMes) : HIDDEN_LABEL}</span>
+          </Link>
+        )}
 
         {oportunidadesHoje.length > 0 && <QuemChamarHoje itens={oportunidadesHoje} />}
 

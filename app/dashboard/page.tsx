@@ -43,7 +43,7 @@ export default async function DashboardPage() {
     { data: cfg },
   ] = await Promise.all([
     supabase.from('vendas').select('valor').eq('user_id', user.id),
-    supabase.from('vendas').select('valor, data_venda, produtos').eq('user_id', user.id)
+    supabase.from('vendas').select('valor, data_venda, produtos, cliente_id').eq('user_id', user.id)
       .gte('data_venda', mesStart).lt('data_venda', nextMonth),
     supabase.from('estoque').select('nome, marca, preco_custo').eq('user_id', user.id),
     supabase.from('metas').select('*').eq('user_id', user.id).eq('mes', mes).maybeSingle(),
@@ -51,6 +51,14 @@ export default async function DashboardPage() {
     supabase.from('marcas').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
     supabase.from('loja_config').select('nome_loja, meta_phone_number_id, meta_access_token, whatsapp_provider').eq('user_id', user.id).maybeSingle(),
   ])
+
+  /* "Vendido pelo Terny este mês" -- vendas do mês de clientes com origem_lead
+     preenchida (vieram da qualificação automática do WhatsApp). */
+  const { data: clientesTerny } = await supabase.from('clientes').select('id').eq('user_id', user.id).not('origem_lead', 'is', null)
+  const idsTerny = new Set((clientesTerny ?? []).map(c => c.id))
+  const vendidoTernyMes = (vendasMes ?? [])
+    .filter(v => v.cliente_id && idsTerny.has(v.cliente_id))
+    .reduce((s, v) => s + Number(v.valor), 0)
 
   /* Estado do setup (partida a frio) — pro widget "Primeiros passos" */
   const setup = {
@@ -144,6 +152,7 @@ export default async function DashboardPage() {
       totalReceita={totalReceita}
       totalVendas={totalVendas}
       vendidoMes={vendidoMes}
+      vendidoTernyMes={vendidoTernyMes}
       lucroMes={restrito ? null : lucroMes}
       lucroParcial={itensSemCusto > 0}
       metaInicial={metaRow ?? null}

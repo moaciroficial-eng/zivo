@@ -38,7 +38,7 @@ export default async function VendasPage() {
 
   const [{ data: vendas }, { data: clientes }, { data: estoque }, { data: crediarios }, { data: insights }, { data: fotos }, { data: notas }, { data: cfgFiscal }] = await Promise.all([
     supabase.from('vendas').select('*').eq('user_id', user.id).order('data_venda', { ascending: false }),
-    supabase.from('clientes').select('id, nome, telefone, dependentes, saldo_credito, observacoes').eq('user_id', user.id).order('nome'),
+    supabase.from('clientes').select('id, nome, telefone, dependentes, saldo_credito, observacoes, origem_lead').eq('user_id', user.id).order('nome'),
     supabase.from('estoque').select('id, nome, marca, cor, codigo_barras, codigo_produto, preco_venda, preco_custo, preco_promocional, promocao_valida_until, status, tamanhos')
       .eq('user_id', user.id).not('status', 'eq', 'vendido').order('nome'),
     supabase.from('crediario').select('*, parcelas_crediario(*)').eq('user_id', user.id)
@@ -68,6 +68,14 @@ export default async function VendasPage() {
   const marcaPorCliente: Record<string, string> = {}
   for (const i of (insights ?? []) as { cliente_id: string | null; marca_principal: string | null }[]) {
     if (i.cliente_id && i.marca_principal) marcaPorCliente[i.cliente_id] = i.marca_principal
+  }
+
+  /* Mapa cliente_id → origem do lead (live/campanha/organico) -- venda "via
+     Terny" é toda venda de um cliente com isso preenchido (vindo da
+     qualificação automática do WhatsApp). */
+  const origemLeadPorCliente: Record<string, string> = {}
+  for (const c of (clientes ?? []) as { id: string; origem_lead?: string | null }[]) {
+    if (c.origem_lead) origemLeadPorCliente[c.id] = c.origem_lead
   }
 
   let { data: caixaAtual } = await supabase.from('caixas')
@@ -128,6 +136,7 @@ export default async function VendasPage() {
       historicoCaixas={modo === 'funcionaria' ? [] : (historicoCaixas ?? [])}
       initialCrediarios={crediarios ?? []}
       marcaPorCliente={marcaPorCliente}
+      origemLeadPorCliente={origemLeadPorCliente}
       fotoMap={fotoMap}
       modo={modo}
       fiscalAtivo={!!cfgFiscal?.fiscal_ativo}
