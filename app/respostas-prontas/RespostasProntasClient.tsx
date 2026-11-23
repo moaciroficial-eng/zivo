@@ -22,6 +22,36 @@ const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height
 type Form = { titulo: string; atalho: string; texto: string; botoes: string[] }
 const FORM_VAZIO: Form = { titulo: '', atalho: '', texto: '', botoes: [] }
 
+/* Precisa estar FORA do componente -- definido dentro, era recriado a cada
+   render (identidade de função nova), e o React desmontava/remontava os
+   inputs a cada tecla digitada, perdendo o foco a cada letra. */
+function setBotao(form: Form, i: number, valor: string, setForm: (f: Form) => void) {
+  const botoes = [...form.botoes]
+  if (valor) botoes[i] = valor.slice(0, 20); else botoes.splice(i, 1)
+  setForm({ ...form, botoes })
+}
+
+function FormCampos({ form, setForm }: { form: Form; setForm: (f: Form) => void }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <input className={INPUT} placeholder="Título (ex.: Chave Pix)" value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} />
+        <input className={INPUT} placeholder="Atalho pro / (ex.: pix)" value={form.atalho} onChange={e => setForm({ ...form, atalho: e.target.value })} />
+      </div>
+      <textarea className={`${INPUT} min-h-[80px]`} placeholder="Texto -- use {nome} pra entrar o nome do cliente" value={form.texto} onChange={e => setForm({ ...form, texto: e.target.value })} />
+      <div>
+        <p className="text-xs text-zinc-500 mb-1.5">Botões (opcional, até 3)</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {[0, 1, 2].map(i => (
+            <input key={i} className={INPUT} placeholder={`Botão ${i + 1}`} maxLength={20}
+              value={form.botoes[i] ?? ''} onChange={e => setBotao(form, i, e.target.value, setForm)} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function RespostasProntasClient({ initialRespostas }: {
   user: { id: string; email: string }
   initialRespostas: Resposta[]
@@ -38,12 +68,6 @@ export default function RespostasProntasClient({ initialRespostas }: {
   function abrirEdicao(r: Resposta) {
     setEditingId(r.id)
     setEditForm({ titulo: r.titulo, atalho: r.atalho, texto: r.texto, botoes: (r.botoes ?? []).map(b => b.titulo) })
-  }
-
-  function setBotao(form: Form, i: number, valor: string, setForm: (f: Form) => void) {
-    const botoes = [...form.botoes]
-    if (valor) botoes[i] = valor.slice(0, 20); else botoes.splice(i, 1)
-    setForm({ ...form, botoes })
   }
 
   async function salvarEdicao() {
@@ -86,27 +110,6 @@ export default function RespostasProntasClient({ initialRespostas }: {
     if (!confirm('Excluir essa resposta pronta?')) return
     await supabase.from('respostas_prontas').delete().eq('id', id)
     setRespostas(rs => rs.filter(r => r.id !== id))
-  }
-
-  function FormCampos({ form, setForm }: { form: Form; setForm: (f: Form) => void }) {
-    return (
-      <div className="space-y-2.5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <input className={INPUT} placeholder="Título (ex.: Chave Pix)" value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} />
-          <input className={INPUT} placeholder="Atalho pro / (ex.: pix)" value={form.atalho} onChange={e => setForm({ ...form, atalho: e.target.value })} />
-        </div>
-        <textarea className={`${INPUT} min-h-[80px]`} placeholder="Texto -- use {nome} pra entrar o nome do cliente" value={form.texto} onChange={e => setForm({ ...form, texto: e.target.value })} />
-        <div>
-          <p className="text-xs text-zinc-500 mb-1.5">Botões (opcional, até 3)</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {[0, 1, 2].map(i => (
-              <input key={i} className={INPUT} placeholder={`Botão ${i + 1}`} maxLength={20}
-                value={form.botoes[i] ?? ''} onChange={e => setBotao(form, i, e.target.value, setForm)} />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
