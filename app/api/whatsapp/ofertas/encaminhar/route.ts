@@ -72,7 +72,17 @@ export async function POST(request: NextRequest) {
         origem_oferta_id: origemOfertaId ?? null, pecas, status: 'aguardando_resposta', template_enviado: templateName,
       })
       try {
-        await sendWhatsAppTemplate({ phone: c.phone, templateName, variaveis: [primeiroNome(c.nome, 'você')], creds: loja?.creds, userId: user.id })
+        const { messageId } = await sendWhatsAppTemplate({ phone: c.phone, templateName, variaveis: [primeiroNome(c.nome, 'você')], creds: loja?.creds, userId: user.id })
+        /* Grava no histórico -- sem isso o template enviado por aqui nunca
+           aparecia na conversa e nunca ganhava tique de status. */
+        const conteudo = `📄 ${templateName}`
+        const timestamp = new Date().toISOString()
+        await admin.from('whatsapp_mensagens').insert({
+          user_id: user.id, contato_id: c.id, message_id: messageId ?? null,
+          direcao: 'enviada', tipo: 'template', conteudo, status: 'enviada', timestamp,
+          raw: { template: { nome: templateName } },
+        })
+        await admin.from('whatsapp_contatos').update({ ultima_mensagem: conteudo, ultima_mensagem_at: timestamp }).eq('id', c.id)
         resultados.push({ contatoId: c.id, ok: true, modo: 'template' })
       } catch (e) {
         resultados.push({ contatoId: c.id, ok: false, modo: 'template', erro: e instanceof Error ? e.message : 'Falha ao enviar o template.' })
