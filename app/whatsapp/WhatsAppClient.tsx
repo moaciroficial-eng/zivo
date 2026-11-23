@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/app/components/useConfirm'
 import { clienteServeProduto } from '@/lib/tamanhos'
 import type { ProdutoResolvido } from '@/lib/ofertas'
+import { VAPID_PUBLIC_KEY } from '@/lib/push-public'
 
 type Contato = {
   id: string
@@ -201,6 +202,18 @@ const EMOJIS = [
 /* Reações rápidas (menu de cada mensagem) */
 const REACOES = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 
+/* Mesma conversão usada em components/PWA.tsx -- chave pública VAPID
+   (base64url) pro formato que pushManager.subscribe espera. */
+function urlBase64ToArrayBuffer(base64: string): ArrayBuffer {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4)
+  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(b64)
+  const buffer = new ArrayBuffer(raw.length)
+  const arr = new Uint8Array(buffer)
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+  return buffer
+}
+
 export default function WhatsAppClient({ user, initialContatos }: Props) {
   const supabase = createClient()
   const [contatos, setContatos] = useState<Contato[]>(initialContatos)
@@ -286,9 +299,19 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [janelaAbertaIds, setJanelaAbertaIds] = useState<Set<string> | null>(null)
   // Liga/desliga do fluxo de qualificação automática (3 perguntas)
   const [qualificacaoAtiva, setQualificacaoAtiva] = useState<boolean | null>(null)
+  // Liga/desliga de notificação push (aviso de mensagem nova no celular)
+  const [pushAtivo, setPushAtivo] = useState<boolean | null>(null)
   // Respostas prontas -- atalho "/" no campo de digitar
   const [respostasProntas, setRespostasProntas] = useState<{ id: string; titulo: string; atalho: string; texto: string }[]>([])
   const [showRespostas, setShowRespostas] = useState(false)
+  // Encaminhar UMA mensagem (texto/foto/áudio/documento) pra outros contatos
+  const [encaminharMsg, setEncaminharMsg] = useState<Mensagem | null>(null)
+  const [encMsgBusca, setEncMsgBusca] = useState('')
+  const [encMsgSelecionados, setEncMsgSelecionados] = useState<Map<string, Contato>>(new Map())
+  const [encMsgJanela, setEncMsgJanela] = useState<Set<string> | null>(null)
+  const [encMsgEnviando, setEncMsgEnviando] = useState(false)
+  const [encMsgResultado, setEncMsgResultado] = useState<string | null>(null)
+  const [copiadoMsgId, setCopiadoMsgId] = useState<string | null>(null)
   // Produto por trás de uma foto citada no quadrinho "respondendo a ..." (cache por mensagem)
   const [produtoCitado, setProdutoCitado] = useState<Map<string, ProdutoResolvido>>(new Map())
   const produtoFetchedRef = useRef<Set<string>>(new Set())
@@ -357,21 +380,33 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     })
   }
 
-  /* Identifica o produto por trás de cada foto citada (pra nome/tamanho/preço +
-     "Registrar venda dessa peça"). Dedup por ref -- não refaz a mesma busca
-     a cada render ou quando mensagens novas chegam por realtime. */
+  /* Identifica o produto por trás de UMA foto (mesmo motor pra foto citada
+     numa resposta e pra foto solta reencaminhada pelo cliente -- casa pela
+     legenda "Nome — de R$X por R$Y" contra o estoque atual). */
+  function buscarProdutoDaMensagem(mensagemId: string) {
+    fetch(`/api/whatsapp/mensagens/produto?mensagemId=${mensagemId}`)
+      .then(r => r.json())
+      .then((data: ProdutoResolvido & { ok?: boolean }) =>
+        setProdutoCitado(prev => new Map(prev).set(mensagemId, data?.ok ? data : { encontrado: false })))
+      .catch(() => setProdutoCitado(prev => new Map(prev).set(mensagemId, { encontrado: false })))
+  }
+
+  /* Dedup por ref -- não refaz a mesma busca a cada render ou quando
+     mensagens novas chegam por realtime. */
   useEffect(() => {
     for (const mm of mensagens) {
       const ctxId = (mm.raw?.context as Record<string, unknown> | undefined)?.id as string | undefined
-      if (!ctxId) continue
-      const citada = msgPorId.get(ctxId)
-      if (!citada || citada.tipo !== 'imagem' || produtoFetchedRef.current.has(citada.id)) continue
-      produtoFetchedRef.current.add(citada.id)
-      fetch(`/api/whatsapp/mensagens/produto?mensagemId=${citada.id}`)
-        .then(r => r.json())
-        .then((data: ProdutoResolvido & { ok?: boolean }) =>
-          setProdutoCitado(prev => new Map(prev).set(citada.id, data?.ok ? data : { encontrado: false })))
-        .catch(() => setProdutoCitado(prev => new Map(prev).set(citada.id, { encontrado: false })))
+      const citada = ctxId ? msgPorId.get(ctxId) : undefined
+      if (citada && citada.tipo === 'imagem' && !produtoFetchedRef.current.has(citada.id)) {
+        produtoFetchedRef.current.add(citada.id)
+        buscarProdutoDaMensagem(citada.id)
+      }
+      // Foto solta recebida do cliente (sem citação, ex.: reencaminhou uma
+      // foto nossa) -- roda o mesmo motor direto na foto, sem precisar de resposta.
+      if (mm.direcao === 'recebida' && mm.tipo === 'imagem' && !produtoFetchedRef.current.has(mm.id)) {
+        produtoFetchedRef.current.add(mm.id)
+        buscarProdutoDaMensagem(mm.id)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mensagens])
@@ -458,6 +493,38 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     const novo = !qualificacaoAtiva
     setQualificacaoAtiva(novo)
     await supabase.from('loja_config').upsert({ user_id: user.id, qualificacao_ativa: novo }, { onConflict: 'user_id' })
+  }
+
+  /* Estado atual da inscrição push (já ativada em outra aba/dispositivo?) */
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) { setPushAtivo(false); return }
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => setPushAtivo(!!sub))
+      .catch(() => setPushAtivo(false))
+  }, [])
+
+  async function alternarPush() {
+    if (pushAtivo === null) return
+    try {
+      if (pushAtivo) {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) })
+          await sub.unsubscribe()
+        }
+        setPushAtivo(false)
+      } else {
+        const perm = await Notification.requestPermission()
+        if (perm !== 'granted') return
+        const reg = await navigator.serviceWorker.ready
+        let sub = await reg.pushManager.getSubscription()
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToArrayBuffer(VAPID_PUBLIC_KEY) })
+        await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) })
+        setPushAtivo(true)
+      }
+    } catch { /* silencioso -- o botão só não muda de estado */ }
   }
 
   async function iniciarConversa(phone: string, nome: string) {
@@ -1179,6 +1246,71 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }
 
+  /* Copia o texto da mensagem -- "Copiar texto" no menu de cada mensagem */
+  async function copiarTextoMensagem(m: Mensagem) {
+    try {
+      await navigator.clipboard.writeText(m.conteudo ?? '')
+      setCopiadoMsgId(m.id)
+      setTimeout(() => setCopiadoMsgId(id => (id === m.id ? null : id)), 1500)
+    } catch { /* clipboard bloqueado -- sem feedback, sem travar nada */ }
+    setAcaoMsgId(null)
+  }
+
+  /* Encaminhar UMA mensagem (texto/foto/áudio/documento) -- abre o seletor
+     de contatos (mesma checagem de janela de 24h usada em "copiar oferta") */
+  async function abrirEncaminharMensagem(m: Mensagem) {
+    setEncaminharMsg(m)
+    setEncMsgBusca('')
+    setEncMsgSelecionados(new Map())
+    setEncMsgResultado(null)
+    setEncMsgJanela(null)
+    setAcaoMsgId(null)
+    try {
+      const res = await fetch('/api/whatsapp/ofertas/encaminhar/janela', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoIds: contatos.map(c => c.id) }),
+      })
+      const d = await res.json().catch(() => null)
+      setEncMsgJanela(new Set(d?.ok ? d.abertos : []))
+    } catch {
+      setEncMsgJanela(new Set())
+    }
+  }
+
+  function toggleEncMsgSelecionado(c: Contato) {
+    setEncMsgSelecionados(prev => {
+      const s = new Map(prev)
+      if (s.has(c.id)) s.delete(c.id); else s.set(c.id, c)
+      return s
+    })
+  }
+
+  async function confirmarEncaminharMensagem() {
+    if (!encaminharMsg || encMsgSelecionados.size === 0) return
+    setEncMsgEnviando(true)
+    setEncMsgResultado(null)
+    try {
+      const res = await fetch('/api/whatsapp/mensagens/encaminhar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagemId: encaminharMsg.id, contatoIds: [...encMsgSelecionados.keys()] }),
+      })
+      const d = await res.json().catch(() => null)
+      if (!d?.ok) { setEncMsgResultado(d?.erro || 'Falha ao encaminhar.'); return }
+      const resultados = d.resultados as { contatoId: string; ok: boolean; erro?: string }[]
+      const okCount = resultados.filter(r => r.ok).length
+      const falhas = resultados.filter(r => !r.ok)
+      setEncMsgResultado(
+        falhas.length === 0
+          ? `Encaminhado pra ${okCount} contato(s) ✅`
+          : `Encaminhado pra ${okCount} de ${resultados.length}. ${falhas.length} falharam (${[...new Set(falhas.map(f => f.erro))].join(', ')}).`
+      )
+    } catch {
+      setEncMsgResultado('Falha ao encaminhar.')
+    } finally {
+      setEncMsgEnviando(false)
+    }
+  }
+
   function toggleContatoSelecionado(c: Contato) {
     setContatosSelecionados(prev => {
       const s = new Map(prev)
@@ -1437,6 +1569,16 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-6 6c0 2 1 3.5 2 5 .6.9 1 1.5 1 3h6c0-1.5.4-2.1 1-3 1-1.5 2-3 2-5a6 6 0 0 0-6-6Z"/></svg>
+            </button>
+            <button
+              onClick={alternarPush}
+              disabled={pushAtivo === null}
+              title={pushAtivo ? 'Avisos de mensagem nova ligados -- clique pra desligar' : 'Avisos de mensagem nova desligados -- clique pra ligar'}
+              className={`w-9 h-9 flex items-center justify-center rounded-lg border transition shrink-0 disabled:opacity-40 ${
+                pushAtivo ? 'bg-[#C79A54]/20 border-[#C79A54]/50 text-[#E0B36A]' : 'bg-zinc-800 border-zinc-700 text-zinc-500'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             </button>
           </div>
 
@@ -1704,7 +1846,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   const acao = m.message_id ? (
                     <div className="relative self-center shrink-0">
                       <button onClick={() => setAcaoMsgId(id => id === m.id ? null : m.id)}
-                        className="opacity-40 md:opacity-0 md:group-hover:opacity-100 text-zinc-500 hover:text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-zinc-800 transition">
+                        className="opacity-70 md:opacity-0 md:group-hover:opacity-100 text-zinc-300 md:text-zinc-500 active:bg-zinc-700 hover:text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-zinc-800 transition">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                       </button>
                       {acaoMsgId === m.id && (
@@ -1721,6 +1863,18 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
                               Responder
                             </button>
+                            <button onClick={() => abrirEncaminharMensagem(m)}
+                              className="w-full flex items-center gap-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-2 py-1.5 transition">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+                              Encaminhar
+                            </button>
+                            {m.conteudo && (
+                              <button onClick={() => copiarTextoMensagem(m)}
+                                className="w-full flex items-center gap-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-2 py-1.5 transition">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                {copiadoMsgId === m.id ? 'Copiado!' : 'Copiar texto'}
+                              </button>
+                            )}
                           </div>
                         </>
                       )}
@@ -1729,6 +1883,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
 
                   const citadaImageUrl = citada ? ((citada.raw?.image as Record<string, unknown> | undefined)?.imageUrl as string | undefined) : undefined
                   const produtoDaCitada = citada ? produtoCitado.get(citada.id) : undefined
+                  /* Foto solta que o CLIENTE mandou (sem citar nada) -- mesmo motor,
+                     mostrado direto embaixo da própria foto, não num quadrinho. */
+                  const produtoDaPropriaFoto = !enviada && m.tipo === 'imagem' ? produtoCitado.get(m.id) : undefined
 
                   return (
                     <div key={m.id} ref={el => { if (el) msgRefs.current.set(m.id, el); else msgRefs.current.delete(m.id) }}>
@@ -1795,6 +1952,23 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                           <a href={imageUrl} target="_blank" rel="noopener noreferrer">
                             <img src={imageUrl} alt="imagem" className="max-w-full max-h-64 object-cover" />
                           </a>
+                        )}
+                        {/* Foto solta do cliente que bateu com um produto do estoque pela legenda */}
+                        {produtoDaPropriaFoto?.encontrado && (
+                          <div className="mx-1.5 mt-1.5 mb-1.5 px-2 py-1.5 rounded-lg bg-black/20 text-[11px] space-y-1">
+                            <p className="opacity-90">
+                              Produto identificado: {[produtoDaPropriaFoto.nome, produtoDaPropriaFoto.marca].filter(Boolean).join(' ')}
+                              {produtoDaPropriaFoto.tamanhos?.length ? `, tamanho ${produtoDaPropriaFoto.tamanhos.join('/')}` : ''}
+                              {produtoDaPropriaFoto.tamanhos?.length ? ', estoque disponível' : ', sem estoque no tamanho'}
+                            </p>
+                            <Link
+                              href={`/vendas?nova=1&estoqueId=${encodeURIComponent(produtoDaPropriaFoto.estoque_id ?? '')}&nome=${encodeURIComponent([produtoDaPropriaFoto.nome, produtoDaPropriaFoto.marca].filter(Boolean).join(' '))}&tamanho=${produtoDaPropriaFoto.tamanhos?.length === 1 ? encodeURIComponent(produtoDaPropriaFoto.tamanhos[0]) : ''}&preco=${produtoDaPropriaFoto.preco_por ?? ''}&clienteId=${encodeURIComponent(selectedContato?.cliente_id ?? '')}`}
+                              target="_blank"
+                              className="inline-block font-semibold rounded-lg px-2 py-1 transition bg-zinc-700 hover:bg-zinc-600"
+                            >
+                              Registrar venda dessa peça
+                            </Link>
+                          </div>
                         )}
                         {/* Figurinha */}
                         {m.tipo === 'sticker' && stickerUrl && (
@@ -1899,7 +2073,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   <button onClick={() => setReplyTo(null)} title="Cancelar" className="text-zinc-500 hover:text-white shrink-0 text-lg leading-none">✕</button>
                 </div>
               )}
-              <div className="shrink-0 p-3 border-t border-zinc-800 flex gap-2 relative">
+              <div className="shrink-0 pt-3 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-zinc-800 flex gap-2 relative">
               {gravando ? (
                 <>
                   <button onClick={cancelarGravacao} title="Cancelar gravação"
@@ -2526,6 +2700,72 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Encaminhar UMA mensagem (texto/foto/áudio/documento) pra outros contatos */}
+      {encaminharMsg && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setEncaminharMsg(null)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-lg h-[85vh] sm:h-[75vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-bold">Encaminhar {resumoMsg(encaminharMsg)}</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Busque por nome e marque um ou vários clientes.</p>
+              </div>
+              <button onClick={() => setEncaminharMsg(null)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="p-3 shrink-0">
+              <input
+                autoFocus
+                value={encMsgBusca}
+                onChange={e => setEncMsgBusca(e.target.value)}
+                placeholder="Buscar por nome, telefone ou tamanho…"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 flex flex-col gap-1">
+              {contatos
+                .filter(c => contatoCombinaBusca(c, encMsgBusca))
+                .map(c => {
+                  const cli = c.cliente_id ? clientesPorId.get(c.cliente_id) : undefined
+                  const tel = fmtPhoneDestaque(c.phone)
+                  const tamanhos = resumoTamanhosCliente(cli)
+                  const dentro = encMsgJanela?.has(c.id)
+                  return (
+                    <label key={c.id} className="flex items-start gap-2.5 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer">
+                      <input type="checkbox" checked={encMsgSelecionados.has(c.id)} onChange={() => toggleEncMsgSelecionado(c)} className="accent-[#C79A54] mt-1" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-sm truncate">{cli?.nome ?? c.nome ?? c.phone}</span>
+                          {encMsgJanela && (
+                            <span className={`text-[10px] font-medium shrink-0 ${dentro ? 'text-emerald-400' : 'text-amber-500'}`}>
+                              {dentro ? 'janela aberta' : 'fora da janela'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 truncate">
+                          {tel ? <>{tel.prefixo}<span className="text-zinc-300 font-medium">{tel.fim}</span></> : c.phone}
+                          {tamanhos && ` · ${tamanhos}`}
+                          {!cli && <span className="text-amber-500"> · sem cadastro</span>}
+                        </p>
+                      </div>
+                    </label>
+                  )
+                })}
+            </div>
+            <div className="p-3 border-t border-zinc-800 shrink-0 space-y-2">
+              {encMsgResultado && <p className="text-sm text-[#E0B36A]">{encMsgResultado}</p>}
+              <button
+                onClick={confirmarEncaminharMensagem}
+                disabled={encMsgSelecionados.size === 0 || encMsgEnviando}
+                className="w-full text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
+              >
+                {encMsgEnviando ? 'Enviando…' : `Encaminhar pra ${encMsgSelecionados.size} contato(s)`}
+              </button>
+            </div>
           </div>
         </div>
       )}
