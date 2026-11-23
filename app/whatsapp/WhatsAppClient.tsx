@@ -312,6 +312,22 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   const [encMsgEnviando, setEncMsgEnviando] = useState(false)
   const [encMsgResultado, setEncMsgResultado] = useState<string | null>(null)
   const [copiadoMsgId, setCopiadoMsgId] = useState<string | null>(null)
+  // Carrinho da conversa -- itens de produto identificados por foto, prontos
+  // pra "Fechar venda" ou "Gerar condicional"
+  type ItemCarrinho = { estoque_id: string; nome: string; marca: string | null; tamanho: string; preco: number | null; foto_url: string }
+  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([])
+  const [showCarrinho, setShowCarrinho] = useState(false)
+  const [carrinhoProcessando, setCarrinhoProcessando] = useState(false)
+  const [carrinhoErro, setCarrinhoErro] = useState<string | null>(null)
+  const [carrinhoSucesso, setCarrinhoSucesso] = useState<string | null>(null)
+  // Botões/lista manuais
+  const [showBotoesManuais, setShowBotoesManuais] = useState(false)
+  const [botoesManuaisCorpo, setBotoesManuaisCorpo] = useState('')
+  const [botoesManuaisTipo, setBotoesManuaisTipo] = useState<'botoes' | 'lista'>('botoes')
+  const [botoesManuaisOpcoes, setBotoesManuaisOpcoes] = useState<string[]>(['', '', ''])
+  const [botoesManuaisEnviando, setBotoesManuaisEnviando] = useState(false)
+  // Sugestão de resposta por IA
+  const [sugerindoResposta, setSugerindoResposta] = useState(false)
   // Produto por trás de uma foto citada no quadrinho "respondendo a ..." (cache por mensagem)
   const [produtoCitado, setProdutoCitado] = useState<Map<string, ProdutoResolvido>>(new Map())
   const produtoFetchedRef = useRef<Set<string>>(new Set())
@@ -401,9 +417,10 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
         produtoFetchedRef.current.add(citada.id)
         buscarProdutoDaMensagem(citada.id)
       }
-      // Foto solta recebida do cliente (sem citação, ex.: reencaminhou uma
-      // foto nossa) -- roda o mesmo motor direto na foto, sem precisar de resposta.
-      if (mm.direcao === 'recebida' && mm.tipo === 'imagem' && !produtoFetchedRef.current.has(mm.id)) {
+      // Qualquer foto (recebida solta, ex.: cliente reencaminhou; ou enviada
+      // por nós, ex.: "Foto de produto") -- roda o mesmo motor direto na foto,
+      // sem precisar de citação. É o que habilita o "+ Carrinho" no menu.
+      if (mm.tipo === 'imagem' && !produtoFetchedRef.current.has(mm.id)) {
         produtoFetchedRef.current.add(mm.id)
         buscarProdutoDaMensagem(mm.id)
       }
@@ -577,6 +594,7 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
   /* ── Carrega mensagens ao selecionar contato ── */
   useEffect(() => {
     setReplyTo(null); setAcaoMsgId(null)
+    setCarrinho([]); setCarrinhoErro(null); setShowCarrinho(false)
     if (gravando) cancelarGravacao()
     if (audioPreview) descartarAudioGravado()
     if (!selectedId) { setMensagens([]); return }
@@ -1311,6 +1329,178 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
     }
   }
 
+  /* ── Carrinho da conversa ── */
+  const carrinhoTotal = carrinho.reduce((s, it) => s + (it.preco ?? 0), 0)
+
+  async function adicionarAoCarrinho(produto: ProdutoResolvido, fotoUrl: string) {
+    setAcaoMsgId(null)
+    if (!produto.estoque_id) return
+    if (carrinho.some(it => it.estoque_id === produto.estoque_id)) {
+      setCarrinhoErro('Essa peça já está no carrinho.')
+      setShowCarrinho(true)
+      setTimeout(() => setCarrinhoErro(null), 3000)
+      return
+    }
+    try {
+      const res = await fetch('/api/whatsapp/ofertas/recheck', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pecas: [{ estoque_id: produto.estoque_id, nome: produto.nome ?? '', marca: produto.marca ?? null, foto_url: fotoUrl, tamanhos: produto.tamanhos ?? [], preco_de: produto.preco_de ?? null, preco_por: produto.preco_por ?? null }] }),
+      })
+      const d = await res.json().catch(() => null)
+      const item = d?.ok ? d.itens?.[0] : null
+      if (!item || item.esgotado || !item.tamanhosDisponiveis?.length) {
+        setCarrinhoErro('Essa peça está esgotada agora.')
+        setShowCarrinho(true)
+        setTimeout(() => setCarrinhoErro(null), 4000)
+        return
+      }
+      setCarrinho(prev => [...prev, {
+        estoque_id: produto.estoque_id!, nome: produto.nome ?? '', marca: produto.marca ?? null,
+        tamanho: item.tamanhosDisponiveis[0], preco: produto.preco_por ?? null, foto_url: fotoUrl,
+      }])
+      setShowCarrinho(true)
+    } catch {
+      setCarrinhoErro('Falha ao confirmar estoque.')
+      setShowCarrinho(true)
+      setTimeout(() => setCarrinhoErro(null), 4000)
+    }
+  }
+
+  function removerDoCarrinho(estoqueId: string) {
+    setCarrinho(prev => prev.filter(it => it.estoque_id !== estoqueId))
+  }
+
+  /* Confere estoque de todo o carrinho de novo antes de fechar venda/condicional
+     -- pode ter vendido pra outro cliente entre o "+ Carrinho" e agora. */
+  async function recheckCarrinho(): Promise<boolean> {
+    const res = await fetch('/api/whatsapp/ofertas/recheck', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pecas: carrinho.map(it => ({ estoque_id: it.estoque_id, nome: it.nome, marca: it.marca, foto_url: it.foto_url, tamanhos: [it.tamanho], preco_de: null, preco_por: it.preco })) }),
+    })
+    const d = await res.json().catch(() => null)
+    const itens = (d?.ok ? d.itens : []) as { estoque_id: string; esgotado: boolean }[]
+    const esgotados = new Set(itens.filter(i => i.esgotado).map(i => i.estoque_id))
+    if (esgotados.size > 0) {
+      setCarrinho(prev => prev.filter(it => !esgotados.has(it.estoque_id)))
+      setCarrinhoErro(`${esgotados.size} peça(s) ficaram sem estoque e foram removidas do carrinho. Confira e tente de novo.`)
+      return false
+    }
+    return true
+  }
+
+  /* "Fechar venda" -- não cria a venda por trás; abre o formulário real de
+     Vendas (com toda a lógica de caixa/baixa de estoque/pagamento que já
+     existe lá) com os itens do carrinho pré-preenchidos, pro dono revisar
+     forma de pagamento e confirmar. */
+  async function fecharVendaDoCarrinho() {
+    if (carrinho.length === 0 || !selectedContato) return
+    setCarrinhoProcessando(true); setCarrinhoErro(null)
+    try {
+      if (!(await recheckCarrinho())) return
+      const itensParam = encodeURIComponent(JSON.stringify(carrinho.map(it => ({
+        estoqueId: it.estoque_id, nome: [it.nome, it.marca].filter(Boolean).join(' '), tamanho: it.tamanho, preco: it.preco ?? 0,
+      }))))
+      window.open(`/vendas?nova=1&itens=${itensParam}&clienteId=${encodeURIComponent(selectedContato.cliente_id ?? '')}`, '_blank')
+      setShowCarrinho(false)
+      setCarrinho([])
+    } catch {
+      setCarrinhoErro('Falha ao conferir estoque.')
+    } finally {
+      setCarrinhoProcessando(false)
+    }
+  }
+
+  /* "Gerar condicional" -- mesmo mecanismo que a tela de Condicional já usa
+     (marca o estoque como em_condicional), um update por peça do carrinho. */
+  async function gerarCondicionalDoCarrinho() {
+    if (carrinho.length === 0 || !selectedContato) return
+    setCarrinhoProcessando(true); setCarrinhoErro(null); setCarrinhoSucesso(null)
+    try {
+      if (!(await recheckCarrinho())) return
+      const cli = selectedContato.cliente_id ? clientesPorId.get(selectedContato.cliente_id) : undefined
+      const nomeCliente = cli?.nome ?? nomeExibicao(selectedContato)
+      await Promise.all(carrinho.map(it => supabase.from('estoque').update({
+        status: 'em_condicional', condicional_com: nomeCliente, condicional_tel: selectedContato.phone,
+        condicional_desde: new Date().toISOString(),
+      }).eq('id', it.estoque_id)))
+      setCarrinhoSucesso(`Condicional gerada com ${carrinho.length} peça(s) ✅`)
+      setCarrinho([])
+      setTimeout(() => setCarrinhoSucesso(null), 5000)
+    } catch {
+      setCarrinhoErro('Falha ao gerar a condicional.')
+    } finally {
+      setCarrinhoProcessando(false)
+    }
+  }
+
+  /* ── Botões/lista manuais (item 4) ── */
+  function abrirBotoesManuais() {
+    setBotoesManuaisCorpo(''); setBotoesManuaisTipo('botoes'); setBotoesManuaisOpcoes(['', '', ''])
+    setShowBotoesManuais(true)
+    setShowAnexo(false)
+  }
+
+  function setOpcaoBotaoManual(i: number, valor: string) {
+    setBotoesManuaisOpcoes(prev => { const n = [...prev]; n[i] = valor.slice(0, botoesManuaisTipo === 'botoes' ? 20 : 24); return n })
+  }
+
+  async function enviarBotoesManuais() {
+    if (!selectedContato || !botoesManuaisCorpo.trim()) return
+    const opcoes = botoesManuaisOpcoes.map(o => o.trim()).filter(Boolean)
+    if (opcoes.length === 0) return
+    setBotoesManuaisEnviando(true)
+    setSendError(null)
+    const isLid = selectedContato.jid?.endsWith('@lid')
+    const override = isLid ? lidPhone[selectedContato.id]?.replace(/\D/g, '') : undefined
+    try {
+      const res = await fetch('/api/whatsapp/mensagens/botoes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: override ?? selectedContato.phone, contatoId: selectedContato.id,
+          corpo: botoesManuaisCorpo.trim(), tipo: botoesManuaisTipo, opcoes,
+        }),
+      })
+      if (!res.ok) {
+        const t = await res.text()
+        setSendError(t || 'Falha ao enviar.')
+        setTimeout(() => setSendError(null), 8000)
+        return
+      }
+      setShowBotoesManuais(false)
+    } catch {
+      setSendError('Falha de conexão')
+      setTimeout(() => setSendError(null), 6000)
+    } finally {
+      setBotoesManuaisEnviando(false)
+    }
+  }
+
+  /* ── Sugestão de resposta por IA (item 5) -- só preenche o campo, nunca envia ── */
+  async function sugerirResposta() {
+    if (!selectedContato || sugerindoResposta) return
+    setSugerindoResposta(true)
+    setSendError(null)
+    try {
+      const res = await fetch('/api/whatsapp/mensagens/sugerir-resposta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contatoId: selectedContato.id }),
+      })
+      const d = await res.json().catch(() => null)
+      if (d?.ok && d.sugestao) {
+        setInput(d.sugestao)
+        inputRef.current?.focus()
+      } else {
+        setSendError(d?.erro || 'Não consegui sugerir uma resposta agora.')
+        setTimeout(() => setSendError(null), 6000)
+      }
+    } catch {
+      setSendError('Falha de conexão')
+      setTimeout(() => setSendError(null), 6000)
+    } finally {
+      setSugerindoResposta(false)
+    }
+  }
+
   function toggleContatoSelecionado(c: Contato) {
     setContatosSelecionados(prev => {
       const s = new Map(prev)
@@ -1772,6 +1962,23 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   <span className="text-base leading-none">🔁</span>
                 </button>
                 <button
+                  onClick={abrirBotoesManuais}
+                  title="Mandar pergunta com botões ou lista"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-[#E0B36A] transition-colors shrink-0"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="13" y2="13"/></svg>
+                </button>
+                <button
+                  onClick={() => setShowCarrinho(v => !v)}
+                  title="Carrinho"
+                  className={`relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors shrink-0 ${carrinho.length > 0 ? 'text-[#E0B36A]' : 'text-zinc-500'}`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                  {carrinho.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#C79A54] text-[#16151A] text-[10px] font-bold rounded-full flex items-center justify-center px-1">{carrinho.length}</span>
+                  )}
+                </button>
+                <button
                   onClick={() => pedirConfirm(
                     'Apagar esta conversa? Isso remove o histórico e o contato do WhatsApp. O cadastro do cliente não é afetado.',
                     async () => {
@@ -1842,6 +2049,9 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   const placeholders = ['📷 Imagem', '🎵 Áudio', '🎥 Vídeo', '🎯 Figurinha', '📄 Documento']
                   const mostrarTexto = !!m.conteudo && !placeholders.includes(m.conteudo) && m.tipo !== 'documento'
 
+                  /* Produto identificado nessa foto (qualquer direção) -- habilita o "+ Carrinho" */
+                  const produtoDaFoto = m.tipo === 'imagem' ? produtoCitado.get(m.id) : undefined
+
                   /* Menu de ação (Responder / Reagir) — só em mensagens já enviadas de verdade */
                   const acao = m.message_id ? (
                     <div className="relative self-center shrink-0">
@@ -1873,6 +2083,13 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                                 className="w-full flex items-center gap-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-2 py-1.5 transition">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                 {copiadoMsgId === m.id ? 'Copiado!' : 'Copiar texto'}
+                              </button>
+                            )}
+                            {produtoDaFoto?.encontrado && (
+                              <button onClick={() => adicionarAoCarrinho(produtoDaFoto, imageUrl!)}
+                                className="w-full flex items-center gap-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 rounded-lg px-2 py-1.5 transition">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                                + Carrinho
                               </button>
                             )}
                           </div>
@@ -2148,6 +2365,18 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                   className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleSendDocument(f); e.target.value = '' }}
                 />
+                <button
+                  onClick={sugerirResposta}
+                  disabled={sugerindoResposta}
+                  title="Sugerir resposta (IA escreve, você edita e envia)"
+                  className="hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl px-3 py-2.5 transition-colors shrink-0 text-zinc-400 disabled:opacity-40"
+                >
+                  {sugerindoResposta ? (
+                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round"/></svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z"/><path d="M5 17l.75 2.25L8 20l-2.25.75L5 23l-.75-2.25L2 20l2.25-.75L5 17Z"/></svg>
+                  )}
+                </button>
                 <button
                   onClick={() => setShowEmoji(v => !v)}
                   title="Emoji"
@@ -2764,6 +2993,101 @@ export default function WhatsAppClient({ user, initialContatos }: Props) {
                 className="w-full text-sm font-semibold bg-[#C79A54] hover:bg-[#C79A54] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg py-2.5 transition cursor-pointer"
               >
                 {encMsgEnviando ? 'Enviando…' : `Encaminhar pra ${encMsgSelecionados.size} contato(s)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Carrinho da conversa */}
+      {showCarrinho && selectedContato && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-stretch sm:justify-end" onClick={() => setShowCarrinho(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:border-l sm:rounded-none rounded-t-2xl w-full sm:w-96 sm:h-full max-h-[85vh] sm:max-h-none flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h3 className="font-bold">🛒 Carrinho</h3>
+              <button onClick={() => setShowCarrinho(false)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+              {carrinho.length === 0 && (
+                <p className="text-center text-zinc-600 text-sm py-10">
+                  Vazio. No menu (⋯) de uma foto de produto identificada, toque em &quot;+ Carrinho&quot;.
+                </p>
+              )}
+              {carrinho.map(it => (
+                <div key={it.estoque_id} className="flex items-center gap-2.5 bg-zinc-800/60 rounded-lg p-2">
+                  <img src={it.foto_url} alt="" className="w-11 h-11 rounded object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{[it.nome, it.marca].filter(Boolean).join(' ')}</p>
+                    <p className="text-xs text-zinc-500">Tam. {it.tamanho}{it.preco != null ? ` · ${fmtPrecoBRL(it.preco)}` : ''}</p>
+                  </div>
+                  <button onClick={() => removerDoCarrinho(it.estoque_id)} title="Remover" className="text-zinc-500 hover:text-red-400 shrink-0 p-1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 border-t border-zinc-800 shrink-0 space-y-2">
+              {carrinhoErro && <p className="text-sm text-red-400">{carrinhoErro}</p>}
+              {carrinhoSucesso && <p className="text-sm text-emerald-400">{carrinhoSucesso}</p>}
+              {carrinho.length > 0 && (
+                <>
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="text-zinc-400">Total</span>
+                    <span className="font-semibold text-[#E0B36A]">{fmtPrecoBRL(carrinhoTotal)}</span>
+                  </div>
+                  <button onClick={fecharVendaDoCarrinho} disabled={carrinhoProcessando}
+                    className="w-full text-sm font-semibold bg-[#C79A54] hover:bg-[#d8ac68] disabled:opacity-40 text-[#16151A] rounded-lg py-2.5 transition cursor-pointer">
+                    {carrinhoProcessando ? 'Conferindo estoque…' : 'Fechar venda'}
+                  </button>
+                  <button onClick={gerarCondicionalDoCarrinho} disabled={carrinhoProcessando}
+                    className="w-full text-sm font-medium border border-zinc-700 hover:border-[#C79A54]/60 disabled:opacity-40 rounded-lg py-2.5 transition cursor-pointer">
+                    {carrinhoProcessando ? 'Conferindo estoque…' : 'Gerar condicional'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Botões/lista manuais (item 4) */}
+      {showBotoesManuais && selectedContato && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowBotoesManuais(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 sm:rounded-2xl rounded-t-2xl w-full max-w-sm flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h3 className="font-bold">Mandar botões ou lista</h3>
+              <button onClick={() => setShowBotoesManuais(false)} className="p-1 text-zinc-500 hover:text-white rounded transition cursor-pointer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <div className="flex gap-2">
+                <button onClick={() => setBotoesManuaisTipo('botoes')} className={`flex-1 text-sm font-medium rounded-lg py-2 transition ${botoesManuaisTipo === 'botoes' ? 'bg-[#C79A54] text-[#16151A]' : 'bg-zinc-800 text-zinc-300'}`}>Até 3 botões</button>
+                <button onClick={() => setBotoesManuaisTipo('lista')} className={`flex-1 text-sm font-medium rounded-lg py-2 transition ${botoesManuaisTipo === 'lista' ? 'bg-[#C79A54] text-[#16151A]' : 'bg-zinc-800 text-zinc-300'}`}>Lista (até 10)</button>
+              </div>
+              <textarea
+                value={botoesManuaisCorpo}
+                onChange={e => setBotoesManuaisCorpo(e.target.value)}
+                placeholder="Pergunta (ex.: Qual tamanho você usa?)"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] min-h-[70px] [color-scheme:dark]"
+              />
+              <div className="space-y-1.5">
+                {(botoesManuaisTipo === 'botoes' ? botoesManuaisOpcoes.slice(0, 3) : botoesManuaisOpcoes).map((v, i) => (
+                  <input key={i} value={v} onChange={e => setOpcaoBotaoManual(i, e.target.value)}
+                    placeholder={`Opção ${i + 1}`}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-[#C79A54] [color-scheme:dark]" />
+                ))}
+                {botoesManuaisTipo === 'lista' && botoesManuaisOpcoes.length < 10 && (
+                  <button onClick={() => setBotoesManuaisOpcoes(prev => [...prev, ''])} className="text-xs text-[#E0B36A] hover:underline">+ adicionar opção</button>
+                )}
+              </div>
+            </div>
+            <div className="p-3 border-t border-zinc-800 shrink-0">
+              <button onClick={enviarBotoesManuais} disabled={botoesManuaisEnviando || !botoesManuaisCorpo.trim()}
+                className="w-full text-sm font-semibold bg-[#C79A54] hover:bg-[#d8ac68] disabled:opacity-40 text-[#16151A] rounded-lg py-2.5 transition cursor-pointer">
+                {botoesManuaisEnviando ? 'Enviando…' : 'Enviar'}
               </button>
             </div>
           </div>
