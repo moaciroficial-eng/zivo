@@ -1832,7 +1832,6 @@ export default function VendasClient({
             <input
               type="date"
               value={customStart}
-              max={TODAY}
               onChange={e => { setCustomStart(e.target.value); setFiltro('custom') }}
               className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-[#C79A54] transition [color-scheme:dark]"
             />
@@ -1840,7 +1839,6 @@ export default function VendasClient({
             <input
               type="date"
               value={customEnd}
-              max={TODAY}
               onChange={e => { setCustomEnd(e.target.value); setFiltro('custom') }}
               className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:border-[#C79A54] transition [color-scheme:dark]"
             />
